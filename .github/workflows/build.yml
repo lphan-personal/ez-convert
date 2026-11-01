@@ -81,13 +81,13 @@ jobs:
         working-directory: src-tauri
         run: |
           set -o pipefail
-          cargo build --all-targets 2>&1 | tee "$RUNNER_TEMP/build.log"
+          cargo build --locked --all-targets 2>&1 | tee "$RUNNER_TEMP/build.log"
 
       - name: cargo test (placeholder suite)
         working-directory: src-tauri
         run: |
           set -o pipefail
-          cargo test 2>&1 | tee "$RUNNER_TEMP/test.log"
+          cargo test --locked 2>&1 | tee "$RUNNER_TEMP/test.log"
 
       # The skeleton was authored without a local Rust toolchain, so the lock
       # file is born in CI. P2/U1 commit it, then builds can use --locked.
