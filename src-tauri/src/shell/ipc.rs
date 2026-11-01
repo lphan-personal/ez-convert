@@ -44,11 +44,11 @@ impl Default for AppState {
     }
 }
 
-fn settings_lock(state: &State<'_, AppState>) -> std::sync::MutexGuard<'_, SettingsStore> {
+fn settings_lock<'a>(state: &'a State<'_, AppState>) -> std::sync::MutexGuard<'a, SettingsStore> {
     state.settings.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-fn queue_lock(state: &State<'_, AppState>) -> std::sync::MutexGuard<'_, Queue> {
+fn queue_lock<'a>(state: &'a State<'_, AppState>) -> std::sync::MutexGuard<'a, Queue> {
     state.queue.lock().unwrap_or_else(|e| e.into_inner())
 }
 
