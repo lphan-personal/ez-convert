@@ -25,6 +25,10 @@ pub enum Program {
     VipsHeader,
     Ffmpeg,
     Ffprobe,
+    /// LibreOffice's console launcher: `soffice` on POSIX, `soffice.com` on
+    /// Windows (`ARCHITECTURE.md` §6.2.1 — never `soffice.bin`, which exits 81
+    /// on a profile that has never been bootstrapped).
+    Soffice,
 }
 
 impl Program {
@@ -34,6 +38,7 @@ impl Program {
             Program::VipsHeader => "vipsheader",
             Program::Ffmpeg => "ffmpeg",
             Program::Ffprobe => "ffprobe",
+            Program::Soffice => "soffice",
         }
     }
 
@@ -46,6 +51,9 @@ impl Program {
             // A long video legitimately runs for minutes; ffmpeg is governed by
             // the stall detector instead of a fixed cap (§6.0.3).
             Program::Ffmpeg => Duration::from_secs(1800),
+            // Measured envelope for a 7-file document batch on this box is
+            // ~0.2 s/file warm; 120 s is a hang guard, not a target.
+            Program::Soffice => Duration::from_secs(120),
         }
     }
 
@@ -72,6 +80,11 @@ pub struct EnginePaths {
     pub ffmpeg: PathBuf,
     pub ffprobe: PathBuf,
     pub ffmpeg_dir: PathBuf,
+    /// LibreOffice's console launcher. `EnginePaths::from_root` assumes the
+    /// bundled layout `engines/soffice/program/`; a system or vendor install is
+    /// reached through `EZC_SOFFICE_DIR` (see `discover`).
+    pub soffice: PathBuf,
+    pub soffice_dir: PathBuf,
     /// Linux dev/test only: a directory the dynamic loader must search for the
     /// engine's own shared libraries when the engine is not installed into a
     /// system prefix. Set from `EZC_ENGINE_LIB_DIR` (absolute) and exported as
@@ -83,10 +96,12 @@ pub struct EnginePaths {
 
 impl EnginePaths {
     /// `root` is the bundle resource directory. The layout is the one the engine
-    /// pack ships: `engines/vips/{vips,vipsheader}` and `engines/ffmpeg/`.
+    /// pack ships: `engines/vips/{vips,vipsheader}`, `engines/ffmpeg/` and
+    /// `engines/soffice/program/`.
     pub fn from_root(root: &Path) -> Self {
         let vips_dir = root.join("engines").join("vips");
         let ffmpeg_dir = root.join("engines").join("ffmpeg");
+        let soffice_dir = root.join("engines").join("soffice").join("program");
         let exe = |dir: &Path, stem: &str| -> PathBuf {
             let name = if cfg!(windows) {
                 format!("{stem}.exe")
@@ -102,13 +117,17 @@ impl EnginePaths {
             ffmpeg: exe(&ffmpeg_dir, "ffmpeg"),
             ffprobe: exe(&ffmpeg_dir, "ffprobe"),
             ffmpeg_dir,
+            // §6.2.1: the *console* launcher, not `soffice.bin`.
+            soffice: exe(&soffice_dir, if cfg!(windows) { "soffice.com" } else { "soffice" }),
+            soffice_dir,
             lib_dir: absolute_env_dir("EZC_ENGINE_LIB_DIR"),
         }
     }
 
-    /// Test/dev override: `EZC_VIPS_DIR` and `EZC_FFMPEG_DIR` replace the two
-    /// engine directories wholesale. Only absolute directories are honoured, so
-    /// an attacker-controlled environment cannot reach a relative `PATH` lookup.
+    /// Test/dev override: `EZC_VIPS_DIR`, `EZC_FFMPEG_DIR` and `EZC_SOFFICE_DIR`
+    /// replace the engine directories wholesale. Only absolute directories are
+    /// honoured, so an attacker-controlled environment cannot reach a relative
+    /// `PATH` lookup.
     pub fn discover(root: &Path) -> Self {
         let mut paths = Self::from_root(root);
         if let Some(dir) = absolute_env_dir("EZC_VIPS_DIR") {
@@ -135,7 +154,19 @@ impl EnginePaths {
             paths.ffprobe = exe("ffprobe");
             paths.ffmpeg_dir = dir;
         }
+        if let Some(dir) = absolute_env_dir("EZC_SOFFICE_DIR") {
+            paths.set_soffice_dir(&dir);
+        }
         paths
+    }
+
+    /// Point the document engine at `dir` (`program/` of a LibreOffice tree).
+    ///
+    /// The launcher name is platform-decided, never caller-decided: Windows
+    /// must spawn `soffice.com` and POSIX `soffice` (`ARCHITECTURE.md` §6.2.1).
+    pub fn set_soffice_dir(&mut self, dir: &Path) {
+        self.soffice = dir.join(if cfg!(windows) { "soffice.com" } else { "soffice" });
+        self.soffice_dir = dir.to_path_buf();
     }
 
     pub fn program(&self, program: Program) -> (&Path, &Path) {
@@ -144,6 +175,7 @@ impl EnginePaths {
             Program::VipsHeader => (&self.vipsheader, &self.vips_dir),
             Program::Ffmpeg => (&self.ffmpeg, &self.ffmpeg_dir),
             Program::Ffprobe => (&self.ffprobe, &self.ffmpeg_dir),
+            Program::Soffice => (&self.soffice, &self.soffice_dir),
         }
     }
 
@@ -420,6 +452,23 @@ pub fn run_with(
         .env("TEMP", &inv.cwd)
         .env("HOME", &inv.cwd)
         .env("USERPROFILE", &inv.cwd);
+    if inv.program == Program::Soffice {
+        // §6.2: the document launcher is a *shell wrapper* on POSIX (`soffice`
+        // execs `dirname`, `basename`, `ls`, `sed` before it ever reaches
+        // `soffice.bin`), so it needs the system directories on PATH. This is
+        // still a constructed PATH — the inherited one is discarded.
+        if !cfg!(windows) {
+            let mut path = std::ffi::OsString::from(engine_dir);
+            path.push(":/usr/bin:/bin");
+            cmd.env("PATH", path);
+            // svp is the X11-free Linux VCL plugin; DISPLAY is already gone
+            // because the environment was cleared.
+            cmd.env("SAL_USE_VCLPLUGIN", "svp");
+        }
+        // Windows has a native VCL backend and must never be given `svp`
+        // (`ARCHITECTURE.md` §6.2.2 point 2).
+        cmd.env("SAL_DISABLE_OPENCL", "1");
+    }
     if let Some(lib) = &paths.lib_dir {
         cmd.env("LD_LIBRARY_PATH", lib);
     }
