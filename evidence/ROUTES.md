@@ -20,6 +20,7 @@ Sources:
 | `evidence/s2-libvips.md` | S2 spike, self-built GPL-free libvips 8.18.7 on Windows (V1-V11, HEIC decode, autorot, the four copy hops) |
 | `evidence/s2b-avif.md` | S2b spike, libaom AVIF encode on the `spec-aom` dist (V8/V8b round trip, EXIF + ICC survival, 33 assertions) |
 | `spikes/s3/EVIDENCE.md` | S3 spike, LibreOffice 26.8.2.2, the seven document directions on Linux and Windows (D1-D7) plus negative controls N1-N7 |
+| `evidence/c3-document.md` | C3 pipeline, the same seven re-run through `engine::doc` **plus** the 15 legacy/rtf directions, batching, warm-up and the negative controls, on Linux **and** the Windows VM (C3-*) |
 
 The generated table below is the contract. Regenerate it with
 `/tmp/model-tables --write` after changing `matrix.rs`; the test fails on drift.
@@ -61,6 +62,21 @@ The generated table below is the contract. Regenerate it with
 | D3 | transcript | `spikes/s3/EVIDENCE.md` | docx -> html: 4,064 B, h1 + table + 13 p | docx → html |
 | D5 | transcript | `spikes/s3/EVIDENCE.md` | xlsx -> csv: 147 B, named <stem>-<sheet>.csv | xlsx → csv |
 | D7 | transcript | `spikes/s3/EVIDENCE.md` | pptx -> pdf: 33,957 B, 2 pages 720x540 pt | pptx → pdf |
+| C3-DOC-PDF | transcript | `evidence/c3-document.md` | doc -> pdf PASS both legs (26,460 B Linux / 46,489 B Windows, 1 page) | doc → pdf |
+| C3-DOC-MD | transcript | `evidence/c3-document.md` | doc -> md PASS both legs (385 B Linux / 400 B Windows) | doc → md |
+| C3-DOC-HTML | transcript | `evidence/c3-document.md` | doc -> html PASS both legs (4,352 B Linux / 4,427 B Windows) | doc → html |
+| C3-DOC-DOCX | transcript | `evidence/c3-document.md` | doc -> docx PASS both legs (8,771 B Linux / 8,791 B Windows) | doc → docx |
+| C3-DOC-TXT | transcript | `evidence/c3-document.md` | doc -> txt PASS both legs (341 B Linux / 349 B Windows via txt:Text (encoded):UTF8) | doc → txt |
+| C3-XLS-PDF | transcript | `evidence/c3-document.md` | xls -> pdf PASS both legs with pdf:calc_pdf_Export (26,212 B / 41,142 B) | xls → pdf |
+| C3-XLS-HTML | transcript | `evidence/c3-document.md` | xls -> html PASS both legs with html:HTML (StarCalc) (5,235 B / 5,330 B) | xls → html |
+| C3-XLS-XLSX | transcript | `evidence/c3-document.md` | xls -> xlsx PASS both legs (7,327 B / 7,330 B, workbooks re-opened) | xls → xlsx |
+| C3-XLS-CSV | transcript | `evidence/c3-document.md` | xls -> csv PASS both legs, named <stem>-<sheet>.csv (147 B / 151 B) | xls → csv |
+| C3-PPT-PDF | transcript | `evidence/c3-document.md` | ppt -> pdf PASS both legs with pdf:impress_pdf_Export (33,915 B / 79,102 B) | ppt → pdf |
+| C3-PPT-PPTX | transcript | `evidence/c3-document.md` | ppt -> pptx PASS both legs (pptx:Impress MS PowerPoint 2007 XML) | ppt → pptx |
+| C3-RTF-PDF | transcript | `evidence/c3-document.md` | rtf -> pdf PASS both legs (13,100 B / 13,335 B) | rtf → pdf |
+| C3-RTF-HTML | transcript | `evidence/c3-document.md` | rtf -> html PASS both legs (668 B / 687 B) | rtf → html |
+| C3-RTF-DOCX | transcript | `evidence/c3-document.md` | rtf -> docx PASS both legs (5,015 B / 5,041 B) | rtf → docx |
+| C3-RTF-TXT | transcript | `evidence/c3-document.md` | rtf -> txt PASS both legs (33 B / 34 B) | rtf → txt |
 | D4 | transcript | `spikes/s3/EVIDENCE.md` | csv -> xlsx: 5,802 B, numeric cells, UTF-8 via filter options | csv → xlsx |
 | D6 | transcript | `spikes/s3/EVIDENCE.md` | html -> docx: 6,863 B, real 2x2 Word table | html → docx |
 <!-- routes:end -->

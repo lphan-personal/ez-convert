@@ -39,6 +39,7 @@ const E_S2: &str = "evidence/s2-libvips.md";
 const E_S2B: &str = "evidence/s2b-avif.md";
 const E_S3: &str = "spikes/s3/EVIDENCE.md";
 const E_C2: &str = "spikes/c2/EVIDENCE.md";
+const E_C3: &str = "evidence/c3-document.md";
 
 const EV_V2: EvidenceId = EvidenceId {
     label: "V2",
@@ -146,6 +147,98 @@ const EV_D7: EvidenceId = EvidenceId {
     marker: "--convert-to pdf:impress_pdf_Export",
     provenance: Provenance::Transcript,
 };
+
+// ---------------------------------------------------------------------------
+// C3 — the legacy and rtf document rows, measured on Linux *and* Windows
+// (evidence/c3-document.md §6). One EvidenceId per direction; the marker is the
+// verbatim PASS line in that file, so a stale claim fails the matrix test.
+// ---------------------------------------------------------------------------
+
+const fn c3(label: &'static str, claim: &'static str, marker: &'static str) -> EvidenceId {
+    EvidenceId {
+        label,
+        claim,
+        source: E_C3,
+        marker,
+        provenance: Provenance::Transcript,
+    }
+}
+
+const EV_C3_DOC_PDF: EvidenceId = c3(
+    "C3-DOC-PDF",
+    "doc -> pdf PASS both legs (26,460 B Linux / 46,489 B Windows, 1 page)",
+    "doc -> pdf PASS",
+);
+const EV_C3_DOC_MD: EvidenceId = c3(
+    "C3-DOC-MD",
+    "doc -> md PASS both legs (385 B Linux / 400 B Windows)",
+    "doc -> md PASS",
+);
+const EV_C3_DOC_HTML: EvidenceId = c3(
+    "C3-DOC-HTML",
+    "doc -> html PASS both legs (4,352 B Linux / 4,427 B Windows)",
+    "doc -> html PASS",
+);
+const EV_C3_DOC_DOCX: EvidenceId = c3(
+    "C3-DOC-DOCX",
+    "doc -> docx PASS both legs (8,771 B Linux / 8,791 B Windows)",
+    "doc -> docx PASS",
+);
+const EV_C3_DOC_TXT: EvidenceId = c3(
+    "C3-DOC-TXT",
+    "doc -> txt PASS both legs (341 B Linux / 349 B Windows via txt:Text (encoded):UTF8)",
+    "doc -> txt PASS",
+);
+const EV_C3_XLS_PDF: EvidenceId = c3(
+    "C3-XLS-PDF",
+    "xls -> pdf PASS both legs with pdf:calc_pdf_Export (26,212 B / 41,142 B)",
+    "xls -> pdf PASS",
+);
+const EV_C3_XLS_CSV: EvidenceId = c3(
+    "C3-XLS-CSV",
+    "xls -> csv PASS both legs, named <stem>-<sheet>.csv (147 B / 151 B)",
+    "xls -> csv PASS",
+);
+const EV_C3_XLS_XLSX: EvidenceId = c3(
+    "C3-XLS-XLSX",
+    "xls -> xlsx PASS both legs (7,327 B / 7,330 B, workbooks re-opened)",
+    "xls -> xlsx PASS",
+);
+const EV_C3_XLS_HTML: EvidenceId = c3(
+    "C3-XLS-HTML",
+    "xls -> html PASS both legs with html:HTML (StarCalc) (5,235 B / 5,330 B)",
+    "xls -> html PASS",
+);
+const EV_C3_PPT_PDF: EvidenceId = c3(
+    "C3-PPT-PDF",
+    "ppt -> pdf PASS both legs with pdf:impress_pdf_Export (33,915 B / 79,102 B)",
+    "ppt -> pdf PASS",
+);
+const EV_C3_PPT_PPTX: EvidenceId = c3(
+    "C3-PPT-PPTX",
+    "ppt -> pptx PASS both legs (pptx:Impress MS PowerPoint 2007 XML)",
+    "ppt -> pptx PASS",
+);
+const EV_C3_RTF_PDF: EvidenceId = c3(
+    "C3-RTF-PDF",
+    "rtf -> pdf PASS both legs (13,100 B / 13,335 B)",
+    "rtf -> pdf PASS",
+);
+const EV_C3_RTF_DOCX: EvidenceId = c3(
+    "C3-RTF-DOCX",
+    "rtf -> docx PASS both legs (5,015 B / 5,041 B)",
+    "rtf -> docx PASS",
+);
+const EV_C3_RTF_HTML: EvidenceId = c3(
+    "C3-RTF-HTML",
+    "rtf -> html PASS both legs (668 B / 687 B)",
+    "rtf -> html PASS",
+);
+const EV_C3_RTF_TXT: EvidenceId = c3(
+    "C3-RTF-TXT",
+    "rtf -> txt PASS both legs (33 B / 34 B)",
+    "rtf -> txt PASS",
+);
 
 // ---------------------------------------------------------------------------
 // Status shorthands
@@ -353,11 +446,6 @@ const PLANNED_DOC_CRATE: RouteStatus = RouteStatus::Planned {
     owner: OWNER_C3,
     hypothesis: "in-process comrak/htmd conversion; unmeasured",
 };
-const PLANNED_LEGACY: RouteStatus = RouteStatus::Planned {
-    owner: OWNER_C3,
-    hypothesis: "same LibreOffice filters as the OOXML rows, no legacy fixture on either platform",
-};
-
 const CUT_HEIC: RouteStatus = RouteStatus::Cut {
     reason: "HEIC encode cut: x265 is GPL-2 and Media Foundation HEVC needs a Store codec pack (SPEC 9.3 D4)",
 };
@@ -587,27 +675,54 @@ static R_HTML: &[Route] = &[
     route!(Txt, Soffice, PLANNED_DOC),
 ];
 
-static R_DOC_LEGACY: &[Route] = &[
-    route!(Pdf, Soffice, PLANNED_LEGACY),
-    route!(Md, Soffice, PLANNED_LEGACY),
-    route!(Html, Soffice, PLANNED_LEGACY),
-    route!(Docx, Soffice, PLANNED_LEGACY),
-    route!(Pptx, Soffice, PLANNED_LEGACY),
-    route!(Rtf, Soffice, PLANNED_LEGACY),
-    route!(Xlsx, Soffice, PLANNED_LEGACY),
-    route!(Csv, Soffice, PLANNED_LEGACY),
-    route!(Txt, Soffice, PLANNED_LEGACY),
+// Legacy Office split into three rows by C3: .doc is Writer, .xls is Calc and
+// .ppt is Impress, so the measured filters (and the supported directions)
+// differ. One shared row would have advertised `xls -> csv` to a .doc.
+static R_DOC: &[Route] = &[
+    route!(Pdf, Soffice, RouteStatus::Proven { evidence: EV_C3_DOC_PDF }),
+    route!(Md, Soffice, RouteStatus::Proven { evidence: EV_C3_DOC_MD }),
+    route!(Html, Soffice, RouteStatus::Proven { evidence: EV_C3_DOC_HTML }),
+    route!(Docx, Soffice, RouteStatus::Proven { evidence: EV_C3_DOC_DOCX }),
+    route!(Pptx, Soffice, CUT_CROSS_FAMILY),
+    route!(Rtf, Soffice, PLANNED_DOC),
+    route!(Xlsx, Soffice, CUT_DOC),
+    route!(Csv, Soffice, CUT_DOC),
+    route!(Txt, Soffice, RouteStatus::Proven { evidence: EV_C3_DOC_TXT }),
 ];
 
-static R_RTF: &[Route] = &[
-    route!(Pdf, Soffice, PLANNED_DOC),
+static R_XLS: &[Route] = &[
+    route!(Pdf, Soffice, RouteStatus::Proven { evidence: EV_C3_XLS_PDF }),
+    route!(Md, Soffice, PLANNED_DOC),
+    route!(Html, Soffice, RouteStatus::Proven { evidence: EV_C3_XLS_HTML }),
+    route!(Docx, Soffice, CUT_CROSS_FAMILY),
+    route!(Pptx, Soffice, CUT_CROSS_FAMILY),
+    route!(Rtf, Soffice, CUT_CROSS_FAMILY),
+    route!(Xlsx, Soffice, RouteStatus::Proven { evidence: EV_C3_XLS_XLSX }),
+    route!(Csv, Soffice, RouteStatus::Proven { evidence: EV_C3_XLS_CSV }),
+    route!(Txt, Soffice, PLANNED_DOC),
+];
+
+static R_PPT: &[Route] = &[
+    route!(Pdf, Soffice, RouteStatus::Proven { evidence: EV_C3_PPT_PDF }),
     route!(Md, Soffice, PLANNED_DOC),
     route!(Html, Soffice, PLANNED_DOC),
-    route!(Docx, Soffice, PLANNED_DOC),
-    route!(Pptx, Soffice, CUT_CROSS_FAMILY),
+    route!(Docx, Soffice, CUT_CROSS_FAMILY),
+    route!(Pptx, Soffice, RouteStatus::Proven { evidence: EV_C3_PPT_PPTX }),
+    route!(Rtf, Soffice, CUT_CROSS_FAMILY),
     route!(Xlsx, Soffice, CUT_DOC),
     route!(Csv, Soffice, CUT_DOC),
     route!(Txt, Soffice, PLANNED_DOC),
+];
+
+static R_RTF: &[Route] = &[
+    route!(Pdf, Soffice, RouteStatus::Proven { evidence: EV_C3_RTF_PDF }),
+    route!(Md, Soffice, PLANNED_DOC),
+    route!(Html, Soffice, RouteStatus::Proven { evidence: EV_C3_RTF_HTML }),
+    route!(Docx, Soffice, RouteStatus::Proven { evidence: EV_C3_RTF_DOCX }),
+    route!(Pptx, Soffice, CUT_CROSS_FAMILY),
+    route!(Xlsx, Soffice, CUT_DOC),
+    route!(Csv, Soffice, CUT_DOC),
+    route!(Txt, Soffice, RouteStatus::Proven { evidence: EV_C3_RTF_TXT }),
 ];
 
 static R_MD: &[Route] = &[
@@ -702,9 +817,9 @@ pub fn routes_for(ty: CanonicalType) -> &'static [Route] {
         CanonicalType::Xlsx => R_XLSX,
         CanonicalType::Csv => R_CSV,
         CanonicalType::Html => R_HTML,
-        CanonicalType::Doc => R_DOC_LEGACY,
-        CanonicalType::Xls => R_DOC_LEGACY,
-        CanonicalType::Ppt => R_DOC_LEGACY,
+        CanonicalType::Doc => R_DOC,
+        CanonicalType::Xls => R_XLS,
+        CanonicalType::Ppt => R_PPT,
         CanonicalType::Rtf => R_RTF,
         CanonicalType::Markdown => R_MD,
         CanonicalType::Txt => R_TXT,
@@ -1024,7 +1139,7 @@ mod tests {
         // ARCHITECTURE §8.2: C2 added 12 image cells (incl. 4 gif outputs) to C1's 9 = 21.
         // §8.4 audio: 7 sources × 7 targets = 49, every one measured.
         // §8.4 video: 4 sources × 5 targets (mp4/mkv/mov/webm/gif) = 20.
-        // §8.3 documents: exactly 7.
+        // §8.3 documents: 7 from S3 + 15 legacy/rtf cells measured by C3 = 22.
         assert_eq!(
             image, 21,
             "proven image cells drifted from ARCHITECTURE §8.2"
@@ -1038,7 +1153,7 @@ mod tests {
             "proven video cells drifted from ARCHITECTURE §8.4"
         );
         assert_eq!(
-            document, 7,
+            document, 22,
             "proven document cells drifted from ARCHITECTURE §8.3"
         );
     }

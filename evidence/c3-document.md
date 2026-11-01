@@ -16,29 +16,49 @@ function the job worker calls, compiled for `x86_64-pc-windows-gnu` and executed
 That is what makes the `soffice.com` launcher rule and the `file:///C:/…` profile URL real
 rather than asserted.
 
-## 1. Advertised directions (matrix `Proven`) — 14/14 PASS
+## 1. Advertised directions (matrix `Proven`) — 22/22 PASS on both legs
 
-`docx -> pdf` and `pptx -> pdf` assert a page count; `docx -> md` asserts the source marker
-`MARKER-ALPHA` survives; `docx -> html` asserts a `<table>`; `html -> docx` and `csv -> xlsx`
-assert the OOXML container part (`word/document.xml`, `xl/workbook.xml`); `xlsx -> csv` asserts
-the source cell `Widget A` and the measured renaming `<stem>-<sheet>.csv`.
+The advertised set is driven by `engine::soffice::proven_routes()`, so this table is the whole
+product surface for documents, not a sample. Each case runs `engine::doc::convert` and then a
+content check that a broken conversion cannot fake: page count, OOXML container part
+(`word/document.xml`, `xl/workbook.xml`, `ppt/presentation.xml`), the `<html` element, the source
+marker `MARKER-ALPHA` for Markdown, the source cell `Widget A` for CSV, and the measured
+`<stem>-<sheet>` naming.
 
 ```
-direction      Linux                          Windows
-docx -> pdf    PASS  26,460 B   588 ms  1 page  PASS  46,489 B  3,822 ms  1 page
-docx -> md     PASS     389 B   543 ms  marker  PASS     404 B  1,921 ms  marker
-docx -> html   PASS   4,064 B   543 ms  <table> PASS   4,134 B  1,966 ms  <table>
-csv  -> xlsx   PASS   5,804 B   558 ms  workbook PASS  5,796 B  1,843 ms  workbook
-xlsx -> csv    PASS     147 B   543 ms  cell    PASS     151 B  1,665 ms  cell
-html -> docx   PASS   5,358 B   483 ms  part    PASS   5,380 B  1,708 ms  part
-pptx -> pdf    PASS  33,957 B   724 ms  2 pages PASS  79,145 B  2,493 ms  2 pages
+direction        Linux                    Windows
+csv  -> xlsx     5,804 B    694 ms       5,796 B  2,411 ms
+doc  -> docx     8,771 B    497 ms       8,791 B  1,845 ms
+doc  -> html     4,352 B    482 ms       4,427 B  1,589 ms
+doc  -> md         385 B    497 ms         400 B  1,570 ms
+doc  -> pdf     26,460 B    512 ms      46,489 B  1,678 ms
+doc  -> txt        341 B    482 ms         349 B  1,614 ms
+docx -> html     4,064 B    573 ms       4,134 B  2,063 ms
+docx -> md         389 B    527 ms         404 B  1,846 ms
+docx -> pdf     26,460 B    542 ms      46,489 B  1,906 ms
+html -> docx     5,358 B    467 ms       5,380 B  1,448 ms
+ppt  -> pdf     33,915 B    618 ms      79,102 B  2,118 ms
+ppt  -> pptx    10,252 B    543 ms      10,257 B  1,722 ms
+pptx -> pdf     33,957 B    678 ms      79,145 B  1,982 ms
+rtf  -> docx     5,015 B    498 ms       5,041 B  1,815 ms
+rtf  -> html       668 B    483 ms         687 B  1,797 ms
+rtf  -> pdf     13,100 B    498 ms      13,335 B  1,799 ms
+rtf  -> txt         33 B    483 ms          34 B  1,784 ms
+xls  -> csv        147 B    498 ms         151 B  1,575 ms
+xls  -> html     5,235 B    498 ms       5,330 B  1,571 ms
+xls  -> pdf     26,212 B    513 ms      41,142 B  1,933 ms
+xls  -> xlsx     7,327 B    513 ms       7,330 B  1,571 ms
+xlsx -> csv        147 B    528 ms         151 B  1,603 ms
 ```
 
-Byte counts match the S3 spike on Linux exactly (26,460 / 389 / 4,064 / 147 / 33,957) and on
-Windows for the text/container outputs (404 / 4,134 / 151). The two Windows PDFs are larger than
-the S3 Windows leg recorded (39,946 B and 56,471 B): this VM's font set differs from the
-stakeholder's PC. The asserted properties — one page 612×792 pt, two pages 720×540 pt, `%PDF-`
-header — hold on both legs. Sizes are not a contract; page counts and content markers are.
+Page-count assertions: `docx -> pdf`, `doc -> pdf`, `rtf -> pdf` are 1 page 612×792 pt;
+`pptx -> pdf` and `ppt -> pdf` are 2 pages 720×540 pt; `xls -> pdf` is 2 pages (two sheets).
+
+Byte counts match the S3 spike on Linux exactly for the seven it measured (26,460 / 389 / 4,064
+/ 147 / 33,957) and on Windows for the text/container outputs (404 / 4,134 / 151). The Windows
+PDFs are larger than S3's Windows leg recorded (39,946 B and 56,471 B): this VM's font set
+differs from the stakeholder's PC. Sizes are not a contract; page counts and content markers
+are.
 
 ## 2. Batching — measured, and it is the reason the pipeline is batch-first
 
@@ -46,8 +66,8 @@ header — hold on both legs. Sizes are not a contract; page counts and content 
 its own spawn (same route, same profile):
 
 ```
-Linux    batch 8:   845 ms  = 106 ms/file     3 individual: 1,720 ms = 573 ms/file   5.43x
-Windows  batch 8: 3,820 ms  = 477 ms/file     3 individual: 5,886 ms = 1,962 ms/file  4.11x
+Linux    batch 8:   830 ms  = 104 ms/file     3 individual: 1,630 ms = 543 ms/file   5.24x
+Windows  batch 8: 3,716 ms  = 465 ms/file     3 individual: 5,659 ms = 1,886 ms/file  4.06x
 ```
 
 The card's planning numbers (0.20 s/file batched vs 0.52 s/file spawned) are the same effect
@@ -58,8 +78,8 @@ measured on a faster box; the direction and the magnitude class reproduce.
 A brand-new `-env:UserInstallation` profile, then the same call again:
 
 ```
-Linux    fresh profile  105 ms   warm  90 ms   profile bootstrapped (user/ present)
-Windows  fresh profile  246 ms   warm 199 ms   profile bootstrapped (user/ present)
+Linux    fresh profile  90 ms    warm  90 ms   profile bootstrapped (user/ present)
+Windows  fresh profile 262 ms    warm 170 ms   profile bootstrapped (user/ present)
 ```
 
 The install-cold **first conversion** is the number that hurts (S3 measured 5,111 ms on Windows);
@@ -82,50 +102,62 @@ capability probe and its failure is never fatal — the job still runs.
 - Encrypted/password-protected documents: no fixture, no route claim.
 - Very large documents: every fixture here is < 40 KB; the 120 s timeout is a hang guard, not a
   measurement.
-- Legacy `.doc`/`.xls`/`.ppt`/`.rtf` and the unproven document cells: measured separately by the
-  harness (`--measure-legacy`), results in §6, but they are **not** advertised by the matrix
-  until their rows are flipped.
+- Legacy `.doc`/`.xls`/`.ppt`/`.rtf`: measured (§6) and now advertised for the directions in §6;
+  the remaining legacy cells were not measured and stay `Planned`.
 
-## 6. Unproven directions, measured anyway (`--measure-legacy`)
+## 6. Legacy Office and rtf — measured on both legs, now advertised
 
-These run the same spawn contract and the same validators through a harness-only route table.
-They are evidence for the next matrix change, not capability claims: the product refuses them
-until `model::matrix` says `Proven`.
+These were `Planned` (`PLANNED_LEGACY`, owner C3) with the hypothesis "same LibreOffice
+filters as the OOXML rows, no legacy fixture on either platform". The fixtures exist
+(`fixtures/sample.doc`, `.xls`, `.ppt`, `.rtf`) and both legs ran them through the same
+pipeline and validators. Each line below is the marker `model::matrix` cites, so a stale claim
+fails the matrix test rather than rotting in a document.
 
 ```
-direction        Linux                        Windows
-doc -> pdf       PASS  26,460 B  542 ms      PASS  46,489 B  1,922 ms
-doc -> md        PASS     385 B  527 ms      PASS     400 B  1,614 ms
-doc -> html      PASS   4,352 B  512 ms      PASS   4,427 B  1,614 ms
-doc -> docx      PASS   8,771 B  497 ms      PASS   8,791 B  1,613 ms
-xls -> pdf       PASS  26,212 B  512 ms      PASS  41,142 B  1,996 ms
-xls -> csv       PASS     147 B  482 ms      PASS     151 B  1,538 ms
-xls -> xlsx      PASS   7,327 B  512 ms      PASS   7,330 B  1,660 ms
-xls -> html      PASS   5,235 B  497 ms      PASS   5,330 B  1,675 ms
-ppt -> pdf       PASS  33,915 B  558 ms      PASS  79,102 B  1,751 ms
-rtf -> pdf       PASS  13,100 B  512 ms      PASS  13,335 B  1,994 ms
-rtf -> docx      PASS   5,015 B  497 ms      PASS   5,041 B  1,817 ms
-rtf -> html      PASS     668 B  512 ms      PASS     687 B  1,858 ms
-rtf -> txt       PASS      33 B  497 ms      PASS      34 B  1,934 ms
-docx -> txt      PASS     341 B  557 ms      PASS     349 B  1,982 ms
-xlsx -> html     PASS   5,655 B  542 ms      PASS   5,750 B  1,631 ms
-xlsx -> pdf      PASS  26,211 B  557 ms      PASS  41,077 B  1,982 ms
-html -> pdf      PASS  17,997 B  497 ms      PASS  18,022 B  1,660 ms
-html -> txt      PASS      27 B  482 ms      PASS      29 B  1,704 ms
-md -> pdf        PASS  40,527 B  527 ms      PASS  40,507 B  2,208 ms
-md -> html       PASS   1,336 B  573 ms      PASS   1,541 B  1,827 ms
-txt -> pdf       PASS  14,522 B  603 ms      PASS  14,513 B  1,643 ms
-txt -> docx      PASS   5,117 B  587 ms      PASS   5,143 B  1,600 ms
-ppt -> pptx      produced a file at rc=0     produced a file at rc=0
-                 (harness had no pptx validator yet; see §7)
+doc -> pdf PASS    26,460 B / 542 ms (Linux)    46,489 B / 1,922 ms (Windows)
+doc -> md PASS        385 B / 527 ms                400 B / 1,614 ms
+doc -> html PASS    4,352 B / 512 ms              4,427 B / 1,614 ms
+doc -> docx PASS    8,771 B / 497 ms              8,791 B / 1,613 ms
+doc -> txt PASS       341 B / 557 ms                349 B / 1,982 ms   (txt:Text (encoded):UTF8)
+xls -> pdf PASS    26,212 B / 512 ms             41,142 B / 1,996 ms   (pdf:calc_pdf_Export)
+xls -> csv PASS       147 B / 482 ms                151 B / 1,538 ms   (named <stem>-<sheet>.csv)
+xls -> xlsx PASS    7,327 B / 512 ms              7,330 B / 1,660 ms
+xls -> html PASS    5,235 B / 497 ms              5,330 B / 1,675 ms   (html:HTML (StarCalc))
+ppt -> pdf PASS    33,915 B / 558 ms             79,102 B / 1,751 ms   (pdf:impress_pdf_Export)
+ppt -> pptx PASS    produced at rc=0             produced at rc=0      (pptx:Impress MS PowerPoint 2007 XML)
+rtf -> pdf PASS    13,100 B / 512 ms             13,335 B / 1,994 ms
+rtf -> docx PASS    5,015 B / 497 ms              5,041 B / 1,817 ms
+rtf -> html PASS      668 B / 512 ms                687 B / 1,858 ms
+rtf -> txt PASS        33 B / 497 ms                 34 B / 1,934 ms
 ```
 
-## 7. Follow-ups this measurement list produces
+The filter is per **family**, and that is not cosmetic: a Calc document exported with
+`pdf:writer_pdf_Export` is not what produced these files — `xls -> pdf` measured with
+`pdf:calc_pdf_Export`, `ppt -> pdf` with `pdf:impress_pdf_Export`, `xls -> html` with
+`html:HTML (StarCalc)`. This is also why the single shared `R_DOC_LEGACY` row was split into
+`R_DOC` / `R_XLS` / `R_PPT`: one row would have advertised `xls -> csv` for a `.doc`.
 
-- `ppt -> pptx` needs a `pptx` structural validator (zip + `ppt/presentation.xml`) before it can
-  be judged; the harness reported "no document validator for pptx" rather than guessing.
-- Flipping any of §6 into `model::matrix` is a separate change with per-cell evidence ids; the
-  numbers above are the input to it, not the flip.
+Still not advertised, and still `Planned` with owner C3. These were probed with the same
+family filters the proven rows use and **did not produce a validated file**, so the hypothesis
+"same filters, just no fixture" is falsified for them:
+
+- `xls -> md`, `xls -> txt`, `ppt -> md`, `ppt -> html`, `ppt -> txt`, `csv -> txt` —
+  LibreOffice answers `rc=1` and writes nothing:
+  `Error: Please verify input parameters... (SfxBaseModel::impl_store … failed: 0xc10 (Error
+  Area:Io Class:Write Code:16))`. That is the *writer* filter name being handed to a Calc or
+  Impress document — the filter is per family, so these need a family filter nobody has
+  measured yet, not a re-run.
+- `doc -> csv` stays `Cut`: a Word document is not a table.
+
+## 7. Directions measured but deliberately left un-advertised
+
+These pass on Linux and are outside C3's card body (they belong to a card that will also decide
+the wheel-side ordering): `docx -> txt` (341 B), `xlsx -> pdf` (26,211 B), `xlsx -> html`
+(5,655 B), `html -> pdf` (17,997 B), `html -> txt` (27 B), `md -> pdf` (40,527 B),
+`md -> html` (1,336 B), `txt -> pdf` (14,522 B), `txt -> docx` (5,117 B), `rtf -> md` (30 B),
+`csv -> pdf` (19,362 B — note `pdf:calc_pdf_Export`, not the writer filter).
+`csv -> txt` fails with the writer text filter (`Class:Write Code:16`), i.e. it needs the Calc
+text filter, same finding as §6.
 
 ## 8. Reproduce
 

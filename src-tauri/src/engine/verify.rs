@@ -317,6 +317,15 @@ pub fn document_output(path: &Path, target: TargetFormat) -> Verdict {
             }
             Verdict::Pass
         }
+        TargetFormat::Pptx => {
+            if !is_zip_with(&data, &[b"[Content_Types].xml", b"ppt/presentation.xml"]) {
+                return Verdict::Fail(format!(
+                    "{} is not a pptx container (zip + ppt/presentation.xml)",
+                    path.display()
+                ));
+            }
+            Verdict::Pass
+        }
         TargetFormat::Html => {
             let head = &data[..data.len().min(8192)];
             let text = String::from_utf8_lossy(head).to_ascii_lowercase();
@@ -468,6 +477,7 @@ mod tests {
             TargetFormat::Pdf,
             TargetFormat::Docx,
             TargetFormat::Xlsx,
+            TargetFormat::Pptx,
             TargetFormat::Csv,
             TargetFormat::Html,
             TargetFormat::Md,
