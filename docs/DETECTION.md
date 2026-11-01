@@ -345,41 +345,41 @@ specified dead.
 | pptx | rtf | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | pptx | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | pptx | txt | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
-| doc | pdf | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| doc | md | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| doc | html | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| doc | docx | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| doc | pptx | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| doc | rtf | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| doc | xlsx | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| doc | csv | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| doc | txt | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| xls | pdf | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| xls | md | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| xls | html | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| xls | docx | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| xls | pptx | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| xls | rtf | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| xls | xlsx | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| xls | csv | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| xls | txt | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| ppt | pdf | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| ppt | md | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| ppt | html | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| ppt | docx | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| ppt | pptx | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| ppt | rtf | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| ppt | xlsx | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| ppt | csv | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| ppt | txt | soffice | planned | t_ea95c826 — same LibreOffice filters as the OOXML rows, no legacy fixture on either platform |
-| rtf | pdf | soffice | planned | t_ea95c826 — LibreOffice filter exists but this direction has no fixture yet |
+| doc | pdf | soffice | PROVEN | C3-DOC-PDF — doc -> pdf PASS both legs (26,460 B Linux / 46,489 B Windows, 1 page) |
+| doc | md | soffice | PROVEN | C3-DOC-MD — doc -> md PASS both legs (385 B Linux / 400 B Windows) |
+| doc | html | soffice | PROVEN | C3-DOC-HTML — doc -> html PASS both legs (4,352 B Linux / 4,427 B Windows) |
+| doc | docx | soffice | PROVEN | C3-DOC-DOCX — doc -> docx PASS both legs (8,771 B Linux / 8,791 B Windows) |
+| doc | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
+| doc | rtf | soffice | planned | t_ea95c826 — LibreOffice filter exists but this direction has no fixture yet |
+| doc | xlsx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
+| doc | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
+| doc | txt | soffice | PROVEN | C3-DOC-TXT — doc -> txt PASS both legs (341 B Linux / 349 B Windows via txt:Text (encoded):UTF8) |
+| xls | pdf | soffice | PROVEN | C3-XLS-PDF — xls -> pdf PASS both legs with pdf:calc_pdf_Export (26,212 B / 41,142 B) |
+| xls | md | soffice | planned | t_ea95c826 — LibreOffice filter exists but this direction has no fixture yet |
+| xls | html | soffice | PROVEN | C3-XLS-HTML — xls -> html PASS both legs with html:HTML (StarCalc) (5,235 B / 5,330 B) |
+| xls | docx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
+| xls | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
+| xls | rtf | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
+| xls | xlsx | soffice | PROVEN | C3-XLS-XLSX — xls -> xlsx PASS both legs (7,327 B / 7,330 B, workbooks re-opened) |
+| xls | csv | soffice | PROVEN | C3-XLS-CSV — xls -> csv PASS both legs, named <stem>-<sheet>.csv (147 B / 151 B) |
+| xls | txt | soffice | planned | t_ea95c826 — LibreOffice filter exists but this direction has no fixture yet |
+| ppt | pdf | soffice | PROVEN | C3-PPT-PDF — ppt -> pdf PASS both legs with pdf:impress_pdf_Export (33,915 B / 79,102 B) |
+| ppt | md | soffice | planned | t_ea95c826 — LibreOffice filter exists but this direction has no fixture yet |
+| ppt | html | soffice | planned | t_ea95c826 — LibreOffice filter exists but this direction has no fixture yet |
+| ppt | docx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
+| ppt | pptx | soffice | PROVEN | C3-PPT-PPTX — ppt -> pptx PASS both legs (pptx:Impress MS PowerPoint 2007 XML) |
+| ppt | rtf | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
+| ppt | xlsx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
+| ppt | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
+| ppt | txt | soffice | planned | t_ea95c826 — LibreOffice filter exists but this direction has no fixture yet |
+| rtf | pdf | soffice | PROVEN | C3-RTF-PDF — rtf -> pdf PASS both legs (13,100 B / 13,335 B) |
 | rtf | md | soffice | planned | t_ea95c826 — LibreOffice filter exists but this direction has no fixture yet |
-| rtf | html | soffice | planned | t_ea95c826 — LibreOffice filter exists but this direction has no fixture yet |
-| rtf | docx | soffice | planned | t_ea95c826 — LibreOffice filter exists but this direction has no fixture yet |
+| rtf | html | soffice | PROVEN | C3-RTF-HTML — rtf -> html PASS both legs (668 B / 687 B) |
+| rtf | docx | soffice | PROVEN | C3-RTF-DOCX — rtf -> docx PASS both legs (5,015 B / 5,041 B) |
 | rtf | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | rtf | xlsx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | rtf | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
-| rtf | txt | soffice | planned | t_ea95c826 — LibreOffice filter exists but this direction has no fixture yet |
+| rtf | txt | soffice | PROVEN | C3-RTF-TXT — rtf -> txt PASS both legs (33 B / 34 B) |
 | csv | pdf | soffice | planned | t_ea95c826 — LibreOffice filter exists but this direction has no fixture yet |
 | csv | md | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | csv | html | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
@@ -414,9 +414,10 @@ specified dead.
 | txt | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 <!-- matrix:end -->
 
-Counts today: 16 `PROVEN` routes (9 image cells backed by 8 measured
-invocations — V8 backs both `jpeg → avif` and `png → avif` — and 7 document
-directions). Everything else is `planned` or `cut`.
+Counts today: **112 `PROVEN` routes** — 21 image cells (9 image cells backed by 8
+measured invocations, V8 backs both `jpeg → avif` and `png → avif`, plus C2's 12),
+49 audio, 20 video, and **22 document directions** (7 from S3 + 15 legacy/rtf from
+C3). Everything else is `planned` or `cut`.
 
 ---
 
@@ -452,10 +453,10 @@ directions). Everything else is `planned` or `cut`.
 | docx | Document | pdf, md, html |
 | xlsx | Document | csv |
 | pptx | Document | pdf |
-| doc | Document | — |
-| xls | Document | — |
-| ppt | Document | — |
-| rtf | Document | — |
+| doc | Document | pdf, md, html, docx, txt |
+| xls | Document | pdf, html, xlsx, csv |
+| ppt | Document | pdf, pptx |
+| rtf | Document | pdf, html, docx, txt |
 | csv | Document | xlsx |
 | md | Document | — |
 | html | Document | docx |
@@ -496,10 +497,10 @@ matrix models every in-scope target and labels the ones that are not proven yet.
 | docx | pdf, md, html, xlsx, pptx, rtf, csv, txt | pdf, md, html |
 | xlsx | pdf, md, html, docx, pptx, rtf, csv, txt | csv |
 | pptx | pdf, md, html, docx, xlsx, rtf, csv, txt | pdf |
-| doc | pdf, md, html, docx, pptx, rtf, xlsx, csv, txt | — (nothing proven yet) |
-| xls | pdf, md, html, docx, pptx, rtf, xlsx, csv, txt | — (nothing proven yet) |
-| ppt | pdf, md, html, docx, pptx, rtf, xlsx, csv, txt | — (nothing proven yet) |
-| rtf | pdf, md, html, docx, pptx, xlsx, csv, txt | — (nothing proven yet) |
+| doc | pdf, md, html, docx, pptx, rtf, xlsx, csv, txt | pdf, md, html, docx, txt |
+| xls | pdf, md, html, docx, pptx, rtf, xlsx, csv, txt | pdf, html, xlsx, csv |
+| ppt | pdf, md, html, docx, pptx, rtf, xlsx, csv, txt | pdf, pptx |
+| rtf | pdf, md, html, docx, pptx, xlsx, csv, txt | pdf, html, docx, txt |
 | csv | pdf, md, html, docx, pptx, rtf, xlsx, txt | xlsx |
 | md | pdf, html, docx, pptx, rtf, xlsx, csv, txt | — (nothing proven yet) |
 | html | pdf, md, docx, pptx, rtf, xlsx, csv, txt | docx |

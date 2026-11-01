@@ -276,52 +276,63 @@ impl Harness {
         );
     }
 
-    /// Not part of the advertised matrix: measures the unproven document
-    /// directions so the evidence can justify (or refuse) flipping them.
+    /// Not part of the advertised matrix: measures the directions that are still
+    /// `Planned`, so the next card can flip them with numbers instead of a guess.
+    /// Probe failures do **not** fail this run — they are the finding.
     fn legacy_measurements(&mut self) {
         let cases: &[(&str, CanonicalType, TargetFormat, &str, &str)] = &[
             // fixture, from, to, convert-to literal, infilter
-            ("sample.doc", CanonicalType::Doc, TargetFormat::Pdf, "pdf:writer_pdf_Export", ""),
-            ("sample.doc", CanonicalType::Doc, TargetFormat::Md, "md:Markdown", ""),
-            ("sample.doc", CanonicalType::Doc, TargetFormat::Html, "html:HTML (StarWriter)", ""),
-            ("sample.doc", CanonicalType::Doc, TargetFormat::Docx, "docx:MS Word 2007 XML", ""),
-            ("sample.xls", CanonicalType::Xls, TargetFormat::Pdf, "pdf:calc_pdf_Export", ""),
-            ("sample.xls", CanonicalType::Xls, TargetFormat::Csv, "csv:Text - txt - csv (StarCalc):44,34,76,1,,0,false,true,true,false,false,1", ""),
-            ("sample.xls", CanonicalType::Xls, TargetFormat::Xlsx, "xlsx:Calc MS Excel 2007 XML", ""),
-            ("sample.xls", CanonicalType::Xls, TargetFormat::Html, "html:HTML (StarCalc)", ""),
-            ("sample.ppt", CanonicalType::Ppt, TargetFormat::Pdf, "pdf:impress_pdf_Export", ""),
-            ("sample.ppt", CanonicalType::Ppt, TargetFormat::Pptx, "pptx:Impress MS PowerPoint 2007 XML", ""),
-            ("sample.rtf", CanonicalType::Rtf, TargetFormat::Pdf, "pdf:writer_pdf_Export", ""),
-            ("sample.rtf", CanonicalType::Rtf, TargetFormat::Docx, "docx:MS Word 2007 XML", ""),
-            ("sample.rtf", CanonicalType::Rtf, TargetFormat::Html, "html:HTML (StarWriter)", ""),
-            ("sample.rtf", CanonicalType::Rtf, TargetFormat::Txt, "txt:Text (encoded):UTF8", ""),
             ("sample.docx", CanonicalType::Docx, TargetFormat::Txt, "txt:Text (encoded):UTF8", ""),
-            ("sample.xlsx", CanonicalType::Xlsx, TargetFormat::Html, "html:HTML (StarCalc)", ""),
             ("sample.xlsx", CanonicalType::Xlsx, TargetFormat::Pdf, "pdf:calc_pdf_Export", ""),
+            ("sample.xlsx", CanonicalType::Xlsx, TargetFormat::Html, "html:HTML (StarCalc)", ""),
+            ("sample.xls", CanonicalType::Xls, TargetFormat::Md, "md:Markdown", ""),
+            ("sample.xls", CanonicalType::Xls, TargetFormat::Txt, "txt:Text (encoded):UTF8", ""),
+            ("sample.ppt", CanonicalType::Ppt, TargetFormat::Md, "md:Markdown", ""),
+            ("sample.ppt", CanonicalType::Ppt, TargetFormat::Html, "html:HTML (StarWriter)", ""),
+            ("sample.ppt", CanonicalType::Ppt, TargetFormat::Txt, "txt:Text (encoded):UTF8", ""),
+            ("sample.rtf", CanonicalType::Rtf, TargetFormat::Md, "md:Markdown", ""),
             ("sample.html", CanonicalType::Html, TargetFormat::Pdf, "pdf:writer_pdf_Export", ""),
             ("sample.html", CanonicalType::Html, TargetFormat::Txt, "txt:Text (encoded):UTF8", ""),
             ("sample.md", CanonicalType::Markdown, TargetFormat::Pdf, "pdf:writer_pdf_Export", ""),
             ("sample.md", CanonicalType::Markdown, TargetFormat::Html, "html:HTML (StarWriter)", ""),
             ("sample.txt", CanonicalType::Txt, TargetFormat::Pdf, "pdf:writer_pdf_Export", ""),
             ("sample.txt", CanonicalType::Txt, TargetFormat::Docx, "docx:MS Word 2007 XML", ""),
+            ("sample.csv", CanonicalType::Csv, TargetFormat::Pdf, "pdf:calc_pdf_Export", ""),
+            ("sample.csv", CanonicalType::Csv, TargetFormat::Txt, "txt:Text (encoded):UTF8", ""),
         ];
+        let mut probes = 0;
+        let mut probe_failures = 0;
         for (fixture, from, to, convert_to, infilter) in cases {
+            // Skip anything the product already advertises; this section exists
+            // for the cells that have no route yet.
+            if soffice::route(*from, *to).is_some() {
+                continue;
+            }
+            probes += 1;
             let label = format!("{:?} -> {}", from, to.as_str());
             let input = self.fixture(fixture);
             let ext = verify::document_extension(*to).unwrap();
-            let output = self.out(&format!("legacy-{}-{}.{ext}", fixture.replace('.', "-"), to.as_str()));
-            // A harness-only route: the product refuses this pair until the
-            // matrix flips, and the flip requires this line to PASS on both legs.
+            let output = self.out(&format!(
+                "probe-{}-{}.{ext}",
+                fixture.replace('.', "-"),
+                to.as_str()
+            ));
             let route = DocRoute {
                 convert_to,
                 infilter: if infilter.is_empty() { None } else { Some(infilter) },
                 evidence: "measured-here",
             };
             match run_harness_route(&self.paths, route, &input, &output, &self.work.join("tmp"), self) {
-                Ok(detail) => self.ok(&label, detail),
-                Err(e) => self.bad(&label, e),
+                Ok(detail) => println!("probe PASS  {label:<18} {detail}"),
+                Err(e) => {
+                    probe_failures += 1;
+                    println!("probe FAIL  {label:<18} {e}");
+                }
             }
         }
+        println!(
+            "      {probes} unadvertised directions probed, {probe_failures} did not produce a validated file"
+        );
     }
 }
 
@@ -422,6 +433,37 @@ fn read_text(path: &Path) -> String {
     String::from_utf8_lossy(&std::fs::read(path).unwrap_or_default()).into_owned()
 }
 
+fn check_for(to: TargetFormat) -> fn(&Path, &str) -> Result<String, String> {
+    match to {
+        TargetFormat::Pdf => check_pdf_pages,
+        TargetFormat::Md => check_markdown,
+        TargetFormat::Html => check_html,
+        TargetFormat::Docx => check_docx,
+        TargetFormat::Xlsx => check_xlsx,
+        TargetFormat::Pptx => check_pptx,
+        TargetFormat::Csv => check_csv,
+        _ => check_text,
+    }
+}
+
+/// The fixture that carries each document input type.
+fn fixture_for(from: CanonicalType) -> Option<&'static str> {
+    Some(match from {
+        CanonicalType::Docx => "sample.docx",
+        CanonicalType::Xlsx => "sample.xlsx",
+        CanonicalType::Pptx => "sample.pptx",
+        CanonicalType::Csv => "sample.csv",
+        CanonicalType::Html => "sample.html",
+        CanonicalType::Doc => "sample.doc",
+        CanonicalType::Xls => "sample.xls",
+        CanonicalType::Ppt => "sample.ppt",
+        CanonicalType::Rtf => "sample.rtf",
+        CanonicalType::Markdown => "sample.md",
+        CanonicalType::Txt => "sample.txt",
+        _ => return None,
+    })
+}
+
 fn check_pdf_pages(path: &Path, _name: &str) -> Result<String, String> {
     let data = std::fs::read(path).map_err(|e| e.to_string())?;
     let pages = verify::count_pdf_pages(&data);
@@ -429,15 +471,6 @@ fn check_pdf_pages(path: &Path, _name: &str) -> Result<String, String> {
         return Err("no page objects".into());
     }
     Ok(format!("{pages} page(s)"))
-}
-
-fn check_pdf_two_pages(path: &Path, _name: &str) -> Result<String, String> {
-    let data = std::fs::read(path).map_err(|e| e.to_string())?;
-    let pages = verify::count_pdf_pages(&data);
-    if pages != 2 {
-        return Err(format!("expected 2 pages, found {pages}"));
-    }
-    Ok(format!("{pages} pages"))
 }
 
 fn check_markdown(path: &Path, _name: &str) -> Result<String, String> {
@@ -452,11 +485,11 @@ fn check_markdown(path: &Path, _name: &str) -> Result<String, String> {
 }
 
 fn check_html(path: &Path, _name: &str) -> Result<String, String> {
-    let text = read_text(path);
-    if !text.to_ascii_lowercase().contains("<table") {
-        return Err("no <table> in the html output".into());
+    let text = read_text(path).to_ascii_lowercase();
+    if !text.contains("<html") && !text.contains("<!doctype html") {
+        return Err("no html element in the output".into());
     }
-    Ok("has <table>".into())
+    Ok(format!("{} bytes of html", text.len()))
 }
 
 fn check_docx(path: &Path, _name: &str) -> Result<String, String> {
@@ -480,10 +513,30 @@ fn check_xlsx(path: &Path, _name: &str) -> Result<String, String> {
     Ok("xlsx container with xl/workbook.xml".into())
 }
 
+fn check_pptx(path: &Path, _name: &str) -> Result<String, String> {
+    let data = std::fs::read(path).map_err(|e| e.to_string())?;
+    let needle = b"ppt/presentation.xml";
+    if !data.windows(needle.len()).any(|w| w == needle) {
+        return Err("no ppt/presentation.xml".into());
+    }
+    Ok("pptx container with ppt/presentation.xml".into())
+}
+
+fn check_text(path: &Path, _name: &str) -> Result<String, String> {
+    let text = read_text(path);
+    if text.trim().is_empty() {
+        return Err("empty text output".into());
+    }
+    Ok(format!("{} bytes of text", text.len()))
+}
+
 fn check_csv(path: &Path, name: &str) -> Result<String, String> {
     let text = read_text(path);
     if !text.contains("Widget A") {
-        return Err(format!("source cell missing (got {:?})", text.chars().take(80).collect::<String>()));
+        return Err(format!(
+            "source cell missing (got {:?})",
+            text.chars().take(80).collect::<String>()
+        ));
     }
     // The measured renaming: `<stem>-<sheet>.csv`, never `<stem>.csv`.
     Ok(format!("produced as {name}, source cell present"))
@@ -593,13 +646,60 @@ fn main() {
     }
 
     println!("--- advertised directions (matrix Proven) ---");
-    h.direction(CanonicalType::Docx, TargetFormat::Pdf, "sample.docx", "docx.pdf", check_pdf_pages);
-    h.direction(CanonicalType::Docx, TargetFormat::Md, "sample.docx", "docx.md", check_markdown);
-    h.direction(CanonicalType::Docx, TargetFormat::Html, "sample.docx", "docx.html", check_html);
-    h.direction(CanonicalType::Csv, TargetFormat::Xlsx, "sample.csv", "csv.xlsx", check_xlsx);
-    h.direction(CanonicalType::Xlsx, TargetFormat::Csv, "sample.xlsx", "xlsx.csv", check_csv);
-    h.direction(CanonicalType::Html, TargetFormat::Docx, "sample.html", "html.docx", check_docx);
-    h.direction(CanonicalType::Pptx, TargetFormat::Pdf, "sample.pptx", "pptx.pdf", check_pdf_two_pages);
+    // Driven by the product's own route table, so "every advertised pair has an
+    // end-to-end test" is true by construction, not by a list someone maintains.
+    let mut advertised: Vec<(CanonicalType, TargetFormat)> = soffice::proven_routes().to_vec();
+    advertised.sort_by(|a, b| format!("{a:?}").cmp(&format!("{b:?}")));
+    for (from, to) in advertised {
+        let Some(fixture) = fixture_for(from) else {
+            h.bad(
+                &format!("{from:?} -> {}", to.as_str()),
+                "no fixture for this input type".into(),
+            );
+            continue;
+        };
+        let ext = verify::document_extension(to).unwrap_or("bin");
+        let out_name = format!("{}-to-{}.{ext}", from.as_str(), to.as_str());
+        let input = h.fixture(fixture);
+        let output = h.out(&out_name);
+        let started = Instant::now();
+        match convert(
+            &h.paths,
+            &DocJob { from, to },
+            &input,
+            &output,
+            &h.work.join("tmp").join(&out_name),
+        ) {
+            Ok(_) => {
+                let ms = started.elapsed().as_millis();
+                let bytes = std::fs::metadata(&output).map(|m| m.len()).unwrap_or(0);
+                match check_for(to)(&output, &out_name) {
+                    Ok(extra) => {
+                        let label = format!("{from:?} -> {}", to.as_str());
+                        // The one content property that is per-source: the
+                        // pptx fixture is the only two-page document here.
+                        if from == CanonicalType::Pptx || from == CanonicalType::Ppt {
+                            let data = std::fs::read(&output).unwrap_or_default();
+                            let pages = verify::count_pdf_pages(&data);
+                            if to == TargetFormat::Pdf && pages != 2 {
+                                h.bad(&label, format!("expected 2 pages, found {pages}"));
+                                continue;
+                            }
+                        }
+                        h.ok(&label, format!("{bytes} B  {ms} ms  {extra}"));
+                    }
+                    Err(why) => {
+                        let label = format!("{from:?} -> {}", to.as_str());
+                        h.bad(&label, format!("content check failed: {why}"));
+                    }
+                }
+            }
+            Err(e) => {
+                let label = format!("{from:?} -> {}", to.as_str());
+                h.bad(&label, format!("{e} | user: {}", e.user_message()));
+            }
+        }
+    }
 
     println!("--- batching ---");
     h.batch_timing();

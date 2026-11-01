@@ -59,51 +59,67 @@ pub struct DocRoute {
 pub fn route(from: CanonicalType, to: TargetFormat) -> Option<DocRoute> {
     use CanonicalType as C;
     use TargetFormat as T;
+    let writer = |convert_to: &'static str,
+                  infilter: Option<&'static str>,
+                  evidence: &'static str|
+     -> DocRoute {
+        DocRoute {
+            convert_to,
+            infilter,
+            evidence,
+        }
+    };
     Some(match (from, to) {
-        // D1 — measured 26,460 B (Linux) / 39,946 B (Windows), 1 page 612x792 pt.
-        (C::Docx, T::Pdf) => DocRoute {
-            convert_to: "pdf:writer_pdf_Export",
-            infilter: None,
-            evidence: "D1",
-        },
-        // D2 — 389 B Linux / 404 B Windows, real Markdown (heading, table).
-        (C::Docx, T::Md) => DocRoute {
-            convert_to: "md:Markdown",
-            infilter: None,
-            evidence: "D2",
-        },
-        // D3 — 4,064 B, `<h1>`, `<table>`, 13 `<p>`, `café` intact.
-        (C::Docx, T::Html) => DocRoute {
-            convert_to: "html:HTML (StarWriter)",
-            infilter: None,
-            evidence: "D3",
-        },
-        // D4 — 5,802 B xlsx, numeric cells, UTF-8 via the filter options. The
-        // infilter token is the measured CSV import contract (comma, quote,
-        // charset 76 = UTF-8, first row not a header).
-        (C::Csv, T::Xlsx) => DocRoute {
-            convert_to: "xlsx:Calc MS Excel 2007 XML",
-            infilter: Some("csv:44,34,76,1,,0,false,true,true"),
-            evidence: "D4",
-        },
-        // D5 — 147 B csv, and the name is `<stem>-<sheet>.csv`, not `<stem>.csv`.
-        (C::Xlsx, T::Csv) => DocRoute {
-            convert_to: "csv:Text - txt - csv (StarCalc):44,34,76,1,,0,false,true,true,false,false,1",
-            infilter: None,
-            evidence: "D5",
-        },
-        // D6 — 6,863 B docx, a real 2x2 Word table.
-        (C::Html, T::Docx) => DocRoute {
-            convert_to: "docx:MS Word 2007 XML",
-            infilter: Some("HTML (StarWriter)"),
-            evidence: "D6",
-        },
-        // D7 — 33,957 B pdf, 2 pages 720x540 pt.
-        (C::Pptx, T::Pdf) => DocRoute {
-            convert_to: "pdf:impress_pdf_Export",
-            infilter: None,
-            evidence: "D7",
-        },
+        // ---- D1-D3: docx, the S3 transcript -----------------------------
+        (C::Docx, T::Pdf) => writer("pdf:writer_pdf_Export", None, "D1"),
+        (C::Docx, T::Md) => writer("md:Markdown", None, "D2"),
+        (C::Docx, T::Html) => writer("html:HTML (StarWriter)", None, "D3"),
+        // ---- D4/D5: spreadsheets ----------------------------------------
+        (C::Csv, T::Xlsx) => writer(
+            "xlsx:Calc MS Excel 2007 XML",
+            Some("csv:44,34,76,1,,0,false,true,true"),
+            "D4",
+        ),
+        (C::Xlsx, T::Csv) => writer(
+            "csv:Text - txt - csv (StarCalc):44,34,76,1,,0,false,true,true,false,false,1",
+            None,
+            "D5",
+        ),
+        // ---- D6/D7: html in, impress out --------------------------------
+        (C::Html, T::Docx) => writer(
+            "docx:MS Word 2007 XML",
+            Some("HTML (StarWriter)"),
+            "D6",
+        ),
+        (C::Pptx, T::Pdf) => writer("pdf:impress_pdf_Export", None, "D7"),
+
+        // ---- legacy .doc (C3, measured 2026-11-01 on both legs) ---------
+        (C::Doc, T::Pdf) => writer("pdf:writer_pdf_Export", None, "C3-DOC-PDF"),
+        (C::Doc, T::Md) => writer("md:Markdown", None, "C3-DOC-MD"),
+        (C::Doc, T::Html) => writer("html:HTML (StarWriter)", None, "C3-DOC-HTML"),
+        (C::Doc, T::Docx) => writer("docx:MS Word 2007 XML", None, "C3-DOC-DOCX"),
+        (C::Doc, T::Txt) => writer("txt:Text (encoded):UTF8", None, "C3-DOC-TXT"),
+        // ---- legacy .xls ------------------------------------------------
+        (C::Xls, T::Pdf) => writer("pdf:calc_pdf_Export", None, "C3-XLS-PDF"),
+        (C::Xls, T::Csv) => writer(
+            "csv:Text - txt - csv (StarCalc):44,34,76,1,,0,false,true,true,false,false,1",
+            None,
+            "C3-XLS-CSV",
+        ),
+        (C::Xls, T::Xlsx) => writer("xlsx:Calc MS Excel 2007 XML", None, "C3-XLS-XLSX"),
+        (C::Xls, T::Html) => writer("html:HTML (StarCalc)", None, "C3-XLS-HTML"),
+        // ---- legacy .ppt ------------------------------------------------
+        (C::Ppt, T::Pdf) => writer("pdf:impress_pdf_Export", None, "C3-PPT-PDF"),
+        (C::Ppt, T::Pptx) => writer(
+            "pptx:Impress MS PowerPoint 2007 XML",
+            None,
+            "C3-PPT-PPTX",
+        ),
+        // ---- rtf --------------------------------------------------------
+        (C::Rtf, T::Pdf) => writer("pdf:writer_pdf_Export", None, "C3-RTF-PDF"),
+        (C::Rtf, T::Docx) => writer("docx:MS Word 2007 XML", None, "C3-RTF-DOCX"),
+        (C::Rtf, T::Html) => writer("html:HTML (StarWriter)", None, "C3-RTF-HTML"),
+        (C::Rtf, T::Txt) => writer("txt:Text (encoded):UTF8", None, "C3-RTF-TXT"),
         _ => return None,
     })
 }
@@ -118,6 +134,21 @@ pub fn proven_routes() -> &'static [(CanonicalType, TargetFormat)] {
         (CanonicalType::Xlsx, TargetFormat::Csv),
         (CanonicalType::Html, TargetFormat::Docx),
         (CanonicalType::Pptx, TargetFormat::Pdf),
+        (CanonicalType::Doc, TargetFormat::Pdf),
+        (CanonicalType::Doc, TargetFormat::Md),
+        (CanonicalType::Doc, TargetFormat::Html),
+        (CanonicalType::Doc, TargetFormat::Docx),
+        (CanonicalType::Doc, TargetFormat::Txt),
+        (CanonicalType::Xls, TargetFormat::Pdf),
+        (CanonicalType::Xls, TargetFormat::Csv),
+        (CanonicalType::Xls, TargetFormat::Xlsx),
+        (CanonicalType::Xls, TargetFormat::Html),
+        (CanonicalType::Ppt, TargetFormat::Pdf),
+        (CanonicalType::Ppt, TargetFormat::Pptx),
+        (CanonicalType::Rtf, TargetFormat::Pdf),
+        (CanonicalType::Rtf, TargetFormat::Docx),
+        (CanonicalType::Rtf, TargetFormat::Html),
+        (CanonicalType::Rtf, TargetFormat::Txt),
     ]
 }
 
@@ -401,22 +432,31 @@ mod tests {
             assert_eq!(r.infilter, infilter);
             assert_eq!(r.evidence, evidence);
         }
-        assert_eq!(proven_routes().len(), cases.len());
+        assert_eq!(
+            proven_routes().len(),
+            22,
+            "every routed direction must be listed in proven_routes()"
+        );
     }
 
     #[test]
     fn unmeasured_directions_have_no_route() {
-        // Legacy Office, rtf, txt and the cross-family spreadsheet cases are
-        // `Planned`/`Cut` in the matrix. A route here would let the wheel offer
-        // an argv nobody measured.
+        // One row per family is flipped only when both legs measured it. These
+        // are the cells that stay `Planned`/`Cut` after C3: a route here would
+        // let the wheel offer an argv nobody measured.
         for (from, to) in [
-            (CanonicalType::Doc, TargetFormat::Pdf),
-            (CanonicalType::Xls, TargetFormat::Csv),
-            (CanonicalType::Ppt, TargetFormat::Pdf),
-            (CanonicalType::Rtf, TargetFormat::Pdf),
+            (CanonicalType::Xls, TargetFormat::Md),
+            (CanonicalType::Xls, TargetFormat::Txt),
+            (CanonicalType::Ppt, TargetFormat::Md),
+            (CanonicalType::Ppt, TargetFormat::Html),
+            (CanonicalType::Ppt, TargetFormat::Txt),
+            (CanonicalType::Ppt, TargetFormat::Csv),
+            (CanonicalType::Rtf, TargetFormat::Md),
+            (CanonicalType::Doc, TargetFormat::Csv),
             (CanonicalType::Docx, TargetFormat::Txt),
             (CanonicalType::Xlsx, TargetFormat::Pdf),
             (CanonicalType::Pptx, TargetFormat::Md),
+            (CanonicalType::Csv, TargetFormat::Pdf),
             (CanonicalType::Csv, TargetFormat::Txt),
             (CanonicalType::Txt, TargetFormat::Pdf),
             // The measured silent-garbage trap: text named .docx never gets a
@@ -425,6 +465,34 @@ mod tests {
         ] {
             assert!(route(from, to).is_none(), "{from:?} -> {to:?} must not be routed");
         }
+    }
+
+    #[test]
+    fn legacy_routes_use_the_family_filter_not_the_writer_filter() {
+        // The measured trap: a Calc document exported with `writer_pdf_Export`
+        // fails or produces nothing; the family filter is not interchangeable.
+        assert_eq!(
+            route(CanonicalType::Xls, TargetFormat::Pdf).unwrap().convert_to,
+            "pdf:calc_pdf_Export"
+        );
+        assert_eq!(
+            route(CanonicalType::Ppt, TargetFormat::Pdf).unwrap().convert_to,
+            "pdf:impress_pdf_Export"
+        );
+        assert_eq!(
+            route(CanonicalType::Doc, TargetFormat::Pdf).unwrap().convert_to,
+            "pdf:writer_pdf_Export"
+        );
+        // Plain text export is the same filter for writer and calc.
+        assert_eq!(
+            route(CanonicalType::Xls, TargetFormat::Txt).is_none(),
+            true,
+            "xls -> txt is not measured yet"
+        );
+        assert_eq!(
+            route(CanonicalType::Rtf, TargetFormat::Txt).unwrap().convert_to,
+            "txt:Text (encoded):UTF8"
+        );
     }
 
     #[test]

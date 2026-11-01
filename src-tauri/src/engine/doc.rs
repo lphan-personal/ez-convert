@@ -465,7 +465,7 @@ mod tests {
             &paths,
             &DocJob {
                 from: CanonicalType::Rtf,
-                to: TargetFormat::Pdf,
+                to: TargetFormat::Md,
             },
             &inputs(&["/d/x.rtf"]),
             Path::new("/tmp/ezc-doc-out"),

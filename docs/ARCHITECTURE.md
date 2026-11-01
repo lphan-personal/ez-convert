@@ -38,10 +38,10 @@ Consequences, stated plainly because they change what ships:
   invisible, not greyed out (`SPEC.md` §2 already requires absent-not-greyed).
 - A unit test asserts every `Proven` route names an evidence file that exists on disk and
   every `Planned` route names a live card. Adding a target without evidence fails CI.
-- At the time of writing, `Proven` covers **21 image cells and all 69 audio/video cells**
-  (49 audio + 20 video) plus **seven document directions through LibreOffice**
-  (`§6.1`, `§6.2`, `§6.3`). Still `Planned`: PDF raster input, SVG input, BMP in/out, HEIC
-  encode is `cut`, legacy `.doc/.xls/.ppt`, the rest of the document grid, and GIF *input*
+- At the time of writing, `Proven` covers **21 image cells, all 69 audio/video cells**
+  (49 audio + 20 video) and **22 document directions through LibreOffice** (`§6.1`, `§6.2`,
+  `§6.3`) — 112 routes, every one with a fixture on disk. Still `Planned`: PDF raster input,
+  SVG input, BMP in/out, HEIC encode is `cut`, the rest of the document grid, and GIF *input*
   (deliberately — animation would be lost). `C3` and `C4` exist to move the remainder.
 
 ---
@@ -132,7 +132,8 @@ src-tauri/src/
 │   ├── convert.rs          # probe -> plan -> spawn -> verify -> tags (§6.3)
 │   ├── tags.rs             # audio tag + cover-art carry-over with lofty (§6.3)
 │   ├── vips.rs             # argv builder; Op is a closed enum (§6.1)
-│   ├── soffice.rs          # argv builder + warm-profile worker (§6.2, Planned — C3)
+│   ├── soffice.rs          # argv builder, launcher/profile rules, warm-up (§6.2, C3)
+│   ├── doc.rs              # batch → attribute → verify for documents (§6.2.5, C3)
 │   ├── ffmpeg.rs           # argv builder: audio, video, GIF, ffprobe (§6.3)
 │   ├── pdfium.rs           # talks to the first-party ezc-pdf sidecar (§6.4, Planned)
 │   ├── resvg.rs            # svg -> png hop (§6.5, Planned)
@@ -519,10 +520,12 @@ env  = scrubbed (§6.0.2), CWD = <install>/resources/engines/vips
   card starts using them, rules A2/A3 apply identically (`vipsthumbnail` takes an operation
   name too).
 
-### 6.2 LibreOffice — document conversions (`PROVEN`, 7 directions, Linux **and** Windows)
+### 6.2 LibreOffice — document conversions (`PROVEN`, 22 directions, Linux **and** Windows)
 
 Version: **26.8.2.2** (`9dea406ab7695df6325b11b0e19fdca8db4b7276`), the version `SPEC.md` §6
 pins. Both legs (Linux x86-64 and Windows 11) ran the same matrix on the same build id.
+Implementation: `engine/soffice.rs` (argv, launcher, profile, warm-up) and `engine/doc.rs`
+(batch → attribute → verify), card `C3`; evidence in `evidence/c3-document.md`.
 
 #### 6.2.1 Which executable to spawn — per platform, measured
 
@@ -662,6 +665,38 @@ Operational contract:
   `--outdir`; one outdir per batch, then outputs are attributed by stem. Only do this when
   every file in the batch shares the same route and outdir — mixed batches are split.
 - **`soffice --version`** is the identity check for `§6.7`.
+
+#### 6.2.5 The pipeline as built (`C3`, measured)
+
+`engine/doc.rs` exists because LibreOffice breaks every assumption the media engines allowed:
+
+1. **One spawn per homogeneous batch.** All inputs in a batch share the route and the outdir;
+   measured on 8 identical files: **106 ms/file batched vs 573 ms/file spawned** on Linux,
+   **477 vs 1 962** on the Windows VM (5.43× / 4.11×). Mixed routes are split by the caller
+   and refused by `convert_batch` as `MixedBatch`.
+2. **Attribution by listing.** The outdir is globbed for the target extension and each file is
+   matched back to its input stem — exact stem, or the measured `<stem>-<sheet>` form. Longest
+   stem wins, so `a.docx` and `a-b.docx` in one batch cannot cross-attribute. An input with no
+   output is `NoOutput`, never a skip.
+3. **A structural validator, never text extraction.** `verify::document_output` checks:
+   `%PDF-` + ≥1 page object (falling back to the `/Pages` `/Count` for compressed object
+   streams); `PK\x03\x04` + `[Content_Types].xml` + `word/document.xml` / `xl/workbook.xml` /
+   `ppt/presentation.xml` for OOXML; an `<html` element; non-empty, NUL-free text for md/txt/csv,
+   plus a field separator for csv. Text extraction is banned (§6.2.4).
+4. **`rc=0` + file + validator failure = `OutputInvalid`**, and the file is deleted so a later
+   job cannot find it. `rc=0` + no file = `NoOutput` with the outdir listing in the job log.
+   Both are unit-tested against stub engines, because the real engine *succeeds* in the traps.
+5. **Warm-up at startup.** `soffice --headless --terminate_after_init` bootstraps the profile
+   and exits: **105 ms cold / 90 ms warm** on Linux, **246 / 199 ms** on the Windows VM. It is a
+   performance call, never a capability one — a failed warm-up does not block a job.
+6. **`env_clear` is kept, but the POSIX launcher needs a PATH.** `soffice` is a shell wrapper
+   that calls `dirname`, `basename`, `ls`, `sed` before it reaches `soffice.bin`. §6.0.2's
+   constructed environment therefore becomes `<engine dir>:/usr/bin:/bin` for this engine only.
+   `SAL_USE_VCLPLUGIN=svp` on POSIX, `SAL_DISABLE_OPENCL=1` everywhere, no `svp` on Windows.
+
+Known residual, unchanged: a ZIP with a valid central directory and a broken
+`word/document.xml` passes detection and can still produce a plausible PDF. Not claimed as
+caught (§6.0.5).
 
 ### 6.3 ffmpeg / ffprobe — audio and video (`PROVEN`, card `C2`)
 
@@ -915,20 +950,25 @@ rule in `§0`, so they stay `planned` until each has its own fixture and asserti
 
 | input | → pdf | → md | → html | → docx | → xlsx | → csv | → txt |
 |---|---|---|---|---|---|---|---|
-| docx | **PROVEN** (D1) | **PROVEN** (D2) | **PROVEN** (D3) | — | planned | cut | planned (LO txt filter, unmeasured) |
+| docx | **PROVEN** (D1) | **PROVEN** (D2) | **PROVEN** (D3) | — | planned | cut | planned (LO txt filter, measured, not advertised) |
 | pptx | **PROVEN** (D7) | planned | planned | cut | cut | cut | cut |
 | xlsx | planned | cut | planned | cut | — | **PROVEN** (D5) | planned (sheet-aware) |
 | csv | planned | cut | cut | cut | **PROVEN** (D4) | — | planned (normalise) |
 | html | planned | planned | — | **PROVEN** (D6) | cut | cut | planned |
-| doc / xls / ppt (legacy) | planned (same filters, unmeasured) | planned | planned | planned | planned | planned | planned |
-| rtf | planned | planned | planned | planned | cut | cut | planned |
+| doc (legacy Word) | **PROVEN** (C3) | **PROVEN** (C3) | **PROVEN** (C3) | **PROVEN** (C3) | cut | cut | **PROVEN** (C3) |
+| xls (legacy Calc) | **PROVEN** (C3) | planned | **PROVEN** (C3) | cut | **PROVEN** (C3) | **PROVEN** (C3) | planned |
+| ppt (legacy Impress) | **PROVEN** (C3) | planned | planned | cut | cut | cut | planned |
+| rtf | **PROVEN** (C3) | planned | **PROVEN** (C3) | **PROVEN** (C3) | cut | cut | **PROVEN** (C3) |
 | md | planned | — | planned | planned | cut | cut | planned |
 | txt | planned | cut | cut | planned | cut | cut | — |
 | pdf | cut (no raster-to-writer path) | cut | cut | cut | cut | cut | planned (text extraction is a different product) |
 
-**v1 truth:** seven document routes are live. The rest are `planned` with an owner card and
-will appear in the wheel the day their card flips them with evidence. `SPEC.md` §3 is the
-target state; this table is the current one.
+**v1 truth:** **22** document routes are live: 7 proven by `S3` and 15 legacy/rtf cells proven
+by `C3` (`evidence/c3-document.md` §6) on **both** legs. The rest are `planned` with an owner
+card and will appear in the wheel the day their card flips them with evidence. `C3` split the
+former single `R_DOC_LEGACY` row into `R_DOC`/`R_XLS`/`R_PPT` because the measured filters are
+per family: `.xls → pdf` needs `pdf:calc_pdf_Export`, `.ppt → pdf` needs
+`pdf:impress_pdf_Export`, and a shared row would have advertised `xls → csv` for a `.doc`.
 
 ### 8.4 Audio and video
 
@@ -1424,16 +1464,21 @@ fixture (a known input with known output properties) and a test that consumes it
 4. **macOS is unmeasured for every contract in this document**, including the wheel
    (`§10.5`). S1-S4 ran on Windows (S1, S2, S4) and Linux (S3).
 5. **Windows LibreOffice is measured for the seven document directions** (`spikes/s3/EVIDENCE.md`
-   §9, card `t_20ced994`) and now for **real-viewer text fidelity** in Chrome, Edge and Brave
-   plus Firefox's `pdf.js` text layer (`spikes/s4/EVIDENCE.md` §2, `§6.2.4`) — which is where the
-   accented-text caveat was confirmed as a real cross-engine defect. Still **not** measured:
-   Acrobat Reader itself, macOS Preview, Vietnamese stacked diacritics, very large documents, and
-   the bundled-tree layout `P2` will ship. Legacy `.doc/.xls/.ppt` are unmeasured on both
-   platforms.
+   §9, card `t_20ced994`) **and C3 re-ran all 22 advertised document directions on the Windows VM**
+   with the same Rust code (`evidence/c3-document.md`), plus **real-viewer text fidelity** in
+   Chrome, Edge and Brave plus Firefox's `pdf.js` text layer (`spikes/s4/EVIDENCE.md` §2,
+   `§6.2.4`) — which is where the accented-text caveat was confirmed as a real cross-engine
+   defect. Still **not** measured: Acrobat Reader itself, macOS Preview, Vietnamese stacked
+   diacritics, very large documents, and
+   the bundled-tree layout `P2` will ship. Legacy `.doc/.xls/.ppt` are measured for the
+   directions in §8.3 (C3); the remaining legacy cells are not.
 6. **Timeouts and concurrency defaults are safety limits, not measurements.** No large file
    has been converted yet.
-7. **Legacy binary Office formats** (`.doc/.xls/.ppt`) have no fixture on either platform, so
-   their routes are `Planned` even though the same LibreOffice filters should handle them.
+7. **The remaining legacy and rtf cells** (`xls → md/txt`, `ppt → md/html/txt`, `rtf → md`,
+   `csv → txt`, `docx → txt`, `xlsx → pdf/html`, `md/txt/html → pdf/html`) were probed by `C3`
+   (`evidence/c3-document.md` §6-§7): some pass and are simply not advertised yet, six fail with
+   the writer filter on a non-writer document (`Class:Write Code:16`) and need a family filter.
+   They stay `Planned` with owner `C3`.
 8. **Wheel placement on multi-monitor** is fixed by design (`§10.2`) but not yet proven on
    hardware; the only monitor evidence is single-monitor (`DISPLAY1`).
 
@@ -1452,6 +1497,7 @@ fixture (a known input with known output properties) and a test that consumes it
 | 7 document directions, argv, timings, failure modes, fidelity (Linux leg) | `spikes/s3/EVIDENCE.md` §1-§8, `spikes/s3/run_s3.py`, `result.json`; card `t_d910a4c8` |
 | the same 7 directions on **Windows**, `soffice.com` vs `soffice.exe` vs `soffice.bin`, file-URL profile rule, real Calibri/Cambria, text-layer degradation, install-cold 5,111 ms | `spikes/s3/EVIDENCE.md` §9, `spikes/s3/run.ps1`; card `t_20ced994` |
 | docx→pdf re-run on this host (26,460 B, `%PDF-1.7`), missing-input rc=1, garbage-.docx silent 12,388 B PDF, `<stem>-<sheet>.csv` naming | this card's own re-run, 2026-11-01, `/opt/data/profiles/wright/cache/scratch/a1-probe-*` |
+| **C3 document pipeline**: 7 S3 directions + 15 legacy/rtf cells re-run through `engine::doc` on Linux **and** the Windows VM, batching 106 vs 573 ms/file (Linux) and 477 vs 1,962 (Windows), warm-up 105/246 ms, `NoOutput`/`OutputInvalid` stubs, detection refusal of the `.docx` trap | `evidence/c3-document.md`, `spikes/c3/{e2e.rs,run-e2e.sh}`; card `t_ea95c826` |
 | focus-free overlay, click-through, Explorer drop, Esc/click-away, re-summon | `evidence/S1-EVIDENCE.md`; card `t_37bfdf33` |
 | wheel window config that produced those results | `spike/src-tauri/tauri.conf.json`, `src/main.rs`, `src/win32.rs` (card `t_37bfdf33`) |
 | engine/sidecar packaging mechanics and signing order | `converter-packaging-strategy.md` |
