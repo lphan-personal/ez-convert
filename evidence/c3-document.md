@@ -175,3 +175,19 @@ Unit-test result on the guest (same code, `--target x86_64-pc-windows-gnu`):
 That run also caught a genuine test-portability bug: `traversal_is_refused` asserted on a
 hard-coded `/tmp/../etc/passwd`, which is not absolute on Windows, so the test was asserting
 `NotAbsolute` instead of `Traversal`. Fixed to build the path from `temp_dir()`.
+
+## 9. Re-verification (2026-11-01T21:23Z, `main` @ `bb93d5a`)
+
+Both legs and the Windows unit-test run were re-run at the pushed head, not trusted from the
+earlier session's log, and the transcripts in `spikes/c3/transcripts/` are those runs:
+
+| run | result |
+|---|---|
+| `spikes/c3/run-e2e.sh` (Linux) | `29 passed, 0 failed`; batch 8 = 107 ms/file vs 543 ms/file spawned (5.05x) |
+| `spikes/c3/run-e2e.sh --windows` (win11-dev, 10.0.0.191) | `29 passed, 0 failed`; batch 8 = 475 ms/file vs 1,954 ms/file (4.12x) |
+| `spikes/c3/run-win-unit-tests.sh` | `159 passed, 0 failed` |
+| `scripts/test-engine.sh` (Linux) | `163 passed, 0 failed` |
+| `scripts/test-model.sh` (Linux) | `69 passed, 0 failed` |
+
+The only change between the first run and this one is a `RouteStatus::Planned` hypothesis
+string, so the numbers are expected to match; they do.
