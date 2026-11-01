@@ -441,5 +441,7 @@ Total packages in the locked graph: **416** (6 direct/workspace, 410 transitive)
 | Engine | License posture | How it ships |
 |---|---|---|
 | ffmpeg | LGPL-only builds required (`--enable-gpl` / `--enable-nonfree` rejected by `scripts/license-assert.sh`) | Separate-process sidecar. Never statically linked, never bundled into the app binary. |
+| vips | LGPL-2.1-or-later (GPL-only loaders disabled in the build) | Separate-process sidecar (`vips`, `vipsheader`). Never linked. |
+| LibreOffice (`soffice`) | MPL-2.0 | Separate-process sidecar. The TDF release ships unmodified at the version pinned in `SPEC.md` §6; its `NOTICE`/`LICENSE` files travel with the installer. |
 
 The licence gate runs in CI on every push (`license-assert` job) and fails the build on a GPL/nonfree ffmpeg.

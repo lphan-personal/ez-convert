@@ -41,10 +41,14 @@ pub mod engine {
     pub mod ffmpeg;
     #[path = "$src/engine/plan.rs"]
     pub mod plan;
+    #[path = "$src/engine/soffice.rs"]
+    pub mod soffice;
     #[path = "$src/engine/verify.rs"]
     pub mod verify;
     #[path = "$src/engine/convert.rs"]
     pub mod convert;
+    #[path = "$src/engine/doc.rs"]
+    pub mod doc;
     // Stub: the real module is proven by spikes/c2/harness with the real crate.
     pub mod tags {
         use std::path::Path;

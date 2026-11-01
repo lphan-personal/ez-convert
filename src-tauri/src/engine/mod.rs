@@ -20,20 +20,22 @@
 //! `model::matrix` (evidence-gated), and requests are [`plan::Request`].
 
 pub mod convert;
+pub mod doc;
 pub mod ffmpeg;
 pub mod plan;
 pub mod proc;
+pub mod soffice;
 pub mod stderr_rules;
 pub mod tags;
 pub mod verify;
 pub mod vips;
 
 /// What the shipped app bundles. A label, not a capability claim.
-pub const ENGINE_BACKEND: &str = "libvips 8.18.7 + LGPL ffmpeg (sidecars)";
+pub const ENGINE_BACKEND: &str = "libvips 8.18.7 + LGPL ffmpeg + LibreOffice 26.8.2 (sidecars)";
 
-/// Version of the request/response contract. Bumped from 1 when the placeholder
-/// request shape was replaced by the media planner.
-pub const ENGINE_CONTRACT_VERSION: u32 = 2;
+/// Version of the request/response contract. Bumped from 2 when the document
+/// pipeline landed alongside the media planner.
+pub const ENGINE_CONTRACT_VERSION: u32 = 3;
 
 /// Human-readable engine banner for the window's diagnostics panel.
 pub fn banner() -> String {
@@ -63,6 +65,6 @@ mod tests {
     #[test]
     fn the_placeholder_backend_is_gone() {
         assert!(!ENGINE_BACKEND.contains("placeholder"));
-        assert_eq!(ENGINE_CONTRACT_VERSION, 2);
+        assert_eq!(ENGINE_CONTRACT_VERSION, 3);
     }
 }

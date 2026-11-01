@@ -191,6 +191,186 @@ pub fn is_vfr(facts: &ProbeFacts) -> bool {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Document outputs (§6.2 N3/N5, §6.0.5)
+// ---------------------------------------------------------------------------
+//
+// No validator here extracts text. On Windows the `docx -> pdf` text layer is
+// degraded for accented Latin (`cafe\x1c` for `café`) because the Cambria
+// subset's `ToUnicode` CMap is missing 0x1C/0x1F — measured in two independent
+// engines, see §6.2.4. A validator that read text would fail a correct PDF.
+
+/// Refuse to load a monster produced by a buggy engine into memory.
+const MAX_DOC_BYTES: u64 = 512 * 1024 * 1024;
+
+fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() || haystack.len() < needle.len() {
+        return None;
+    }
+    haystack.windows(needle.len()).position(|w| w == needle)
+}
+
+/// Count `/Type /Page` objects, falling back to the `/Count` of a `/Pages`
+/// tree when the page dictionaries live inside compressed object streams.
+pub fn count_pdf_pages(data: &[u8]) -> usize {
+    let mut pages = 0usize;
+    let mut i = 0usize;
+    while let Some(pos) = find(&data[i..], b"/Type") {
+        let mut j = i + pos + b"/Type".len();
+        while j < data.len() && matches!(data[j], b' ' | b'\r' | b'\n' | b'\t') {
+            j += 1;
+        }
+        if data[j..].starts_with(b"/Page") && data.get(j + 5) != Some(&b's') {
+            pages += 1;
+        }
+        i += pos + b"/Type".len();
+    }
+    if pages > 0 {
+        return pages;
+    }
+    // Fallback: the largest `/Count n` in the file (the root Pages node).
+    let mut best = 0usize;
+    let mut i = 0usize;
+    while let Some(pos) = find(&data[i..], b"/Count") {
+        let mut j = i + pos + b"/Count".len();
+        while j < data.len() && matches!(data[j], b' ' | b'\r' | b'\n' | b'\t') {
+            j += 1;
+        }
+        let mut value = 0usize;
+        let mut digits = 0;
+        while j < data.len() && data[j].is_ascii_digit() {
+            value = value.saturating_mul(10).saturating_add((data[j] - b'0') as usize);
+            j += 1;
+            digits += 1;
+        }
+        if digits > 0 {
+            best = best.max(value);
+        }
+        i += pos + b"/Count".len();
+    }
+    best
+}
+
+fn is_zip_with(data: &[u8], parts: &[&[u8]]) -> bool {
+    data.starts_with(b"PK\x03\x04") && parts.iter().all(|p| find(data, p).is_some())
+}
+
+fn looks_like_text(data: &[u8]) -> bool {
+    !data.contains(&0)
+}
+
+/// Structural validation for every document target this build writes.
+///
+/// This is the check that turns the measured `rc=0` silent no-op (§6.2 N3:
+/// a text file renamed `.docx` becomes a valid-looking 12,388 B PDF) into a
+/// failure instead of a saved file.
+pub fn document_output(path: &Path, target: TargetFormat) -> Verdict {
+    match exists_nonempty(path) {
+        Verdict::Pass => {}
+        failure => return failure,
+    }
+    let meta = match std::fs::metadata(path) {
+        Ok(m) => m,
+        Err(e) => return Verdict::Fail(format!("{} is missing: {e}", path.display())),
+    };
+    if meta.len() > MAX_DOC_BYTES {
+        return Verdict::Fail(format!(
+            "{} is {} bytes, over the validator limit",
+            path.display(),
+            meta.len()
+        ));
+    }
+    let data = match std::fs::read(path) {
+        Ok(d) => d,
+        Err(e) => return Verdict::Fail(format!("{} could not be read: {e}", path.display())),
+    };
+    match target {
+        TargetFormat::Pdf => {
+            if !data.starts_with(b"%PDF-") {
+                return Verdict::Fail(format!(
+                    "{} does not start with %PDF- (first bytes: {:?})",
+                    path.display(),
+                    String::from_utf8_lossy(&data[..data.len().min(16)])
+                ));
+            }
+            let pages = count_pdf_pages(&data);
+            if pages == 0 {
+                return Verdict::Fail(format!("{} has no page objects", path.display()));
+            }
+            Verdict::Pass
+        }
+        TargetFormat::Docx => {
+            if !is_zip_with(&data, &[b"[Content_Types].xml", b"word/document.xml"]) {
+                return Verdict::Fail(format!(
+                    "{} is not a docx container (zip + word/document.xml)",
+                    path.display()
+                ));
+            }
+            Verdict::Pass
+        }
+        TargetFormat::Xlsx => {
+            if !is_zip_with(&data, &[b"[Content_Types].xml", b"xl/workbook.xml"]) {
+                return Verdict::Fail(format!(
+                    "{} is not an xlsx container (zip + xl/workbook.xml)",
+                    path.display()
+                ));
+            }
+            Verdict::Pass
+        }
+        TargetFormat::Html => {
+            let head = &data[..data.len().min(8192)];
+            let text = String::from_utf8_lossy(head).to_ascii_lowercase();
+            if text.contains("<html") || text.contains("<!doctype html") {
+                Verdict::Pass
+            } else {
+                Verdict::Fail(format!("{} has no html element", path.display()))
+            }
+        }
+        TargetFormat::Md | TargetFormat::Txt => {
+            if data.starts_with(b"%PDF-") {
+                return Verdict::Fail(format!(
+                    "{} is a PDF, not text — the engine wrote its input instead of converting it",
+                    path.display()
+                ));
+            }
+            if !looks_like_text(&data) || String::from_utf8_lossy(&data).trim().is_empty() {
+                return Verdict::Fail(format!("{} is empty or binary text", path.display()));
+            }
+            Verdict::Pass
+        }
+        TargetFormat::Csv => {
+            if data.starts_with(b"%PDF-") {
+                return Verdict::Fail(format!("{} is a PDF, not csv", path.display()));
+            }
+            let text = String::from_utf8_lossy(&data);
+            if !looks_like_text(&data) || text.trim().is_empty() {
+                return Verdict::Fail(format!("{} is empty or binary", path.display()));
+            }
+            if !text.contains(',') && !text.contains('\n') && !text.contains('\t') {
+                return Verdict::Fail(format!("{} has no field separator", path.display()));
+            }
+            Verdict::Pass
+        }
+        other => Verdict::Fail(format!("no document validator for {}", other.as_str())),
+    }
+}
+
+/// Extension a document target is written with.
+pub fn document_extension(target: TargetFormat) -> Option<&'static str> {
+    Some(match target {
+        TargetFormat::Pdf => "pdf",
+        TargetFormat::Docx => "docx",
+        TargetFormat::Xlsx => "xlsx",
+        TargetFormat::Csv => "csv",
+        TargetFormat::Html => "html",
+        TargetFormat::Md => "md",
+        TargetFormat::Txt => "txt",
+        TargetFormat::Rtf => "rtf",
+        TargetFormat::Pptx => "pptx",
+        _ => return None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -282,5 +462,89 @@ mod tests {
         ] {
             assert!(expected_type(t).is_some(), "{t:?} has no validator");
         }
+        // Document targets: the structural validators in this module, not magic
+        // bytes, because a docx/xlsx are containers and a md/txt have no magic.
+        for t in [
+            TargetFormat::Pdf,
+            TargetFormat::Docx,
+            TargetFormat::Xlsx,
+            TargetFormat::Csv,
+            TargetFormat::Html,
+            TargetFormat::Md,
+            TargetFormat::Txt,
+        ] {
+            assert!(
+                document_extension(t).is_some(),
+                "{t:?} has no document validator"
+            );
+        }
+    }
+
+    fn tmp(name: &str) -> std::path::PathBuf {
+        let p = std::env::temp_dir().join(format!("ezc-docverify-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_file(&p);
+        p
+    }
+
+    const TINY_PDF: &[u8] = b"%PDF-1.7\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n\
+2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n\
+3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n";
+
+    #[test]
+    fn a_real_pdf_passes_and_counts_pages_without_extracting_text() {
+        let p = tmp("tiny.pdf");
+        std::fs::write(&p, TINY_PDF).unwrap();
+        assert!(document_output(&p, TargetFormat::Pdf).is_pass());
+        assert_eq!(count_pdf_pages(TINY_PDF), 1);
+        let _ = std::fs::remove_file(&p);
+    }
+
+    #[test]
+    fn the_measured_silent_garbage_is_a_failure_not_a_success() {
+        // The shapes §6.2 N3 can leave behind: a "PDF" that is really the input
+        // text, and a zero-byte file. Both must fail.
+        let p = tmp("garbage.pdf");
+        std::fs::write(&p, b"this is not a docx at all\n").unwrap();
+        let v = document_output(&p, TargetFormat::Pdf);
+        assert!(!v.is_pass());
+        assert!(v.reason().unwrap().contains("%PDF-"), "{v:?}");
+
+        let empty = tmp("empty.pdf");
+        std::fs::write(&empty, b"").unwrap();
+        assert!(!document_output(&empty, TargetFormat::Pdf).is_pass());
+        let _ = std::fs::remove_file(&p);
+        let _ = std::fs::remove_file(&empty);
+    }
+
+    #[test]
+    fn page_count_falls_back_to_the_pages_tree_count() {
+        // Page dictionaries inside an object stream: no `/Type /Page` outside
+        // compression, but the root `/Type /Pages` still declares `/Count 3`.
+        let packed = b"%PDF-1.7\n8 0 obj\n<< /Type /Pages /Kids [] /Count 3 >>\nendobj\n";
+        assert_eq!(count_pdf_pages(packed), 3);
+    }
+
+    #[test]
+    fn document_containers_are_checked_structurally() {
+        use crate::model::test_support::fixture;
+        let docx = fixture("sample.docx");
+        assert!(
+            document_output(&docx, TargetFormat::Docx).is_pass(),
+            "the real docx fixture must pass its own validator"
+        );
+        // The same bytes are not an xlsx.
+        assert!(!document_output(&docx, TargetFormat::Xlsx).is_pass());
+
+        // The measured trap fixture: plain text named .docx.
+        let fake = fixture("text_renamed.docx");
+        assert!(!document_output(&fake, TargetFormat::Docx).is_pass());
+        assert!(!document_output(&fake, TargetFormat::Pdf).is_pass());
+
+        let csv = fixture("sample.csv");
+        assert!(document_output(&csv, TargetFormat::Csv).is_pass());
+        let html = fixture("sample.html");
+        assert!(document_output(&html, TargetFormat::Html).is_pass());
+        let md = fixture("sample.md");
+        assert!(document_output(&md, TargetFormat::Md).is_pass());
     }
 }
