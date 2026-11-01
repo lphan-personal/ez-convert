@@ -175,6 +175,54 @@ fn run_probe(
     Ok(outcome)
 }
 
+/// A staged copy of a user input, removed when the conversion finishes.
+///
+/// Exists because libvips re-parses `[...]` in a *filename* as engine options:
+/// a user file whose name carries brackets cannot be handed to a vips step
+/// together with our own `[fail-on=error]` suffix without the loader confusing
+/// the two. Copying it into the job temp dir under an app-chosen name keeps the
+/// file convertible (measured: the same file converts from a staged name, and
+/// fails or opens a sibling from its own name — Q1 finding F1).
+struct Staged(PathBuf);
+
+impl Staged {
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for Staged {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+/// Stage `input` when its file name carries libvips bracket-option syntax.
+///
+/// The staged name is `<canonical>.<ext>` inside the job temp dir — never
+/// derived from user text, and the extension comes from the detected type, so
+/// vips picks the loader it would have picked for the original.
+fn stage_bracketed_input(
+    input: &Path,
+    from: CanonicalType,
+    temp_dir: &Path,
+) -> Result<Option<Staged>, ConvertError> {
+    let needs_staging = input
+        .file_name()
+        .is_some_and(|name| proc::has_bracket_syntax(name));
+    if !needs_staging {
+        return Ok(None);
+    }
+    let staged = temp_dir.join(format!("input.{}", from.as_str()));
+    std::fs::copy(input, &staged).map_err(|e| {
+        ConvertError::Io(format!(
+            "could not stage {} for the engine: {e}",
+            input.display()
+        ))
+    })?;
+    Ok(Some(Staged(staged)))
+}
+
 /// Run one conversion end to end. Returns only when the output is verified.
 pub fn convert(
     paths: &EnginePaths,
@@ -186,7 +234,16 @@ pub fn convert(
     let started = Instant::now();
     std::fs::create_dir_all(temp_dir).map_err(|e| ConvertError::Io(e.to_string()))?;
 
-    let facts = probe_source(paths, job.from, input, temp_dir)?;
+    // F1: images go through vips, whose argv carries bracket options; stage a
+    // bracket-bearing name out of the way before anything reads it. Only the
+    // still family: ffmpeg and soffice have no bracket syntax.
+    let staged = match plan::media_family(job.from) {
+        plan::Family::Still => stage_bracketed_input(input, job.from, temp_dir)?,
+        _ => None,
+    };
+    let source = staged.as_ref().map(Staged::path).unwrap_or(input);
+
+    let facts = probe_source(paths, job.from, source, temp_dir)?;
     let plan = plan::plan(&Request {
         from: job.from,
         to: job.to,
@@ -200,7 +257,7 @@ pub fn convert(
     }
 
     let invocations = plan
-        .resolve(input, output, temp_dir)
+        .resolve(source, output, temp_dir)
         .map_err(|e| ConvertError::Io(e.to_string()))?;
 
     let mut outcomes = Vec::with_capacity(invocations.len());
@@ -239,7 +296,7 @@ pub fn convert(
     if let Some(TagMerge { from, to: _ }) = plan.tag_merge {
         debug_assert_eq!(from, super::plan::PathRef::Input);
         if !job.options.strip_metadata {
-            match super::tags::merge(input, output) {
+            match super::tags::merge(source, output) {
                 Ok(r) => report.tags = Some(r),
                 Err(e) => report.tag_error = Some(e.to_string()),
             }
@@ -371,6 +428,46 @@ mod tests {
         assert!(
             matches!(err, ConvertError::Io(_) | ConvertError::MissingEngine(_)),
             "got {err:?}"
+        );
+    }
+
+    #[test]
+    fn a_bracketed_input_is_staged_under_an_app_chosen_name_and_removed_after() {
+        let dir = std::env::temp_dir().join(format!("ezc-stage-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let input = dir.join("zz3[shrink=2]");
+        let bytes: &[u8] = b"\x89PNG\r\n\x1a\nstaged-probe";
+        std::fs::write(&input, bytes).expect("fixture");
+
+        let staged = stage_bracketed_input(&input, CanonicalType::Png, &dir)
+            .expect("staging must not fail")
+            .expect("a bracketed name must be staged");
+        assert_eq!(
+            staged.path().file_name().unwrap().to_string_lossy(),
+            "input.png"
+        );
+        assert!(
+            !proc::has_bracket_syntax(staged.path().file_name().unwrap()),
+            "the staged name must be free of brackets"
+        );
+        assert_eq!(std::fs::read(staged.path()).expect("staged read"), bytes);
+
+        let path = staged.path().to_path_buf();
+        drop(staged);
+        assert!(!path.exists(), "the staged copy must not outlive the job");
+    }
+
+    #[test]
+    fn a_plain_input_name_is_not_staged() {
+        let dir = std::env::temp_dir().join(format!("ezc-stage-plain-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let input = dir.join("plain.png");
+        std::fs::write(&input, b"\x89PNG\r\n\x1a\nplain-probe").expect("fixture");
+        assert!(
+            stage_bracketed_input(&input, CanonicalType::Png, &dir)
+                .expect("staging must not fail")
+                .is_none(),
+            "a name without brackets must not be copied"
         );
     }
 

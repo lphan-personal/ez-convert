@@ -729,6 +729,24 @@ impl Plan {
                             }
                         };
                         let rendered = opts.render();
+                        // F1 safety net: a vips step that *reads* a file whose
+                        // name carries `[`/`]` would have its own bracket group
+                        // re-parsed by the loader (see `proc::has_bracket_syntax`).
+                        // `engine::convert` stages such inputs under an app-chosen
+                        // name first, so reaching this with brackets means the
+                        // staging was skipped — refuse loudly instead of opening
+                        // the wrong file.
+                        if !rendered.is_empty()
+                            && *reference == PathRef::Input
+                            && matches!(step.program, Program::Vips | Program::VipsHeader)
+                        {
+                            if base
+                                .file_name()
+                                .is_some_and(|name| proc::has_bracket_syntax(name))
+                            {
+                                return Err(PathError::BracketName(base));
+                            }
+                        }
                         let mut os = base.into_os_string();
                         if !rendered.is_empty() {
                             os.push(rendered);
@@ -1320,5 +1338,58 @@ mod tests {
                 }
             }
         }
+    }
+
+    // -- F1: bracket filenames never reach a vips argv ----------------------
+
+    /// The pinned rule from Q1 finding F1: a vips step appends `[fail-on=error]`
+    /// to the input path, so a name that itself carries `[`/`]` is refused
+    /// rather than handed over to be re-parsed. The staged form — what
+    /// `engine::convert` produces for such a file — resolves normally, and the
+    /// argv then carries exactly the one bracket group *we* wrote.
+    #[test]
+    fn a_vips_step_refuses_a_bracketed_input_name_and_accepts_the_staged_form() {
+        let dir = std::env::temp_dir().join(format!("ezc-f1-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+
+        let bracketed = dir.join("zz3[shrink=2]");
+        std::fs::write(&bracketed, b"not a real png").expect("fixture");
+        let out = dir.join("out.jpg");
+
+        let p = still(CanonicalType::Png, TargetFormat::Jpg).expect("png -> jpg");
+        let err = p
+            .resolve(&bracketed, &out, &dir)
+            .expect_err("a bracketed vips input must be refused");
+        assert!(
+            matches!(err, PathError::BracketName(_)),
+            "expected BracketName, got {err:?}"
+        );
+
+        let staged = dir.join("input.png");
+        std::fs::write(&staged, b"not a real png").expect("staged fixture");
+        let invocations = p
+            .resolve(&staged, &out, &dir)
+            .expect("staged input resolves");
+        let rendered: Vec<String> = invocations[0]
+            .args
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let input_arg = rendered
+            .iter()
+            .find(|a| a.ends_with("input.png[fail-on=error]"))
+            .unwrap_or_else(|| panic!("no rendered input slot in {rendered:?}"));
+        assert_eq!(
+            input_arg.matches('[').count(),
+            1,
+            "the user's brackets must not survive into argv: {input_arg}"
+        );
+
+        // A bracket-bearing *output* name is allowed: the suffix our saver
+        // writes is the trailing group, so the name stays literal (the app
+        // always ends output names with the target extension).
+        let out_bracketed = dir.join("zz[1].jpg");
+        p.resolve(&staged, &out_bracketed, &dir)
+            .expect("an output name may carry brackets");
     }
 }

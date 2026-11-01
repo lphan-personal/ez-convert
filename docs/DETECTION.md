@@ -68,8 +68,19 @@ Rules, all unit-tested against `fixtures/`:
    A UTF-16 BOM is checked **before** the MPEG frame-sync heuristic, because
    `FF FE` is both a BOM and a legal-looking frame header.
 5. **Limits before any parse**: inputs > 2 GiB are refused (`Unreadable` +
-   `TooLarge`); a ZIP whose declared uncompressed total exceeds 8 GiB is
-   refused; more than 10,000 container directory entries is refused.
+   `TooLarge`); a still image whose **header declares more than 250,000,000
+   pixels** is refused (`Unreadable` + `TooManyPixels`, geometry read from the
+   prefix only — png `IHDR`, gif logical screen, tiff first IFD `ImageWidth`/
+   `ImageLength`, bmp DIB, webp `VP8X`, jpeg frame header); a ZIP whose declared
+   uncompressed total exceeds 8 GiB is refused; more than 10,000 container
+   directory entries is refused.
+   The pixel cap exists because the byte cap does not see a decompression bomb:
+   a 1.55 MB PNG declaring 20,000x20,000 (400 Mpx) passed detection and
+   converted through vips with flat memory, bounded only by the 120 s engine
+   kill. 250 Mpx is above any camera or stitched panorama we expect. A format
+   whose geometry is not in the prefix (heic, avif, svg, a plain lossy webp)
+   is a named gap: the byte cap and the engine kill still apply, and the
+   refusal is not guessed.
 6. **Unknown is a valid answer.** No signature, no guess, no targets.
 7. **MPEG audio is only detected at the start of the file** (ID3 tag or frame
    sync at offset 0). Scanning arbitrary bytes for a sync pattern classified a

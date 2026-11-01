@@ -205,6 +205,7 @@ fn absolute_env_dir(var: &str) -> Option<PathBuf> {
 pub enum PathError {
     NotAbsolute(PathBuf),
     LeadingDash(PathBuf),
+    BracketName(PathBuf),
     NetworkOrDevice(PathBuf),
     Traversal(PathBuf),
     Missing(PathBuf),
@@ -217,6 +218,13 @@ impl std::fmt::Display for PathError {
             PathError::NotAbsolute(p) => write!(f, "path is not absolute: {}", p.display()),
             PathError::LeadingDash(p) => {
                 write!(f, "path starts with '-': {}", p.display())
+            }
+            PathError::BracketName(p) => {
+                write!(
+                    f,
+                    "file name contains '[' or ']', which libvips reads as engine options: {}",
+                    p.display()
+                )
             }
             PathError::NetworkOrDevice(p) => {
                 write!(f, "network or device path refused: {}", p.display())
@@ -279,6 +287,23 @@ pub fn admit(raw: &Path, must_exist: bool) -> Result<PathBuf, PathError> {
         return Err(PathError::Traversal(raw.to_path_buf()));
     }
     Ok(parent.join(name))
+}
+
+/// True when a file *name* carries libvips' bracket-option syntax.
+///
+/// libvips reads a trailing `[...]` on a filename as **engine options**
+/// (`in[vips-option=value]`), and our own suffix (`[fail-on=error]`, `[Q=90]`)
+/// is built from the same syntax. A user name that ends in a bracket group is
+/// therefore re-parsed against our appended group, and which file comes out
+/// depends on what else sits in the directory: measured with libvips 8.16.1,
+/// `zz3[shrink=2][fail-on=error]` opens the literal `zz3[shrink=2]` when a bare
+/// `zz3` neighbour is present and fails with "does not exist" when it is not
+/// (Q1 finding F1). Anything a vips step *reads* must be free of `[`/`]`:
+/// `engine::convert` stages such an input under an app-chosen name, and
+/// [`plan::Plan::resolve`] refuses it if the staging is ever skipped.
+pub fn has_bracket_syntax(name: &OsStr) -> bool {
+    let s = name.to_string_lossy();
+    s.contains('[') || s.contains(']')
 }
 
 // ---------------------------------------------------------------------------

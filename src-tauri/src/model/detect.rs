@@ -12,8 +12,9 @@
 //!    valid-looking 12,388 B PDF at exit 0).
 //! 3. **Truncation is detected cheaply** from end markers / directory records.
 //! 4. **Text types** resolve by shape in a fixed order: svg → html → csv → md → txt.
-//! 5. **Limits before any parse**: 2 GiB per input, 8 GiB declared ZIP payload,
-//!    10,000 container directory entries.
+//! 5. **Limits before any parse**: 2 GiB per input, 250 Mpx declared by a still
+//!    image's header, 8 GiB declared ZIP payload, 10,000 container directory
+//!    entries.
 //! 6. **Unknown is a valid answer.** We never guess, and unknown gets no targets.
 //!
 //! I/O is bounded: a 64 KiB prefix, a 64 KiB tail, and (only when a container
@@ -32,6 +33,16 @@ pub const PREFIX_LEN: usize = 64 * 1024;
 pub const TAIL_LEN: usize = 64 * 1024;
 /// Refuse inputs larger than this before parsing (`ARCHITECTURE.md` §7 rule 5).
 pub const MAX_INPUT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+/// Refuse a still image whose header *declares* more pixels than this
+/// (`ARCHITECTURE.md` §7 rule 5), before any decoder sees it.
+///
+/// The byte cap above is not enough: a 1.55 MB PNG declaring 20,000x20,000
+/// (400 Mpx) passed detection and converted all the way through vips — flat
+/// memory, a 10.9 MB JPEG out, bounded only by the 120 s engine kill (Q1
+/// finding F2). 250 Mpx is above every camera and stitched panorama we expect
+/// and below the point where a decode stops being a UI action; the geometry is
+/// read from the prefix, so the refusal costs one small read.
+pub const MAX_DECLARED_PIXELS: u64 = 250_000_000;
 /// Refuse a ZIP whose declared uncompressed total exceeds this (bomb guard).
 pub const MAX_ZIP_TOTAL_UNCOMPRESSED: u64 = 8 * 1024 * 1024 * 1024;
 /// Refuse a ZIP/CFB directory with more entries than this.
@@ -188,6 +199,23 @@ pub fn detect_source<S: Source + ?Sized>(src: &S, claimed: Option<Claimed>) -> D
     };
 
     let (ty, integrity, detail) = classify(src, len, &prefix, &tail);
+    // Rule 5, pixels: a header that *declares* more than the cap is refused
+    // before a decoder sees the file. Prefix-only, so this is one small read.
+    if integrity != Integrity::Unreadable {
+        if let Some((width, height)) = declared_pixels(ty, &prefix) {
+            if width.saturating_mul(height) > MAX_DECLARED_PIXELS {
+                return Detected::unknown(
+                    Integrity::Unreadable,
+                    claimed,
+                    Detail::TooManyPixels {
+                        width,
+                        height,
+                        limit: MAX_DECLARED_PIXELS,
+                    },
+                );
+            }
+        }
+    }
     Detected {
         ty,
         integrity,
@@ -982,6 +1010,172 @@ fn classify_mpeg_audio(prefix: &[u8]) -> Option<(CanonicalType, Detail)> {
 }
 
 // ---------------------------------------------------------------------------
+// Declared geometry (rule 5, pixels)
+// ---------------------------------------------------------------------------
+
+/// Pixels a still image's **header** claims, read from the 64 KiB prefix only.
+///
+/// `None` means the header does not state its geometry inside the prefix (or the
+/// format has no cheap prefix-only geometry, e.g. HEIC/AVIF/SVG). That is a named
+/// gap, not a pass: such a file still meets the byte cap and the engine kill.
+/// No decoder runs here and nothing is allocated per pixel.
+fn declared_pixels(ty: CanonicalType, prefix: &[u8]) -> Option<(u64, u64)> {
+    match ty {
+        CanonicalType::Png => png_pixels(prefix),
+        CanonicalType::Gif => gif_pixels(prefix),
+        CanonicalType::Tiff => tiff_pixels(prefix),
+        CanonicalType::Bmp => bmp_pixels(prefix),
+        CanonicalType::WebP => webp_pixels(prefix),
+        CanonicalType::Jpeg => jpeg_pixels(prefix),
+        _ => None,
+    }
+}
+
+fn be32(b: &[u8], at: usize) -> Option<u32> {
+    let s = b.get(at..at + 4)?;
+    Some(u32::from_be_bytes([s[0], s[1], s[2], s[3]]))
+}
+
+/// PNG: the first chunk of a valid stream is IHDR, whose payload opens with
+/// width and height as big-endian u32 (bytes 16..24 of the file).
+fn png_pixels(p: &[u8]) -> Option<(u64, u64)> {
+    if p.len() < 24 || &p[12..16] != b"IHDR" {
+        return None;
+    }
+    Some((u64::from(be32(p, 16)?), u64::from(be32(p, 20)?)))
+}
+
+/// GIF: the logical screen is two little-endian u16 at bytes 6..10. Frames can
+/// exceed the canvas, so this is a floor for animated files, which is what a
+/// cap needs to be.
+fn gif_pixels(p: &[u8]) -> Option<(u64, u64)> {
+    if p.len() < 10 {
+        return None;
+    }
+    Some((
+        u64::from(u16::from_le_bytes([p[6], p[7]])),
+        u64::from(u16::from_le_bytes([p[8], p[9]])),
+    ))
+}
+
+/// BMP: the DIB header carries signed width/height at bytes 18..26; a negative
+/// height means top-down rows, so the absolute value is the geometry.
+fn bmp_pixels(p: &[u8]) -> Option<(u64, u64)> {
+    if p.len() < 26 {
+        return None;
+    }
+    let w = i32::from_le_bytes([p[18], p[19], p[20], p[21]]);
+    let h = i32::from_le_bytes([p[22], p[23], p[24], p[25]]);
+    Some((u64::from(w.unsigned_abs()), u64::from(h.unsigned_abs())))
+}
+
+/// WebP: only the extended (VP8X) form states the canvas up front, as two
+/// 24-bit little-endian `size - 1` fields at bytes 24..30. A plain lossy VP8
+/// stream keeps its geometry inside the first frame header, which this does not
+/// walk — reported as a gap instead of a guess.
+fn webp_pixels(p: &[u8]) -> Option<(u64, u64)> {
+    if p.len() < 30 || &p[12..16] != b"VP8X" {
+        return None;
+    }
+    let w = 1 + (u64::from(p[24]) | (u64::from(p[25]) << 8) | (u64::from(p[26]) << 16));
+    let h = 1 + (u64::from(p[27]) | (u64::from(p[28]) << 8) | (u64::from(p[29]) << 16));
+    Some((w, h))
+}
+
+/// TIFF: byte-order magic, then the first IFD, whose `ImageWidth` (256) and
+/// `ImageLength` (257) entries hold the geometry. Only the first IFD is read
+/// and only entries that fit inside the prefix; a malformed offset ends the
+/// search instead of following it.
+fn tiff_pixels(p: &[u8]) -> Option<(u64, u64)> {
+    if p.len() < 8 {
+        return None;
+    }
+    let le = match &p[0..2] {
+        b"II" => true,
+        b"MM" => false,
+        _ => return None,
+    };
+    let at16 = |o: usize| -> Option<u16> {
+        let s = p.get(o..o + 2)?;
+        Some(if le {
+            u16::from_le_bytes([s[0], s[1]])
+        } else {
+            u16::from_be_bytes([s[0], s[1]])
+        })
+    };
+    let at32 = |o: usize| -> Option<u32> {
+        let s = p.get(o..o + 4)?;
+        Some(if le {
+            u32::from_le_bytes([s[0], s[1], s[2], s[3]])
+        } else {
+            u32::from_be_bytes([s[0], s[1], s[2], s[3]])
+        })
+    };
+    if at16(2)? != 42 {
+        return None;
+    }
+    let ifd = usize::try_from(at32(4)?).ok()?;
+    let count = usize::from(at16(ifd)?).min(512);
+    let mut width = None;
+    let mut height = None;
+    for i in 0..count {
+        let entry = ifd.checked_add(2 + i * 12)?;
+        let tag = at16(entry)?;
+        if tag != 256 && tag != 257 {
+            continue;
+        }
+        let value = match at16(entry + 2)? {
+            // SHORT values sit in the first two bytes of the value field.
+            3 => u64::from(at16(entry + 8)?),
+            4 => u64::from(at32(entry + 8)?),
+            _ => continue,
+        };
+        if tag == 256 {
+            width = Some(value);
+        } else {
+            height = Some(value);
+        }
+        if width.is_some() && height.is_some() {
+            break;
+        }
+    }
+    Some((width?, height?))
+}
+
+/// JPEG: walk the marker chain (never the entropy-coded data, because a frame
+/// header always precedes it) and read the frame header's height/width. Any
+/// desync — a byte that is not a marker where one must be, or a segment that
+/// runs past the prefix — ends the walk with `None`.
+fn jpeg_pixels(p: &[u8]) -> Option<(u64, u64)> {
+    let mut i = 2usize; // past SOI
+    while i + 1 < p.len() {
+        if p[i] != 0xFF {
+            return None;
+        }
+        let marker = p[i + 1];
+        // SOF0..SOF15 minus DHT (C4), JPG (C8) and DAC (CC).
+        if (0xC0..=0xCF).contains(&marker) && !matches!(marker, 0xC4 | 0xC8 | 0xCC) {
+            let s = p.get(i + 5..i + 9)?;
+            let h = u64::from(u16::from_be_bytes([s[0], s[1]]));
+            let w = u64::from(u16::from_be_bytes([s[2], s[3]]));
+            return Some((w, h));
+        }
+        // Standalone markers carry no length.
+        if marker == 0x01 || marker == 0xD8 || (0xD0..=0xD7).contains(&marker) {
+            i += 2;
+            continue;
+        }
+        let seg = p.get(i + 2..i + 4)?;
+        let len = usize::from(u16::from_be_bytes([seg[0], seg[1]]));
+        if len < 2 {
+            return None;
+        }
+        i = i.checked_add(2 + len)?;
+    }
+    None
+}
+
+// ---------------------------------------------------------------------------
 // Text shapes
 // ---------------------------------------------------------------------------
 
@@ -1287,7 +1481,133 @@ mod tests {
         }
     }
 
-    // -- acceptance case 1: a JPEG renamed .png -----------------------------
+    // -- declared-pixel cap (Q1 finding F2) --------------------------------
+
+    /// The measured bomb: a 1.55 MB PNG declaring 20,000x20,000. Byte caps do
+    /// not see it; the header does.
+    fn png_with_dims(w: u32, h: u32) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(b"\x89PNG\r\n\x1a\n");
+        out.extend_from_slice(&13u32.to_be_bytes());
+        out.extend_from_slice(b"IHDR");
+        out.extend_from_slice(&w.to_be_bytes());
+        out.extend_from_slice(&h.to_be_bytes());
+        out.extend_from_slice(&[8, 2, 0, 0, 0]);
+        out.extend_from_slice(&[0, 0, 0, 0]); // CRC is not checked here
+        out.extend_from_slice(&0u32.to_be_bytes());
+        out.extend_from_slice(b"IEND");
+        out.extend_from_slice(&[0, 0, 0, 0]);
+        out
+    }
+
+    fn gif_with_dims(w: u16, h: u16) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(b"GIF89a");
+        out.extend_from_slice(&w.to_le_bytes());
+        out.extend_from_slice(&h.to_le_bytes());
+        out.extend_from_slice(&[0, 0, 0, 0, 0, 0, 0]);
+        out.push(0x3B);
+        out
+    }
+
+    fn tiff_le_with_dims(w: u32, h: u32) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(b"II*\x00");
+        out.extend_from_slice(&8u32.to_le_bytes()); // IFD at byte 8
+        out.extend_from_slice(&2u16.to_le_bytes()); // two entries
+        for (tag, value) in [(256u16, w), (257u16, h)] {
+            out.extend_from_slice(&tag.to_le_bytes());
+            out.extend_from_slice(&4u16.to_le_bytes()); // LONG
+            out.extend_from_slice(&1u32.to_le_bytes());
+            out.extend_from_slice(&value.to_le_bytes());
+        }
+        out.extend_from_slice(&0u32.to_le_bytes()); // no next IFD
+        out
+    }
+
+    fn jpeg_with_dims(w: u16, h: u16) -> Vec<u8> {
+        let mut out = vec![0xFF, 0xD8]; // SOI
+        out.extend_from_slice(&[0xFF, 0xC0]); // SOF0
+        out.extend_from_slice(&17u16.to_be_bytes());
+        out.push(8); // precision
+        out.extend_from_slice(&h.to_be_bytes());
+        out.extend_from_slice(&w.to_be_bytes());
+        out.extend_from_slice(&[3, 1, 0x11, 0, 2, 0x11, 0, 3, 0x11, 0]); // 3 components
+        out.extend_from_slice(&[0xFF, 0xD9]); // EOI
+        out
+    }
+
+    fn refused_for_pixels(data: &[u8], name: &str) -> Detected {
+        let d = detect_bytes_named(data, Some(name));
+        assert_eq!(d.ty, CanonicalType::Unknown, "{name} must not be routed");
+        assert_eq!(d.integrity, Integrity::Unreadable);
+        assert!(!d.is_routable(), "{name} must offer no targets");
+        assert!(
+            matches!(d.detail, Detail::TooManyPixels { .. }),
+            "{name}: expected TooManyPixels, got {:?}",
+            d.detail
+        );
+        d
+    }
+
+    #[test]
+    fn a_png_declaring_400_megapixels_is_refused_before_any_decode() {
+        let d = refused_for_pixels(&png_with_dims(20_000, 20_000), "pngbomb.png");
+        assert_eq!(
+            d.detail,
+            Detail::TooManyPixels {
+                width: 20_000,
+                height: 20_000,
+                limit: MAX_DECLARED_PIXELS
+            }
+        );
+    }
+
+    #[test]
+    fn a_gif_a_tiff_and_a_jpeg_over_the_cap_are_refused_too() {
+        refused_for_pixels(&gif_with_dims(65_535, 65_535), "bomb.gif");
+        refused_for_pixels(&tiff_le_with_dims(20_000, 20_000), "bomb.tif");
+        refused_for_pixels(&jpeg_with_dims(65_535, 65_535), "bomb.jpg");
+    }
+
+    #[test]
+    fn a_header_that_lies_about_its_geometry_is_refused_without_panicking() {
+        // Both axes at u32::MAX: the product must not overflow or wrap into
+        // "small enough".
+        refused_for_pixels(&png_with_dims(u32::MAX, u32::MAX), "dimlie.png");
+        refused_for_pixels(&gif_with_dims(u16::MAX, u16::MAX), "dimlie.gif");
+    }
+
+    #[test]
+    fn the_cap_is_a_ceiling_not_a_floor() {
+        // Exactly at the cap, and ordinary geometry, stay routable: the refusal
+        // must not creep down onto real photographs.
+        let at_cap = detect_bytes_named(&png_with_dims(20_000, 12_500), Some("panorama.png"));
+        assert_eq!(at_cap.ty, CanonicalType::Png, "{:?}", at_cap.detail);
+        assert!(at_cap.is_routable());
+
+        let normal = detect_bytes_named(&png_with_dims(4_032, 3_024), Some("photo.png"));
+        assert_eq!(normal.ty, CanonicalType::Png);
+        assert!(normal.is_routable());
+    }
+
+    #[test]
+    fn a_header_the_prefix_cannot_hold_is_a_gap_not_a_panic() {
+        // A TIFF whose IFD offset points past the prefix, and a JPEG whose SOF
+        // segment would run past it: both fall through (byte cap + engine kill
+        // still apply) instead of panicking or guessing.
+        let mut tiff = Vec::new();
+        tiff.extend_from_slice(b"II*\x00");
+        tiff.extend_from_slice(&0x00FF_FFFFu32.to_le_bytes());
+        tiff.extend_from_slice(&[0u8; 32]);
+        let d = detect_bytes_named(&tiff, Some("far.tif"));
+        assert_eq!(d.ty, CanonicalType::Tiff);
+        assert!(d.is_routable());
+
+        let jpeg = vec![0xFF, 0xD8, 0xFF, 0xC0, 0xFF, 0xFF, 8, 0x10, 0x00];
+        let d = detect_bytes_named(&jpeg, Some("cut.jpg"));
+        assert_eq!(d.ty, CanonicalType::Jpeg);
+    }
 
     #[test]
     fn jpeg_renamed_png_resolves_to_jpeg_by_content() {

@@ -342,6 +342,8 @@ pub enum Detail {
     Text(TextShape),
     /// Bigger than the per-input cap.
     TooLarge { seen: u64, limit: u64 },
+    /// The header declares more pixels than we are willing to decode.
+    TooManyPixels { width: u64, height: u64, limit: u64 },
     /// Recognised but deliberately unsupported (e.g. ZIP64, EBML without a
     /// doctype). Recorded as a named gap rather than a guess.
     Unsupported(&'static str),
@@ -370,6 +372,7 @@ impl Detail {
                 TextShape::Plain => "text: plain",
             },
             Detail::TooLarge { .. } => "over the per-input size cap",
+            Detail::TooManyPixels { .. } => "over the declared-pixel cap",
             Detail::Unsupported(why) => why,
             Detail::Io(kind) => kind,
         }
