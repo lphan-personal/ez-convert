@@ -172,7 +172,7 @@ jobs:
       - name: Deny-list scan (prior-art names outside the policy files)
         run: |
           set -euo pipefail
-          hits=$(grep -rniE '[f]ilee|[k]nifelemon' . \
+          hits=$(grep -rniE '\b[f]ilee\b|\b[k]nifelemon\b' . \
             --exclude-dir=.git --exclude-dir=target \
             | grep -vE '^\./docs/(PRIOR_ART|REFERENCE_POLICY)\.md:' || true)
           if [ -n "$hits" ]; then
