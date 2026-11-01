@@ -38,6 +38,23 @@ inside `run.sh` (apt/npm/cargo), and the script must be idempotent.
 
 Dispatching an id whose `run.sh` is missing fails the job on purpose.
 
+## Harness-only tooling (never shipped)
+
+`spikes/s3` verifies converted output by reading it back with Python libraries.
+These are installed inside the spike job only — they are **not** app
+dependencies and must never enter the Tauri bundle or `docs/LICENSES.md`'s
+generated graph (which covers the Rust build only):
+
+| package | version | licence | used for |
+|---|---|---|---|
+| `python-docx` | 1.2.0 | MIT | build the docx fixture, read back `html -> docx` |
+| `openpyxl` | 3.1.5 | MIT | build the xlsx fixture, read back `csv -> xlsx` |
+| `python-pptx` | 1.0.2 | MIT | build the pptx fixture |
+| `pypdf` | 6.21.4 | BSD-3-Clause | page count / text / font extraction from PDFs |
+
+`warden` sees this list in the S3 hand-off; adding a harness dependency means
+adding a row here in the same commit.
+
 ## Present spikes
 
 | id | purpose |
