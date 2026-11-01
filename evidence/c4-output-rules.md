@@ -108,7 +108,9 @@ What those checks actually prove, and what would have passed if the code were wr
 - **Windows and macOS**: the placement uses `hard_link` + `create_new`, both of which behave
   per-platform (NTFS hard links, Windows `AlreadyExists`), and the tests are written with
   platform-absolute paths — but this host is Linux. The three-OS `cargo test --locked` CI run
-  is the evidence for those platforms, and it has not been confirmed at the time of writing.
+  is the evidence for those platforms; at the time of writing the run for pushed head
+  `87eac51` had not yet published a verdict to `ci-status` (the last recorded run is
+  `41283721257` for `8608125`, which predates this change). **Unverified for this head.**
 - **vips image targets and LibreOffice documents through this path**: the e2e uses the audio
   family because ffmpeg is the only engine installed on this host. The output-rules code is
   engine-agnostic (the converter is a closure), so the same path is exercised, but a
