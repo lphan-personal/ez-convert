@@ -6,9 +6,9 @@ name: build
 # See README "Running a spike on a runner".
 #
 # Every run publishes its own verdict to the `ci-status` branch
-# (ci-status/latest.json + ci-status/<run_id>.json). That branch is written by
-# the `report` job and exists so build results can be verified without holding
-# Actions API scope on whatever credential is doing the verifying.
+# (ci-status/latest.json + ci-status/<run_id>.json), and every failing OS job
+# publishes its cargo log to its own `ci-logs-<os>` branch. Both exist so build
+# results can be read with nothing but Contents scope.
 
 on:
   push:
@@ -50,6 +50,8 @@ jobs:
   build:
     name: build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -77,11 +79,15 @@ jobs:
 
       - name: cargo build
         working-directory: src-tauri
-        run: cargo build --all-targets
+        run: |
+          set -o pipefail
+          cargo build --all-targets 2>&1 | tee "$RUNNER_TEMP/build.log"
 
       - name: cargo test (placeholder suite)
         working-directory: src-tauri
-        run: cargo test
+        run: |
+          set -o pipefail
+          cargo test 2>&1 | tee "$RUNNER_TEMP/test.log"
 
       # The skeleton was authored without a local Rust toolchain, so the lock
       # file is born in CI. P2/U1 commit it, then builds can use --locked.
@@ -93,6 +99,30 @@ jobs:
           path: src-tauri/Cargo.lock
           if-no-files-found: warn
           retention-days: 30
+
+      # Forensics channel: a failing OS pushes its own cargo log to
+      # ci-logs-<os>, readable with Contents scope alone (no Actions API).
+      - name: Publish failure log to ci-logs-${{ matrix.os }}
+        if: failure()
+        env:
+          OS_SLUG: ${{ matrix.os }}
+        run: |
+          set -eo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p ci-logs
+          for f in "$RUNNER_TEMP"/*.log; do
+            [ -f "$f" ] || continue
+            cp "$f" "ci-logs/${OS_SLUG}-$(basename "$f")"
+          done
+          printf 'run_id=%s\nrun_url=%s/%s/actions/runs/%s\njob=failed\n' \
+            "$GITHUB_RUN_ID" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" \
+            > "ci-logs/${OS_SLUG}-status.txt"
+          ls -la ci-logs
+          git checkout -B "ci-logs-${OS_SLUG}"
+          git add -f ci-logs
+          git commit -m "ci-logs: ${OS_SLUG} failed in run ${GITHUB_RUN_ID}" || echo "nothing to commit"
+          git push --force origin "ci-logs-${OS_SLUG}"
 
   # ------------------------------------------------------- ffmpeg licence gate
   license-assert:
