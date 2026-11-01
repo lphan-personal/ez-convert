@@ -1081,11 +1081,14 @@ pub enum DocWheelFamily {
 
 /// The wheel family for a document source, or `None` for non-documents.
 pub fn document_wheel_family(ty: CanonicalType) -> Option<DocWheelFamily> {
-    use CanonicalType as C;
     Some(match ty {
-        C::Docx | C::Doc | C::Rtf | C::Markdown | C::Html => DocWheelFamily::Writer,
-        C::Xlsx | C::Xls | C::Csv => DocWheelFamily::Calc,
-        C::Pptx | C::Ppt => DocWheelFamily::Impress,
+        CanonicalType::Docx
+        | CanonicalType::Doc
+        | CanonicalType::Rtf
+        | CanonicalType::Markdown
+        | CanonicalType::Html => DocWheelFamily::Writer,
+        CanonicalType::Xlsx | CanonicalType::Xls | CanonicalType::Csv => DocWheelFamily::Calc,
+        CanonicalType::Pptx | CanonicalType::Ppt => DocWheelFamily::Impress,
         _ => return None,
     })
 }
@@ -1096,11 +1099,23 @@ pub fn document_wheel_family(ty: CanonicalType) -> Option<DocWheelFamily> {
 /// legacy interchange. Calc sources: hand-off, data, modern workbook, plain
 /// text, web. Impress sources: hand-off, modern deck, web.
 pub fn wheel_rank(from: CanonicalType, to: TargetFormat) -> Option<usize> {
-    use TargetFormat as T;
-    let order: &[T] = match document_wheel_family(from)? {
-        DocWheelFamily::Writer => &[T::Pdf, T::Md, T::Txt, T::Docx, T::Html, T::Rtf],
-        DocWheelFamily::Calc => &[T::Pdf, T::Csv, T::Xlsx, T::Txt, T::Html],
-        DocWheelFamily::Impress => &[T::Pdf, T::Pptx, T::Html],
+    let order: &[TargetFormat] = match document_wheel_family(from)? {
+        DocWheelFamily::Writer => &[
+            TargetFormat::Pdf,
+            TargetFormat::Md,
+            TargetFormat::Txt,
+            TargetFormat::Docx,
+            TargetFormat::Html,
+            TargetFormat::Rtf,
+        ],
+        DocWheelFamily::Calc => &[
+            TargetFormat::Pdf,
+            TargetFormat::Csv,
+            TargetFormat::Xlsx,
+            TargetFormat::Txt,
+            TargetFormat::Html,
+        ],
+        DocWheelFamily::Impress => &[TargetFormat::Pdf, TargetFormat::Pptx, TargetFormat::Html],
     };
     order.iter().position(|t| *t == to)
 }
