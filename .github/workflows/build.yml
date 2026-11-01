@@ -41,6 +41,13 @@ concurrency:
 permissions:
   contents: read
 
+# Windows runners default `run:` to PowerShell; every step here is POSIX shell
+# (git bash ships on all three images). Without this, `set -o pipefail` and
+# `tee` break the windows-latest job.
+defaults:
+  run:
+    shell: bash
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
@@ -81,13 +88,13 @@ jobs:
         working-directory: src-tauri
         run: |
           set -o pipefail
-          cargo build --locked --all-targets 2>&1 | tee "$RUNNER_TEMP/build.log"
+          cargo build --locked --all-targets 2>&1 | tee build.log
 
       - name: cargo test (placeholder suite)
         working-directory: src-tauri
         run: |
           set -o pipefail
-          cargo test --locked 2>&1 | tee "$RUNNER_TEMP/test.log"
+          cargo test --locked 2>&1 | tee test.log
 
       # The skeleton was authored without a local Rust toolchain, so the lock
       # file is born in CI. P2/U1 commit it, then builds can use --locked.
@@ -111,7 +118,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           mkdir -p ci-logs
-          for f in "$RUNNER_TEMP"/*.log; do
+          for f in src-tauri/build.log src-tauri/test.log; do
             [ -f "$f" ] || continue
             cp "$f" "ci-logs/${OS_SLUG}-$(basename "$f")"
           done
