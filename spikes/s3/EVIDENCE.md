@@ -287,7 +287,7 @@ check on this platform, because the answer decides the sidecar's argv contract.
 | host | `Ryo-PC` — Microsoft Windows 11 Pro 10.0.26200, build 26200, 24 logical cores, 61.6 GB RAM, `AMD64` |
 | engine | LibreOffice **26.8.2.2** (`9dea406ab7695df6325b11b0e19fdca8db4b7276`) — same build id as the Linux leg |
 | provenance | official TDF MSI `LibreOffice_26.8.2_Win_x86-64.msi`, 375 934 976 B, sha256 `ff4b911403b67ee9e6249f820f9782c44bb32c94fdaa45b0da53a8e419e5307a`, from `download.documentfoundation.org/libreoffice/stable/26.8.2/win/x86_64/` |
-| install | `msiexec /i <msi> /qn /norestart ALLUSERS=1` → rc 0, **46 466 ms**, `C:\Program Files\LibreOffice\program` |
+| install | `msiexec /i <msi> /qn /norestart ALLUSERS=1` → rc 0, **46 466 ms** (reinstall 55 501 ms), `C:\Program Files\LibreOffice\program` |
 | runner | `spikes/s3/run.ps1` (this repo) → `run_s3.py --soffice <found> --out spikes/s3/out-win --reps 3 --controls` |
 | python | CPython 3.14.7, `%LOCALAPPDATA%\Python\bin\python.exe`; `pip install python-docx==1.2.0 openpyxl==3.1.5 python-pptx==1.0.2 pypdf==6.21.4` in 4 725 ms |
 | transport | SSH (`sshd` = OpenSSH for Windows, default shell `cmd.exe`); files base64-piped, because `scp` is unreliable on this host |
@@ -426,13 +426,17 @@ font-related. It is recorded as a caveat, not hidden:
 
 Cause, as far as this spike can establish: with the real Calibri/Cambria
 subset embedded, the PDF's `ToUnicode` CMap for the Cambria subset carries 44
-`bfchar` entries (including multi-char ones — `0x0D → 00660069`, an `fi`
-ligature — so the exporter *can* emit them) but has **no entry for the codes
-drawn for `é` and `ï`**; a hand decode of the content stream against that CMap
-leaves exactly those codes unmapped. `pypdf`, which trusts `ToUnicode`, therefore
-emits the raw code byte; PyMuPDF falls back to the embedded font's own cmap and
+`bfchar` entries — including multi-char ones (`0x0D → 00660069`, an `fi`
+ligature), so the exporter *can* emit them — but the map runs `…0x1B, 0x1D, 0x1E,
+0x20…`: **`0x1C` and `0x1F` are missing**. Two independent observations point at
+exactly those two codes: `pypdf` (which trusts `ToUnicode` and falls back to the
+raw code byte) emits `\x1c` and `\x1f` at the two broken positions, and a hand
+decode of the content stream against that CMap leaves the same two codes
+unmapped. PyMuPDF instead falls back to the embedded font's own cmap and
 recovers the character; the rasteriser draws the real glyph, so the page looks
-right.
+right. (The `0x1C`/`0x1F` identification is corroborated by two methods, not
+read out of LibreOffice's source — the exact exporter code path was not
+inspected.)
 
 **What this means, and what it does not.** The conversion is correct — the file,
 the pagination, the geometry and the visible text are all right. What is *not*
@@ -469,10 +473,11 @@ after `msiexec` returned and no other LibreOffice process had been started):
 | 5 — same profile (warm) | 880 ms |
 
 A separate one-shot probe on the *first* install (before any matrix run) saw
-**9 556 ms** for the first-ever invocation — the spread between 9.6 s and 5.1 s
-is the machine's state at install time (first-install flag, on-access AV scan of
-~358 MB of freshly written DLLs), not a harness difference. **Budget for the
-worst case: ~10 s for the first conversion a user ever runs after install.**
+**9 556 ms** for the first-ever invocation. The spread between 9.6 s and 5.1 s
+is most likely the machine's state at install time — first-install flag and an
+on-access AV scan of ~358 MB of freshly written DLLs — and not a harness
+difference; it was not isolated. **Budget for the worst case: ~10 s for the first
+conversion a user ever runs after install.**
 
 **Matrix cold/warm** (fresh profile per direction, warm install, `--reps 3`):
 
@@ -488,8 +493,11 @@ worst case: ~10 s for the first conversion a user ever runs after install.**
 
 Re-run after uninstall+reinstall: cold within **−7 % … +6 %** of the table and
 **byte-identical** outputs, so these are stable enough to budget against.
-Windows warm times land within ~10 % of the Linux leg despite 24 vs 4 cores —
-per-conversion cost is dominated by process start + profile I/O, not CPU.
+Per-direction the 24-core Windows box lands within ±35 % of the 4-core Linux
+container in *both* directions — faster on the PDF directions, slower on the
+Calc ones — which says the per-conversion cost is dominated by process start and
+profile I/O, not by CPU count. Budget per file: **~1.2 s cold, ~0.75 s warm,
+10 s for the first conversion after install.**
 
 ## 9.7 Controls on Windows (the `rc=0 / no output` traps, same harness)
 
