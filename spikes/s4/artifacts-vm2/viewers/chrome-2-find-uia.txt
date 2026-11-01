@@ -1,0 +1,10 @@
+ControlType.Pane | name=EZ Convert S3 fixture - Google Chrome | value=
+ControlType.Pane | name=Find in page
+    EZ Convert S3 fixture | value=
+ControlType.Edit | name=Find | value=café
+TEXT|café
+ControlType.StatusBar | name=Result 1 of 1 | value=
+ControlType.Button | name=Previous | value=
+ControlType.Button | name=Next | value=
+ControlType.Button | name=Close find bar | value=
+ControlType.StatusBar | name=Result 1 of 1 | value=

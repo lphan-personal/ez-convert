@@ -1,0 +1,182 @@
+dist: /c/build/dist
+vips-8.18.7
+date(UTC): Sun, Nov  1, 2026 10:08:21 PM
+icc profile: /c/Windows/System32/spool/drivers/color/sRGB Color Space Profile.icm (3144 bytes)
+
+######## 0. fixture build (sRGB-tagged + EXIF-bearing, realistic sizes) ########
+wrote src2mp.jpg: 1390559 bytes, IFD0 tags=['0x10f', '0x110', '0x112', '0x131', '0x132'] orientation=1
+wrote src8mp.jpg: 3550197 bytes, IFD0 tags=['0x10f', '0x110', '0x112', '0x131', '0x132'] orientation=1
+--- fixtures ---
+  small.png         4175 bytes
+  src2mp.jpg     1390559 bytes
+  src8mp.jpg     3550197 bytes
+--- src2mp.jpg metadata (must have BOTH exif-ifd0-* and icc-profile-data) ---
+width: 1728
+height: 1152
+exif-ifd0-Make: EZConvertTest (EZConvertTest, ASCII, 14 components, 14 bytes)
+exif-ifd0-Model: AVIF Proving Rig (AVIF Proving Rig, ASCII, 17 components, 17 bytes)
+exif-ifd0-Orientation: 1 (Top-left, Short, 1 components, 2 bytes)
+exif-ifd0-Software: libvips 8.18.7 spec-aom (libvips 8.18.7 spec-aom, ASCII, 24 components, 24 bytes)
+exif-ifd0-DateTime: 2026:11:01 03:00:00 (2026:11:01 03:00:00, ASCII, 20 components, 20 bytes)
+icc-profile-data: 3144 bytes of binary data
+  PASS  fixture carries an ICC profile
+  PASS  fixture carries EXIF IFD0
+
+######## 1. png -> avif and jpg -> avif (compression=av1, the path that used to fail) ########
+  PASS  png -> avif (400x200)
+  PASS  jpg -> avif (2 MP)
+  PASS  small.avif exists, 3863 bytes
+  PASS  big2mp.avif exists, 300282 bytes
+--- container brand (bytes 4..12 must be ftyp<brand>) ---
+  small.avif    \0 \0 \0 034 f t y p a v i f
+  big2mp.avif   \0 \0 \0 034 f t y p a v i f
+--- avif headers ---
+small.avif: 400x200 uchar, 3 bands, srgb, heifload
+width: 400
+height: 200
+bands: 3
+format: uchar
+exif-ifd0-XResolution: 71983/1000 (71.983, Rational, 1 components, 8 bytes)
+exif-ifd0-YResolution: 71983/1000 (71.983, Rational, 1 components, 8 bytes)
+exif-ifd0-ResolutionUnit: 2 (Inch, Short, 1 components, 2 bytes)
+exif-ifd0-YCbCrPositioning: 1 (Centered, Short, 1 components, 2 bytes)
+icc-profile-data: 3144 bytes of binary data
+big2mp.avif: 1728x1152 uchar, 3 bands, srgb, heifload
+width: 1728
+height: 1152
+bands: 3
+format: uchar
+exif-ifd0-Make: EZConvertTest (EZConvertTest, ASCII, 14 components, 14 bytes)
+exif-ifd0-Model: AVIF Proving Rig (AVIF Proving Rig, ASCII, 17 components, 17 bytes)
+exif-ifd0-XResolution: 72/1 (72, Rational, 1 components, 8 bytes)
+exif-ifd0-YResolution: 72/1 (72, Rational, 1 components, 8 bytes)
+exif-ifd0-ResolutionUnit: 2 (Inch, Short, 1 components, 2 bytes)
+exif-ifd0-Software: libvips 8.18.7 spec-aom (libvips 8.18.7 spec-aom, ASCII, 24 components, 24 bytes)
+exif-ifd0-DateTime: 2026:11:01 03:00:00 (2026:11:01 03:00:00, ASCII, 20 components, 20 bytes)
+icc-profile-data: 3144 bytes of binary data
+--- EXIF + ICC survived INTO the avif? ---
+  PASS  small.avif kept icc-profile-data
+  PASS  big2mp.avif kept icc-profile-data
+  PASS  big2mp.avif kept exif-ifd0-Make
+  PASS  big2mp.avif kept exif-ifd0-Model
+  PASS  big2mp.avif kept exif-ifd0-Software
+  PASS  big2mp.avif kept exif-ifd0-DateTime
+
+######## 2. avif -> jpg (decode back through dav1d) and geometry/pixel check ########
+  PASS  avif(400x200) -> jpg
+  PASS  avif(2 MP) -> jpg
+--- decoded avif, as our vips sees it ---
+small.avif: 400x200 uchar, 3 bands, srgb, heifload
+big2mp.avif: 1728x1152 uchar, 3 bands, srgb, heifload
+--- round-tripped jpg metadata ---
+width: 1728
+height: 1152
+exif-ifd0-Make: EZConvertTest (EZConvertTest, ASCII, 14 components, 14 bytes)
+exif-ifd0-Model: AVIF Proving Rig (AVIF Proving Rig, ASCII, 17 components, 17 bytes)
+exif-ifd0-Orientation: 1 (Top-left, Short, 1 components, 2 bytes)
+icc-profile-data: 3144 bytes of binary data
+  PASS  avif->jpg kept the ICC profile
+  PASS  avif->jpg kept EXIF IFD0
+  PASS  avif geometry 400x200
+--- corner pixels, source vs avif-decoded (lossy, so near-equal is the expectation) ---
+source small.png : 220 30 30  30 200 30 
+avif  small.avif : 220 30 30  30 200 31 
+
+######## 3. avif *decode* of our own file + HEIC decode unchanged (orientation test) ########
+  PASS  avif -> jpg (dav1d decode of the avif we just wrote)
+  PASS  HEIC decode (orient6.heic) still works
+--- heic in ---
+width: 200
+height: 400
+--- heic out ---
+width: 200
+height: 400
+exif-ifd0-Orientation: 1 (Top-left, Short, 1 components, 2 bytes)
+  PASS  HEIC orientation test: 200x400 (unchanged from S2)
+--- corners (S2 expectation: 30 59 221 / 220 30 32 / 246 220 22 / 30 200 31) ---
+30 59 221 
+220 30 32 
+246 220 22 
+30 200 31 
+  PASS  top-left still blue (30 59 221)
+
+######## 3b. NON-default EXIF orientation through avif (the double-rotation trap) ########
+wrote ori6_src.jpg: 1390559 bytes, IFD0 tags=['0x10f', '0x110', '0x112', '0x131', '0x132'] orientation=6
+--- source: 1728x1152 with Orientation=6 ('rotate 90 CW to display' -> correct display 1152x1728) ---
+width: 1728
+height: 1152
+exif-ifd0-Orientation: 6 (Right-top, Short, 1 components, 2 bytes)
+  PASS  orientation-6 jpg -> avif
+--- in the avif container (vips reads it back: libheif already applied irot at load) ---
+width: 1152
+height: 1728
+exif-ifd0-Make: EZConvertTest (EZConvertTest, ASCII, 14 components, 14 bytes)
+icc-profile-data: 3144 bytes of binary data
+--- after decode + re-save as jpg ---
+width: 1152
+height: 1728
+exif-ifd0-Orientation: 1 (Top-left, Short, 1 components, 2 bytes)
+  PASS  avif round trip lands correctly oriented at 1152x1728
+  PASS  no stale EXIF Orientation in the avif (libheif rewrote it; irot carries the rotation)
+  PASS  orientation-6 avif still carries the rest of the EXIF IFD0
+  PASS  decoded avif presents Orientation=1 (irot already applied -> autorot is a no-op)
+
+######## 3c. encoder selection: aom is the linked encoder, rav1e must be absent ########
+  PASS  explicit --encoder aom accepted
+--- explicit --encoder rav1e (must not be available; watch for silent fallback) ---
+    
+    (vips.exe:6784): VIPS-WARNING **: 16:09:16.120: heifsave: could not find rav1e
+  rc=0  out=3853 bytes
+--- default bitdepth (option default is 12; the input here is 8-bit) ---
+default_bd.avif: 400x200 uchar, 3 bands, srgb, heifload
+  PASS  8-bit source stays 8-bit without an explicit --bitdepth
+
+######## 3d. copyleft audit beyond the recipe's banned list (the audit's blind spot) ########
+--- modules in the dist matching a wider GPL/copyleft pattern ---
+    libheif.dll              imports: libaom.dll 
+--- the banned five (must be absent) ---
+  PASS  0 banned imports across the whole dist
+--- libjbig-0.dll: reported, NOT a pass (see docs/LICENSES.md section 4) ---
+  PASS  libjbig-0.dll not in the closure
+
+######## 4. G5 — the tiny-HEIC 'bad seek' warning: does it appear on a larger HEIC? ########
+--- orient6.heic (2345 bytes) -> avif, stderr captured ---
+  exit=0  out=990 bytes
+  stderr: (empty)
+  PASS  no 'bad seek' warning on orient6.heic
+  PASS  heic -> avif produced output for orient6.heic
+--- sample1.heic (293608 bytes) -> avif, stderr captured ---
+  exit=0  out=264887 bytes
+  stderr: (empty)
+  PASS  no 'bad seek' warning on sample1.heic
+  PASS  heic -> avif produced output for sample1.heic
+
+######## 5. encode latency (measured wall-clock, 3 runs each) ########
+--- pixel counts ---
+  small.png    400x200
+  src2mp.png   1728x1152
+  src8mp.png   3456x2304
+--- avif (compression=av1, bitdepth=8, keep=all) ---
+  0.08 MP  Q60 effort6               runs:  0.114s  0.111s  0.106s   out:     3863 B
+  2 MP     Q60 effort6               runs:  3.057s  2.868s  2.941s   out:   294804 B
+  2 MP     Q80 effort6               runs:  3.603s  3.760s  3.536s   out:   525271 B
+  8 MP     Q60 effort6               runs:  6.971s  6.984s  6.844s   out:   634158 B
+  8 MP     Q60 effort0               runs:  0.353s  0.353s  0.367s   out:   781161 B
+  8 MP     Q60 effort9               runs: 19.596s 21.708s 20.203s   out:   630409 B
+--- same images through the incumbent encoders, for the UI's relative sense ---
+  8 MP     jpeg Q80                  run1:  0.211s   out:  1376541 B
+  8 MP     webp Q80                  run1:  0.775s   out:   974066 B
+  8 MP     png (lossless)            run1:  0.715s   out: 19389662 B
+--- avif DECODE latency (8 MP) ---
+  8 MP avif -> jpg (dav1d)           run1:  0.182s
+  2 MP avif -> jpg (dav1d)           run1:  0.115s
+
+######## 6. compression result sanity (avif vs jpeg at equal Q, 8 MP) ########
+  lat_8mp.jpg              1376541 bytes
+  lat_8mp.webp              974066 bytes
+  lat_8mp_q60.avif          634158 bytes
+
+
+######## SUMMARY ########
+  PASS=34  FAIL=0
+SSH-RC=0

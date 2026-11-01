@@ -1,0 +1,9 @@
+EZ Convert S3 fixture
+MARKER-ALPHA this paragraph proves text survives the conversion. cafe – naïve → 中文
+Second paragraph with a tab between values and 100%% literal.
+Third paragraph: bullet-like line one.
+Line two after a soft break.
+Metric Value Unit
+Pages 1 page
+Marker MARKER-ALPHA string
+Closing paragraph after the table.

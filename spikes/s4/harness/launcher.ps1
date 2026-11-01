@@ -51,7 +51,10 @@ $si = [Sess+STARTUPINFO]::new()
 $si.cb = [Runtime.InteropServices.Marshal]::SizeOf($si)
 $si.lpDesktop = 'winsta0\default'
 $pi = [Sess+PROCESS_INFORMATION]::new()
-$flags = 0x00000400  # CREATE_UNICODE_ENVIRONMENT
+# CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW: without NO_WINDOW the child gets a console
+# window that can hold the session's foreground, and then SendKeys/SetForegroundWindow on the
+# real viewer silently do nothing (found on the win11-dev VM, 2026-11-01).
+$flags = 0x00000400 -bor 0x08000000  # CREATE_UNICODE_ENVIRONMENT
 $ok = [Sess]::CreateProcessAsUser($dup, $psExe, $cmd, [IntPtr]::Zero, [IntPtr]::Zero, $false, $flags, $envBlk, 'C:\build\s4', [ref]$si, [ref]$pi)
 if (-not $ok) {
   $e1 = [Runtime.InteropServices.Marshal]::GetLastWin32Error()

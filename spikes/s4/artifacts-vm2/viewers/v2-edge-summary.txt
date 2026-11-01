@@ -1,0 +1,2 @@
+﻿copy 1 focus=  focus OK on attempt 1 True len=23 sentinel=True cafe=False naive=False marker=False ctrl1C=False ctrl1F=False
+copy 2 focus=  focus OK on attempt 1 True len=23 sentinel=True cafe=False naive=False marker=False ctrl1C=False ctrl1F=False

@@ -450,6 +450,13 @@ aom` accepted, 0 banned imports, no `libjbig-0.dll`. The 43-file / 35,824,560 B 
 hash-identical to the S2c manifest (`FINAL-dist-spec-aom-sha256.txt`, 43/43 entries, 0
 mismatches). Avif output is `Proven` on the artifact that ships; nothing in the wheel moves.
 
+*Repeated 2026-11-01 on the dedicated test VM (`spikes/s4/EVIDENCE-VM.md` §1):* the same dist was
+copied to `win11-dev`, re-verified there against the same manifest (43/43, 0 mismatches,
+`libvips-42.dll` `edea7dc5…586410`, `libheif.dll` `92f1c402…d4a9`), and the same unchanged script
+(`d5314fbf…74224`) again returned **PASS=34 FAIL=0** at 22:08:21 UTC. Two hosts, two independent
+dist verifications, same result. Latency there is 3.3× the build box's (6.93 s vs 2.12 s for 8 MP
+Q60 on 6 vCPU); ship numbers come from the build host, not the VM.
+
 Measured invocations (Windows 11 Pro 26200, MSYS2/UCRT64 build; evidence: `S2 §1`-`§3`,
 `build/windows/EVIDENCE-S2-libvips.md`, `t_65624d81`):
 
@@ -623,7 +630,13 @@ conversion of the S3 fixture (39,946 B, `%PDF-1.7`):
 | Chrome 156 (PDFium) | yes | **1 of 1** | `caf[00E9] – na[00EF]ve → 中文` — correct |
 | Brave 156 (PDFium) | yes | **1 of 1** | `caf[00E9] – na[00EF]ve → 中文` — correct |
 | Edge 156 (Adobe-Acrobat-branded PDF engine) | yes | **1 of 1**, highlighted | `cafe ` — **the `é` is dropped** |
-| `pdf.js` 5.7.284 (Firefox's text layer) | — | — | `caf e[1C] – na ï[1F] ve` — same defect as pypdf |
+| Firefox 159 (real browser, pdf.js) | yes | **1 of 1 match** | `cafe[001C] … na[00EF][001F]ve` — same defect as pypdf |
+| Acrobat 26.2 (full app, `EVIDENCE-VM.md` §2) | yes | not captured¹ | `caf[00E9] – ve → 中文` — **`naï` is dropped** |
+| `pdf.js` 5.7.284 (Firefox's text layer, Node) | — | — | `caf e[1C] – na ï[1F] ve` — same defect as pypdf |
+
+¹ Acrobat draws its own find UI and exposes no counter to UI Automation; the query also failed to
+land in its top-bar search field. Its render and copy *are* measured, twice, identically. Finding
+`café` in Acrobat is **unverified**, not failed.
 
 Verdict: **some viewers are affected.** Consequences for this architecture:
 
@@ -634,8 +647,10 @@ Verdict: **some viewers are affected.** Consequences for this architecture:
   Rendering and in-viewer search are fine; copying accented text out is not, outside PDFium.
   This matters for a Vietnamese user base and is a **LibreOffice Windows exporter** behaviour,
   not something the packaging introduces.
-- Not measured: Acrobat Reader itself (not installed on the build host) and macOS Preview. Do not
-  extend the table above by assumption.
+- **Acrobat is now measured** (26.2 on the test VM, `EVIDENCE-VM.md` §2): its text layer drops the
+  broken glyph run (`naï`), so the reference viewer users are most likely to open is affected too.
+  Still unmeasured: Acrobat's *find* result (its find UI exposes no counter), Edge's literal
+  clipboard paste, and macOS Preview. Do not extend the table above by assumption.
 
 
 Negative controls, all measured — these define the error model:
@@ -1590,7 +1605,7 @@ fixture (a known input with known output properties) and a test that consumes it
 | vips build, dist contents, import audit, HEIC decode, orientation, the four copy directions | `build/windows/EVIDENCE-S2-libvips.md`; card `t_7d0ad299` |
 | JBIG TIFF silent black frame vs `tiffload --fail-on error` | `t_65624d81` (`jbig-c34661-probe.txt`, `S2C-FIX-REPORT.md` §5) |
 | avif save/decode, `effort`-not-`speed`, EXIF+ICC survival, `--encoder` rc=0 trap, config-lying trap | `build/windows/EVIDENCE-S2b-avif-encode.md`; card `t_803b8add` (warden-approved) |
-| **avif re-proven on the final dist** (34/34, EXIF IFD0 ×4 + 3,144 B ICC through jpg→avif→jpg, orientation-6 at 1152×1728 with no stale tag, dav1d decode, dist hash-identical to S2c) | `spikes/s4/EVIDENCE.md` §1 + `artifacts/avif-final.log`, `artifacts/FINAL-dist-spec-aom-sha256.txt`; card `t_61e55863` |
+| **avif re-proven on the final dist** (34/34, EXIF IFD0 ×4 + 3,144 B ICC through jpg→avif→jpg, orientation-6 at 1152×1728 with no stale tag, dav1d decode, dist hash-identical to S2c) | `spikes/s4/EVIDENCE.md` §1 + `artifacts/avif-final.log`, `artifacts/FINAL-dist-spec-aom-sha256.txt`; repeated on the test VM with the same 34/34 and the same 43/43 manifest check in `spikes/s4/EVIDENCE-VM.md` §1; card `t_61e55863` |
 | **real-viewer text fidelity for Windows `docx → pdf`** (Chrome/Brave/Edge GUI: render, find result, clipboard via `CF_UNICODETEXT`; Edge + `pdf.js` lose `é`, PDFium keeps it) | `spikes/s4/EVIDENCE.md` §2 + `artifacts/*-clipboard.txt`, `artifacts/*-uia*.txt`, `artifacts/*.png`; card `t_61e55863` |
 | vips argv hardening (system op, leading `--`, UNC, traversal, env) | `warden` audit `t_cccf4bf3`, condition C-3 |
 | 7 document directions, argv, timings, failure modes, fidelity (Linux leg) | `spikes/s3/EVIDENCE.md` §1-§8, `spikes/s3/run_s3.py`, `result.json`; card `t_d910a4c8` |

@@ -18,6 +18,12 @@ Artifacts for both items are in `spikes/s4/artifacts/`.
 | avif save/decode/EXIF/ICC/orientation on the **final** dist | **PASS — 34 assertions, 0 failures.** Avif output stays `Proven`; nothing changes in the wheel. |
 | real-viewer fidelity of accented text in `docx → pdf` on Windows | **(b) some viewers are affected.** Rendering and search are fine everywhere; the *text layer* (copy, screen readers) loses `é` outside PDFium. A1 must **not** promise searchable accented text on Windows. |
 
+> **Second host.** Both items were repeated on the dedicated test VM (`win11-dev`, 10.0.0.191)
+> after the Windows target moved there: see **`EVIDENCE-VM.md`** — same dist re-verified 43/43 and
+> the same suite at 34/34 on a second machine, plus **real Acrobat 26.2** and a real Firefox GUI
+> instead of pdf.js under Node. The verdict does not change; the Acrobat row is new and it is
+> affected too.
+
 ---
 
 ## 1. avif suite on the final dist
