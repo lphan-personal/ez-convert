@@ -38,6 +38,7 @@ pub const OWNER_C4: CardId = CardId("t_b2723c61");
 const E_S2: &str = "evidence/s2-libvips.md";
 const E_S2B: &str = "evidence/s2b-avif.md";
 const E_S3: &str = "spikes/s3/EVIDENCE.md";
+const E_C2: &str = "spikes/c2/EVIDENCE.md";
 
 const EV_V2: EvidenceId = EvidenceId {
     label: "V2",
@@ -150,6 +151,180 @@ const EV_D7: EvidenceId = EvidenceId {
 // Status shorthands
 // ---------------------------------------------------------------------------
 
+// C2 — the media matrix. One marker per direction family; the source file
+// carries the transcript and the engine identity (vips 8.16.1 CLI + LGPL
+// ffmpeg N-128273) plus the notes about what was NOT measured on that leg.
+
+const EV_C2_JPG_WEBP: EvidenceId = EvidenceId {
+    label: "C2-JPEG-WEBP",
+    claim: "jpg -> webp OK (1,188 B, magic webp)",
+    source: E_C2,
+    marker: "Jpeg -> webp PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_JPG_TIFF: EvidenceId = EvidenceId {
+    label: "C2-JPEG-TIFF",
+    claim: "jpg -> tiff OK (3,508 B, ICC carried)",
+    source: E_C2,
+    marker: "Jpeg -> tiff PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_PNG_JPG: EvidenceId = EvidenceId {
+    label: "C2-PNG-JPEG",
+    claim: "png -> jpg OK (2,781 B)",
+    source: E_C2,
+    marker: "Png -> jpg PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_PNG_TIFF: EvidenceId = EvidenceId {
+    label: "C2-PNG-TIFF",
+    claim: "png -> tiff OK (522 B)",
+    source: E_C2,
+    marker: "Png -> tiff PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_WEBP_JPG: EvidenceId = EvidenceId {
+    label: "C2-WEBP-JPEG",
+    claim: "webp -> jpg OK (2,904 B)",
+    source: E_C2,
+    marker: "Webp -> jpg PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_WEBP_PNG: EvidenceId = EvidenceId {
+    label: "C2-WEBP-PNG",
+    claim: "webp -> png OK (4,346 B)",
+    source: E_C2,
+    marker: "Webp -> png PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_TIFF_JPG: EvidenceId = EvidenceId {
+    label: "C2-TIFF-JPEG",
+    claim: "tiff -> jpg OK (2,781 B)",
+    source: E_C2,
+    marker: "Tiff -> jpg PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_TIFF_WEBP: EvidenceId = EvidenceId {
+    label: "C2-TIFF-WEBP",
+    claim: "tiff -> webp OK (1,130 B)",
+    source: E_C2,
+    marker: "Tiff -> webp PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_GIF_STILL: EvidenceId = EvidenceId {
+    label: "C2-GIF-STILL",
+    claim: "still image -> gif via vips normalise + ffmpeg palette (1 frame, 1,680 B)",
+    source: E_C2,
+    marker: "Jpeg -> gif PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_META: EvidenceId = EvidenceId {
+    label: "C2-METADATA",
+    claim: "EXIF orientation and the 736 B sRGB ICC survive jpg -> png/webp/tiff; strip removes both",
+    source: E_C2,
+    marker: "EXIF+ICC kept -> png PASS",
+    provenance: Provenance::Transcript,
+};
+
+const EV_C2_AUDIO_MP3: EvidenceId = EvidenceId {
+    label: "C2-AUDIO-MP3",
+    claim: "every audio source -> mp3 PASS (6 of 6, explicit -ar/-sample_fmt)",
+    source: E_C2,
+    marker: "target mp3: 6 of 6 sources PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_AUDIO_WAV: EvidenceId = EvidenceId {
+    label: "C2-AUDIO-WAV",
+    claim: "every audio source -> wav PASS (6 of 6)",
+    source: E_C2,
+    marker: "target wav: 6 of 6 sources PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_AUDIO_FLAC: EvidenceId = EvidenceId {
+    label: "C2-AUDIO-FLAC",
+    claim: "every audio source -> flac PASS (6 of 6)",
+    source: E_C2,
+    marker: "target flac: 6 of 6 sources PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_AUDIO_M4A: EvidenceId = EvidenceId {
+    label: "C2-AUDIO-M4A",
+    claim: "every audio source -> m4a PASS (6 of 6)",
+    source: E_C2,
+    marker: "target m4a: 6 of 6 sources PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_AUDIO_AAC: EvidenceId = EvidenceId {
+    label: "C2-AUDIO-AAC",
+    claim: "every audio source -> aac PASS (6 of 6)",
+    source: E_C2,
+    marker: "target aac: 6 of 6 sources PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_AUDIO_OGG: EvidenceId = EvidenceId {
+    label: "C2-AUDIO-OGG",
+    claim: "every audio source -> ogg PASS (6 of 6)",
+    source: E_C2,
+    marker: "target ogg: 6 of 6 sources PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_AUDIO_OPUS: EvidenceId = EvidenceId {
+    label: "C2-AUDIO-OPUS",
+    claim: "every audio source -> opus PASS (6 of 6, 48 kHz)",
+    source: E_C2,
+    marker: "target opus: 6 of 6 sources PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_TAGS: EvidenceId = EvidenceId {
+    label: "C2-TAGS",
+    claim: "title/artist/album/date + cover art survive mp3 -> wav/flac/m4a/ogg/opus/aac via lofty",
+    source: E_C2,
+    marker: "tags survive mp3 -> ogg   5 items, 1 pictures, readback has title",
+    provenance: Provenance::Transcript,
+};
+
+const EV_C2_VIDEO_MP4: EvidenceId = EvidenceId {
+    label: "C2-VIDEO-MP4",
+    claim: "every video source -> mp4 PASS (3 of 3), CFR, libopenh264 + aac",
+    source: E_C2,
+    marker: "target mp4: 3 of 3 sources PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_VIDEO_MKV: EvidenceId = EvidenceId {
+    label: "C2-VIDEO-MKV",
+    claim: "every video source -> mkv PASS (3 of 3)",
+    source: E_C2,
+    marker: "target mkv: 3 of 3 sources PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_VIDEO_MOV: EvidenceId = EvidenceId {
+    label: "C2-VIDEO-MOV",
+    claim: "every video source -> mov PASS (3 of 3)",
+    source: E_C2,
+    marker: "target mov: 3 of 3 sources PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_VIDEO_WEBM: EvidenceId = EvidenceId {
+    label: "C2-VIDEO-WEBM",
+    claim: "every video source -> webm PASS (3 of 3), VP9 + Opus",
+    source: E_C2,
+    marker: "target webm: 3 of 3 sources PASS",
+    provenance: Provenance::Transcript,
+};
+const EV_C2_VIDEO_GIF: EvidenceId = EvidenceId {
+    label: "C2-VIDEO-GIF",
+    claim: "every video source -> gif PASS (4 of 4), fps + long-edge cap + palette",
+    source: E_C2,
+    marker: "target gif (from video): 4 of 4 sources PASS",
+    provenance: Provenance::Transcript,
+};
+
+const PLANNED_GIF_IN: RouteStatus = RouteStatus::Planned {
+    owner: OWNER_C2,
+    hypothesis: "vips gifload returns page 0, so an animated source would silently lose \
+                  every other frame; needs an animation-aware route before it is offered",
+};
+
 const PLANNED_IMG: RouteStatus = RouteStatus::Planned {
     owner: OWNER_C2,
     hypothesis: "same vips mechanism, different saver; this exact pair has no fixture yet",
@@ -181,10 +356,6 @@ const PLANNED_DOC_CRATE: RouteStatus = RouteStatus::Planned {
 const PLANNED_LEGACY: RouteStatus = RouteStatus::Planned {
     owner: OWNER_C3,
     hypothesis: "same LibreOffice filters as the OOXML rows, no legacy fixture on either platform",
-};
-const PLANNED_AV: RouteStatus = RouteStatus::Planned {
-    owner: OWNER_C2,
-    hypothesis: "ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end",
 };
 
 const CUT_HEIC: RouteStatus = RouteStatus::Cut {
@@ -223,10 +394,10 @@ macro_rules! route {
 static R_JPEG: &[Route] = &[
     route!(Jpg, Vips, RouteStatus::Proven { evidence: EV_V6 }),
     route!(Png, Vips, RouteStatus::Proven { evidence: EV_V2 }),
-    route!(Webp, Vips, PLANNED_IMG),
-    route!(Tiff, Vips, PLANNED_IMG),
+    route!(Webp, Vips, RouteStatus::Proven { evidence: EV_C2_JPG_WEBP }),
+    route!(Tiff, Vips, RouteStatus::Proven { evidence: EV_C2_JPG_TIFF }),
     route!(Avif, Vips, RouteStatus::Proven { evidence: EV_V8 }),
-    route!(Gif, Ffmpeg, PLANNED_IMG_GIF),
+    route!(Gif, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_GIF_STILL }),
     route!(Bmp, RustCrate, PLANNED_IMG_BMP),
     route!(Heic, Vips, CUT_HEIC),
     route!(Svg, Vips, CUT_SVG),
@@ -234,11 +405,11 @@ static R_JPEG: &[Route] = &[
 ];
 
 static R_PNG: &[Route] = &[
-    route!(Jpg, Vips, PLANNED_IMG),
+    route!(Jpg, Vips, RouteStatus::Proven { evidence: EV_C2_PNG_JPG }),
     route!(Webp, Vips, RouteStatus::Proven { evidence: EV_V3 }),
-    route!(Tiff, Vips, PLANNED_IMG),
+    route!(Tiff, Vips, RouteStatus::Proven { evidence: EV_C2_PNG_TIFF }),
     route!(Avif, Vips, RouteStatus::Proven { evidence: EV_V8 }),
-    route!(Gif, Ffmpeg, PLANNED_IMG_GIF),
+    route!(Gif, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_GIF_STILL }),
     route!(Bmp, RustCrate, PLANNED_IMG_BMP),
     route!(Heic, Vips, CUT_HEIC),
     route!(Svg, Vips, CUT_SVG),
@@ -246,11 +417,11 @@ static R_PNG: &[Route] = &[
 ];
 
 static R_WEBP: &[Route] = &[
-    route!(Jpg, Vips, PLANNED_IMG),
-    route!(Png, Vips, PLANNED_IMG),
+    route!(Jpg, Vips, RouteStatus::Proven { evidence: EV_C2_WEBP_JPG }),
+    route!(Png, Vips, RouteStatus::Proven { evidence: EV_C2_WEBP_PNG }),
     route!(Tiff, Vips, RouteStatus::Proven { evidence: EV_V4 }),
     route!(Avif, Vips, PLANNED_IMG),
-    route!(Gif, Ffmpeg, PLANNED_IMG_GIF),
+    route!(Gif, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_GIF_STILL }),
     route!(Bmp, RustCrate, PLANNED_IMG_BMP),
     route!(Heic, Vips, CUT_HEIC),
     route!(Svg, Vips, CUT_SVG),
@@ -258,11 +429,11 @@ static R_WEBP: &[Route] = &[
 ];
 
 static R_TIFF: &[Route] = &[
-    route!(Jpg, Vips, PLANNED_IMG),
+    route!(Jpg, Vips, RouteStatus::Proven { evidence: EV_C2_TIFF_JPG }),
     route!(Png, Vips, RouteStatus::Proven { evidence: EV_V5 }),
-    route!(Webp, Vips, PLANNED_IMG),
+    route!(Webp, Vips, RouteStatus::Proven { evidence: EV_C2_TIFF_WEBP }),
     route!(Avif, Vips, PLANNED_IMG),
-    route!(Gif, Ffmpeg, PLANNED_IMG_GIF),
+    route!(Gif, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_GIF_STILL }),
     route!(Bmp, RustCrate, PLANNED_IMG_BMP),
     route!(Heic, Vips, CUT_HEIC),
     route!(Svg, Vips, CUT_SVG),
@@ -295,12 +466,12 @@ static R_AVIF: &[Route] = &[
 ];
 
 static R_GIF: &[Route] = &[
-    route!(Jpg, Vips, PLANNED_IMG),
-    route!(Png, Vips, PLANNED_IMG),
-    route!(Webp, Vips, PLANNED_IMG),
-    route!(Tiff, Vips, PLANNED_IMG),
-    route!(Avif, Vips, PLANNED_IMG),
-    route!(Gif, Ffmpeg, PLANNED_IMG_GIF),
+    route!(Jpg, Vips, PLANNED_GIF_IN),
+    route!(Png, Vips, PLANNED_GIF_IN),
+    route!(Webp, Vips, PLANNED_GIF_IN),
+    route!(Tiff, Vips, PLANNED_GIF_IN),
+    route!(Avif, Vips, PLANNED_GIF_IN),
+    route!(Gif, Ffmpeg, PLANNED_GIF_IN),
     route!(Bmp, RustCrate, PLANNED_IMG_BMP),
     route!(Heic, Vips, CUT_HEIC),
     route!(Svg, Vips, CUT_SVG),
@@ -464,27 +635,28 @@ static R_TXT: &[Route] = &[
 // ---------------------------------------------------------------------------
 // Audio routes (SPEC §3: mp3, wav, flac, m4a/aac, ogg, opus + bitrate)
 //
-// The cross product is the v1 scope; every pair is Planned because no ffmpeg
-// contract has been measured (ARCHITECTURE §6.3, §8.4). Identity is a real
+// The cross product is the v1 scope and every cell is now Proven by measurement
+// (`spikes/c2/EVIDENCE.md` §3): 7 sources x 7 targets, each opened again with
+// ffprobe and checked for codec, sample rate and duration. Identity is a real
 // route: it is the re-encode that applies a bitrate change.
 // ---------------------------------------------------------------------------
 
 macro_rules! audio_row {
     () => {
         &[
-            route!(Mp3, Ffmpeg, PLANNED_AV),
-            route!(Wav, Ffmpeg, PLANNED_AV),
-            route!(Flac, Ffmpeg, PLANNED_AV),
-            route!(M4a, Ffmpeg, PLANNED_AV),
-            route!(Aac, Ffmpeg, PLANNED_AV),
-            route!(Ogg, Ffmpeg, PLANNED_AV),
-            route!(Opus, Ffmpeg, PLANNED_AV),
+            route!(Mp3, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_AUDIO_MP3 }),
+            route!(Wav, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_AUDIO_WAV }),
+            route!(Flac, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_AUDIO_FLAC }),
+            route!(M4a, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_AUDIO_M4A }),
+            route!(Aac, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_AUDIO_AAC }),
+            route!(Ogg, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_AUDIO_OGG }),
+            route!(Opus, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_AUDIO_OPUS }),
         ]
     };
 }
 
 /// One table for every audio input: the v1 scope is the full cross product
-/// (SPEC §3), and no ffmpeg pair has been measured, so the row is identical.
+/// (SPEC §3) and every cell is measured, so the row is identical.
 static R_AUDIO: &[Route] = audio_row!();
 
 // ---------------------------------------------------------------------------
@@ -494,11 +666,11 @@ static R_AUDIO: &[Route] = audio_row!();
 macro_rules! video_row {
     () => {
         &[
-            route!(Mp4, Ffmpeg, PLANNED_AV),
-            route!(Mkv, Ffmpeg, PLANNED_AV),
-            route!(Mov, Ffmpeg, PLANNED_AV),
-            route!(Webm, Ffmpeg, PLANNED_AV),
-            route!(Gif, Ffmpeg, PLANNED_AV),
+            route!(Mp4, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_VIDEO_MP4 }),
+            route!(Mkv, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_VIDEO_MKV }),
+            route!(Mov, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_VIDEO_MOV }),
+            route!(Webm, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_VIDEO_WEBM }),
+            route!(Gif, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_VIDEO_GIF }),
         ]
     };
 }
@@ -831,6 +1003,8 @@ mod tests {
     #[test]
     fn proven_counts_match_the_architecture_tables() {
         let mut image = 0;
+        let mut audio = 0;
+        let mut video = 0;
         let mut document = 0;
         for (ty, route) in all_routes() {
             if !route.status.is_proven() {
@@ -838,6 +1012,8 @@ mod tests {
             }
             match ty.family() {
                 Family::Image => image += 1,
+                Family::Audio => audio += 1,
+                Family::Video => video += 1,
                 Family::Document => document += 1,
                 other => panic!(
                     "unexpected proven route in family {other:?}: {ty}→{}",
@@ -845,11 +1021,21 @@ mod tests {
                 ),
             }
         }
-        // ARCHITECTURE §8.2 has 9 PROVEN cells (8 measured invocations; V8 backs
-        // both jpg→avif and png→avif). §8.3 has exactly 7.
+        // ARCHITECTURE §8.2: C2 added 12 image cells (incl. 4 gif outputs) to C1's 9 = 21.
+        // §8.4 audio: 7 sources × 7 targets = 49, every one measured.
+        // §8.4 video: 4 sources × 5 targets (mp4/mkv/mov/webm/gif) = 20.
+        // §8.3 documents: exactly 7.
         assert_eq!(
-            image, 9,
+            image, 21,
             "proven image cells drifted from ARCHITECTURE §8.2"
+        );
+        assert_eq!(
+            audio, 49,
+            "proven audio cells drifted from ARCHITECTURE §8.4"
+        );
+        assert_eq!(
+            video, 20,
+            "proven video cells drifted from ARCHITECTURE §8.4"
         );
         assert_eq!(
             document, 7,

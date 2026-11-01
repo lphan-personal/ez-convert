@@ -15,7 +15,8 @@ pub mod model;
 pub mod shell;
 
 use shell::ipc::{
-    app_info, queue_add_paths, queue_clear, queue_remove, queue_set_strip, queue_set_strip_all,
+    app_info, engine_version, queue_add_paths, queue_clear, queue_remove, queue_set_strip,
+    queue_set_strip_all,
     queue_set_target, queue_set_target_all, queue_snapshot, settings_apply, settings_apply_many,
     settings_reload, settings_view, undo_last, AppState,
 };
@@ -26,7 +27,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
-            engine::engine_version,
+            engine_version,
             // settings (U2)
             settings_view,
             settings_apply,

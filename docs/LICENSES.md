@@ -8,7 +8,7 @@ python3 scripts/gen-licenses.py          # regenerate
 python3 scripts/gen-licenses.py --check  # CI drift check
 ```
 
-Total packages in the locked graph: **411** (6 direct/workspace, 405 transitive).
+Total packages in the locked graph: **416** (6 direct/workspace, 410 transitive).
 
 ## Direct dependencies
 
@@ -79,6 +79,7 @@ Total packages in the locked graph: **411** (6 direct/workspace, 405 transitive)
 | `darling` | 0.24.1 | MIT |
 | `darling_core` | 0.24.1 | MIT |
 | `darling_macro` | 0.24.1 | MIT |
+| `data-encoding` | 2.11.1 | MIT |
 | `dbus` | 0.9.12 | Apache-2.0/MIT |
 | `defmt` | 1.2.0 | MIT OR Apache-2.0 |
 | `defmt-macros` | 1.2.0 | MIT OR Apache-2.0 |
@@ -195,6 +196,8 @@ Total packages in the locked graph: **411** (6 direct/workspace, 405 transitive)
 | `libredox` | 0.1.25 | MIT |
 | `litemap` | 0.8.3 | Unicode-3.0 |
 | `lock_api` | 0.4.14 | MIT OR Apache-2.0 |
+| `lofty` | 0.22.4 | MIT OR Apache-2.0 |
+| `lofty_attr` | 0.11.1 | MIT OR Apache-2.0 |
 | `log` | 0.4.35 | MIT OR Apache-2.0 |
 | `markup5ever` | 0.39.0 | MIT OR Apache-2.0 |
 | `memchr` | 2.8.3 | Unlicense OR MIT |
@@ -229,12 +232,14 @@ Total packages in the locked graph: **411** (6 direct/workspace, 405 transitive)
 | `objc2-ui-kit` | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | `objc2-user-notifications` | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | `objc2-web-kit` | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
+| `ogg_pager` | 0.7.2 | MIT OR Apache-2.0 |
 | `once_cell` | 1.21.4 | MIT OR Apache-2.0 |
 | `option-ext` | 0.2.0 | MPL-2.0 |
 | `pango` | 0.18.3 | MIT |
 | `pango-sys` | 0.18.0 | MIT |
 | `parking_lot` | 0.12.5 | MIT OR Apache-2.0 |
 | `parking_lot_core` | 0.9.12 | MIT OR Apache-2.0 |
+| `paste` | 1.0.15 | MIT OR Apache-2.0 |
 | `percent-encoding` | 2.3.2 | MIT OR Apache-2.0 |
 | `phf` | 0.13.1 | MIT |
 | `phf_codegen` | 0.13.1 | MIT |

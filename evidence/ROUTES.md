@@ -29,12 +29,33 @@ The generated table below is the contract. Regenerate it with
 |---|---|---|---|---|
 | V6 | transcript | `evidence/s2-libvips.md` | autorot JPEG 400x200 -> 200x400, Orientation rewritten to 1 | jpeg → jpg |
 | V2 | transcript | `evidence/s2-libvips.md` | jpg -> png OK (exit 0, PNG written) | jpeg → png |
+| C2-JPEG-WEBP | transcript | `spikes/c2/EVIDENCE.md` | jpg -> webp OK (1,188 B, magic webp) | jpeg → webp |
+| C2-JPEG-TIFF | transcript | `spikes/c2/EVIDENCE.md` | jpg -> tiff OK (3,508 B, ICC carried) | jpeg → tiff |
 | V8 | transcript | `evidence/s2b-avif.md` | heifsave av1: png -> avif 3,863 B; 2 MP jpg -> avif 302,068 B | jpeg → avif, png → avif |
+| C2-GIF-STILL | transcript | `spikes/c2/EVIDENCE.md` | still image -> gif via vips normalise + ffmpeg palette (1 frame, 1,680 B) | jpeg → gif, png → gif, webp → gif, tiff → gif |
+| C2-PNG-JPEG | transcript | `spikes/c2/EVIDENCE.md` | png -> jpg OK (2,781 B) | png → jpg |
 | V3 | transcript | `evidence/s2-libvips.md` | png -> webp OK (exit 0) | png → webp |
+| C2-PNG-TIFF | transcript | `spikes/c2/EVIDENCE.md` | png -> tiff OK (522 B) | png → tiff |
 | V7 | transcript | `evidence/s2-libvips.md` | heic -> jpg, 200x400, libheif already applied irot (autorot is a no-op) | heic → jpg |
 | V8b | transcript | `evidence/s2b-avif.md` | avif -> jpg kept EXIF IFD0 and the 3,144 B ICC profile | avif → jpg |
+| C2-WEBP-JPEG | transcript | `spikes/c2/EVIDENCE.md` | webp -> jpg OK (2,904 B) | webp → jpg |
+| C2-WEBP-PNG | transcript | `spikes/c2/EVIDENCE.md` | webp -> png OK (4,346 B) | webp → png |
 | V4 | transcript | `evidence/s2-libvips.md` | webp -> tiff OK (exit 0) | webp → tiff |
+| C2-TIFF-JPEG | transcript | `spikes/c2/EVIDENCE.md` | tiff -> jpg OK (2,781 B) | tiff → jpg |
 | V5 | transcript | `evidence/s2-libvips.md` | tiff -> png OK (exit 0) | tiff → png |
+| C2-TIFF-WEBP | transcript | `spikes/c2/EVIDENCE.md` | tiff -> webp OK (1,130 B) | tiff → webp |
+| C2-AUDIO-MP3 | transcript | `spikes/c2/EVIDENCE.md` | every audio source -> mp3 PASS (6 of 6, explicit -ar/-sample_fmt) | mp3 → mp3, wav → mp3, flac → mp3, m4a → mp3, aac → mp3, ogg → mp3, opus → mp3 |
+| C2-AUDIO-WAV | transcript | `spikes/c2/EVIDENCE.md` | every audio source -> wav PASS (6 of 6) | mp3 → wav, wav → wav, flac → wav, m4a → wav, aac → wav, ogg → wav, opus → wav |
+| C2-AUDIO-FLAC | transcript | `spikes/c2/EVIDENCE.md` | every audio source -> flac PASS (6 of 6) | mp3 → flac, wav → flac, flac → flac, m4a → flac, aac → flac, ogg → flac, opus → flac |
+| C2-AUDIO-M4A | transcript | `spikes/c2/EVIDENCE.md` | every audio source -> m4a PASS (6 of 6) | mp3 → m4a, wav → m4a, flac → m4a, m4a → m4a, aac → m4a, ogg → m4a, opus → m4a |
+| C2-AUDIO-AAC | transcript | `spikes/c2/EVIDENCE.md` | every audio source -> aac PASS (6 of 6) | mp3 → aac, wav → aac, flac → aac, m4a → aac, aac → aac, ogg → aac, opus → aac |
+| C2-AUDIO-OGG | transcript | `spikes/c2/EVIDENCE.md` | every audio source -> ogg PASS (6 of 6) | mp3 → ogg, wav → ogg, flac → ogg, m4a → ogg, aac → ogg, ogg → ogg, opus → ogg |
+| C2-AUDIO-OPUS | transcript | `spikes/c2/EVIDENCE.md` | every audio source -> opus PASS (6 of 6, 48 kHz) | mp3 → opus, wav → opus, flac → opus, m4a → opus, aac → opus, ogg → opus, opus → opus |
+| C2-VIDEO-MP4 | transcript | `spikes/c2/EVIDENCE.md` | every video source -> mp4 PASS (3 of 3), CFR, libopenh264 + aac | mp4 → mp4, mkv → mp4, mov → mp4, webm → mp4 |
+| C2-VIDEO-MKV | transcript | `spikes/c2/EVIDENCE.md` | every video source -> mkv PASS (3 of 3) | mp4 → mkv, mkv → mkv, mov → mkv, webm → mkv |
+| C2-VIDEO-MOV | transcript | `spikes/c2/EVIDENCE.md` | every video source -> mov PASS (3 of 3) | mp4 → mov, mkv → mov, mov → mov, webm → mov |
+| C2-VIDEO-WEBM | transcript | `spikes/c2/EVIDENCE.md` | every video source -> webm PASS (3 of 3), VP9 + Opus | mp4 → webm, mkv → webm, mov → webm, webm → webm |
+| C2-VIDEO-GIF | transcript | `spikes/c2/EVIDENCE.md` | every video source -> gif PASS (4 of 4), fps + long-edge cap + palette | mp4 → gif, mkv → gif, mov → gif, webm → gif |
 | D1 | transcript | `spikes/s3/EVIDENCE.md` | docx -> pdf: 26,460 B (Linux) / 39,946 B (Windows), 1 page 612x792 pt | docx → pdf |
 | D2 | transcript | `spikes/s3/EVIDENCE.md` | docx -> md: 389 B Linux / 404 B Windows, real Markdown | docx → md |
 | D3 | transcript | `spikes/s3/EVIDENCE.md` | docx -> html: 4,064 B, h1 + table + 13 p | docx → html |

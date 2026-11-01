@@ -234,6 +234,15 @@ pub struct AppInfo {
     pub uptime_seconds: u64,
 }
 
+/// Diagnostics string for the window: which engines this build expects to run.
+///
+/// Moved here from the old `engine.rs` placeholder so that `engine/` stays
+/// Tauri-free and can be tested headless (`C2`).
+#[tauri::command]
+pub fn engine_version() -> String {
+    crate::engine::banner()
+}
+
 #[tauri::command]
 pub fn app_info(state: State<'_, AppState>) -> AppInfo {
     let store = settings_lock(&state);

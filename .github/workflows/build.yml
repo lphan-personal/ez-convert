@@ -210,6 +210,12 @@ jobs:
       - name: Model tests without the shell
         run: bash scripts/test-model.sh
 
+      # The engine layer (argv builders, planner, spawn contract, verifiers) is
+      # std-only apart from `lofty`, which the harness stubs. This is where the
+      # "ffmpeg never touches a still image" test runs (ARCHITECTURE §6.3).
+      - name: Engine tests without the shell
+        run: bash scripts/test-engine.sh
+
       # The matrix and the evidence index are generated; drift fails the test
       # above, and this step prints the diff to make the fix obvious.
       - name: Generated docs are in sync

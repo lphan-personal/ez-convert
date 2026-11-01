@@ -1,0 +1,619 @@
+//! `engine/proc.rs` — the ONE place the app constructs a `Command`.
+//!
+//! Implements `ARCHITECTURE.md` §6.0.1 (argv rules A1-A7), §6.0.2 (constructed
+//! environment), §6.0.3 (timeouts, bounded capture, reaping) and is the carrier
+//! for §6.0.4's stderr rule. Nothing else in the app may spawn a process; a test
+//! at the bottom of this file greps the tree for stray `Command::new` calls.
+//!
+//! The argv builders themselves are pure (`vips.rs`, `ffmpeg.rs`); this module
+//! only executes a plan that they produced, after re-checking every path.
+
+use std::ffi::{OsStr, OsString};
+use std::io::Read;
+use std::path::{Component, Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use super::stderr_rules;
+
+/// Which sidecar binary a step runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Program {
+    Vips,
+    VipsHeader,
+    Ffmpeg,
+    Ffprobe,
+}
+
+impl Program {
+    pub fn name(self) -> &'static str {
+        match self {
+            Program::Vips => "vips",
+            Program::VipsHeader => "vipsheader",
+            Program::Ffmpeg => "ffmpeg",
+            Program::Ffprobe => "ffprobe",
+        }
+    }
+
+    /// Wall-clock safety limit (`ARCHITECTURE.md` §6.0.3). These are limits, not
+    /// performance claims: no large-input measurement backs them.
+    pub fn timeout(self) -> Duration {
+        match self {
+            Program::Vips | Program::VipsHeader => Duration::from_secs(120),
+            Program::Ffprobe => Duration::from_secs(30),
+            // A long video legitimately runs for minutes; ffmpeg is governed by
+            // the stall detector instead of a fixed cap (§6.0.3).
+            Program::Ffmpeg => Duration::from_secs(1800),
+        }
+    }
+
+    /// Does this program have to be quiet when nothing happens for a while?
+    pub fn stall_limit(self) -> Option<Duration> {
+        match self {
+            Program::Ffmpeg => Some(Duration::from_secs(120)),
+            _ => None,
+        }
+    }
+}
+
+/// The engine set as installed on this machine.
+///
+/// Discovery is `§6.7`: paths come from the app's own install root, never from
+/// `PATH`. Tests point at a scratch install with the environment variables below,
+/// which is also how `scripts/run-media-e2e.sh` exercises a real engine without
+/// packaging it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnginePaths {
+    pub vips: PathBuf,
+    pub vipsheader: PathBuf,
+    pub vips_dir: PathBuf,
+    pub ffmpeg: PathBuf,
+    pub ffprobe: PathBuf,
+    pub ffmpeg_dir: PathBuf,
+    /// Linux dev/test only: a directory the dynamic loader must search for the
+    /// engine's own shared libraries when the engine is not installed into a
+    /// system prefix. Set from `EZC_ENGINE_LIB_DIR` (absolute) and exported as
+    /// `LD_LIBRARY_PATH` for the child only. Production installs never need it:
+    /// on Windows the DLLs sit beside `vips.exe`, and on macOS the bundle's
+    /// `@rpath` covers it. Documented in `ARCHITECTURE.md` §6.0.2.
+    pub lib_dir: Option<PathBuf>,
+}
+
+impl EnginePaths {
+    /// `root` is the bundle resource directory. The layout is the one the engine
+    /// pack ships: `engines/vips/{vips,vipsheader}` and `engines/ffmpeg/`.
+    pub fn from_root(root: &Path) -> Self {
+        let vips_dir = root.join("engines").join("vips");
+        let ffmpeg_dir = root.join("engines").join("ffmpeg");
+        let exe = |dir: &Path, stem: &str| -> PathBuf {
+            let name = if cfg!(windows) {
+                format!("{stem}.exe")
+            } else {
+                stem.to_string()
+            };
+            dir.join(name)
+        };
+        Self {
+            vips: exe(&vips_dir, "vips"),
+            vipsheader: exe(&vips_dir, "vipsheader"),
+            vips_dir: vips_dir.clone(),
+            ffmpeg: exe(&ffmpeg_dir, "ffmpeg"),
+            ffprobe: exe(&ffmpeg_dir, "ffprobe"),
+            ffmpeg_dir,
+            lib_dir: absolute_env_dir("EZC_ENGINE_LIB_DIR"),
+        }
+    }
+
+    /// Test/dev override: `EZC_VIPS_DIR` and `EZC_FFMPEG_DIR` replace the two
+    /// engine directories wholesale. Only absolute directories are honoured, so
+    /// an attacker-controlled environment cannot reach a relative `PATH` lookup.
+    pub fn discover(root: &Path) -> Self {
+        let mut paths = Self::from_root(root);
+        if let Some(dir) = absolute_env_dir("EZC_VIPS_DIR") {
+            let exe = |stem: &str| {
+                dir.join(if cfg!(windows) {
+                    format!("{stem}.exe")
+                } else {
+                    stem.to_string()
+                })
+            };
+            paths.vips = exe("vips");
+            paths.vipsheader = exe("vipsheader");
+            paths.vips_dir = dir;
+        }
+        if let Some(dir) = absolute_env_dir("EZC_FFMPEG_DIR") {
+            let exe = |stem: &str| {
+                dir.join(if cfg!(windows) {
+                    format!("{stem}.exe")
+                } else {
+                    stem.to_string()
+                })
+            };
+            paths.ffmpeg = exe("ffmpeg");
+            paths.ffprobe = exe("ffprobe");
+            paths.ffmpeg_dir = dir;
+        }
+        paths
+    }
+
+    pub fn program(&self, program: Program) -> (&Path, &Path) {
+        match program {
+            Program::Vips => (&self.vips, &self.vips_dir),
+            Program::VipsHeader => (&self.vipsheader, &self.vips_dir),
+            Program::Ffmpeg => (&self.ffmpeg, &self.ffmpeg_dir),
+            Program::Ffprobe => (&self.ffprobe, &self.ffmpeg_dir),
+        }
+    }
+
+    /// §6.7: a capability is what runs, not what is listed. Cheap existence
+    /// probe only — the real check is a 1x1 conversion, done by the startup
+    /// probe once engines are packaged.
+    pub fn installed(&self, program: Program) -> bool {
+        self.program(program).0.is_file()
+    }
+}
+
+fn absolute_env_dir(var: &str) -> Option<PathBuf> {
+    let raw = std::env::var_os(var)?;
+    let p = PathBuf::from(raw);
+    if p.is_absolute() && p.is_dir() {
+        Some(p)
+    } else {
+        None
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Path admission (§6.0.1 A3/A4/A5)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PathError {
+    NotAbsolute(PathBuf),
+    LeadingDash(PathBuf),
+    NetworkOrDevice(PathBuf),
+    Traversal(PathBuf),
+    Missing(PathBuf),
+    Empty,
+}
+
+impl std::fmt::Display for PathError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PathError::NotAbsolute(p) => write!(f, "path is not absolute: {}", p.display()),
+            PathError::LeadingDash(p) => {
+                write!(f, "path starts with '-': {}", p.display())
+            }
+            PathError::NetworkOrDevice(p) => {
+                write!(f, "network or device path refused: {}", p.display())
+            }
+            PathError::Traversal(p) => write!(f, "path contains '..': {}", p.display()),
+            PathError::Missing(p) => write!(f, "path does not exist: {}", p.display()),
+            PathError::Empty => write!(f, "path is empty"),
+        }
+    }
+}
+
+/// True when the *text* of the path starts with a UNC or device prefix.
+///
+/// The check runs on the original string because Windows would otherwise
+/// normalise `\\?\C:\x` into a plain path before it is visible.
+pub fn is_network_or_device(raw: &OsStr) -> bool {
+    let s = raw.to_string_lossy();
+    s.starts_with("\\\\")
+        || s.starts_with("//")
+        || s.starts_with("\\\\.\\")
+        || s.starts_with("\\\\?\\")
+        || s.starts_with("//./")
+        || s.starts_with("//?/")
+}
+
+/// §6.0.1 A3-A5: everything we hand to an engine passes through here first.
+///
+/// `must_exist` separates inputs (must be there) from outputs (must be a
+/// canonical path inside an existing directory, file not yet written).
+pub fn admit(raw: &Path, must_exist: bool) -> Result<PathBuf, PathError> {
+    if raw.as_os_str().is_empty() {
+        return Err(PathError::Empty);
+    }
+    if is_network_or_device(raw.as_os_str()) {
+        return Err(PathError::NetworkOrDevice(raw.to_path_buf()));
+    }
+    if !raw.is_absolute() {
+        return Err(PathError::NotAbsolute(raw.to_path_buf()));
+    }
+    if raw.components().any(|c| c == Component::ParentDir) {
+        return Err(PathError::Traversal(raw.to_path_buf()));
+    }
+    if let Some(name) = raw.file_name() {
+        if name.to_string_lossy().starts_with('-') {
+            return Err(PathError::LeadingDash(raw.to_path_buf()));
+        }
+    }
+    if must_exist {
+        return std::fs::canonicalize(raw).map_err(|_| PathError::Missing(raw.to_path_buf()));
+    }
+    // Canonicalise the parent, keep our own file name: the file does not exist
+    // yet, so canonicalize() would fail.
+    let parent = raw.parent().ok_or(PathError::Empty)?;
+    let parent = std::fs::canonicalize(parent)
+        .map_err(|_| PathError::Missing(parent.to_path_buf()))?;
+    let name = raw.file_name().ok_or(PathError::Empty)?;
+    if name.to_string_lossy().contains(['/', '\\']) {
+        // A file name can never contain a separator after Path parsing; this is
+        // belt-and-braces against OsStr tricks.
+        return Err(PathError::Traversal(raw.to_path_buf()));
+    }
+    Ok(parent.join(name))
+}
+
+// ---------------------------------------------------------------------------
+// Running a plan step
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone)]
+pub struct Invocation {
+    pub program: Program,
+    /// `argv[1..]`. The program itself is resolved from [`EnginePaths`], never
+    /// taken from here.
+    pub args: Vec<OsString>,
+    /// Working directory (§6.0.2): the engine's own directory for vips.
+    pub cwd: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Outcome {
+    pub program: Program,
+    pub argv: Vec<OsString>,
+    pub status: Option<i32>,
+    pub killed: Option<Kill>,
+    pub stdout: String,
+    pub stderr: String,
+    pub duration: Duration,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kill {
+    Timeout,
+    Stalled,
+    Cancelled,
+}
+
+impl Outcome {
+    /// `§6.0.4`: exit 0 alone is never success.
+    pub fn is_fatal(&self) -> Option<FatalReason> {
+        if let Some(kill) = self.killed {
+            return Some(FatalReason::Killed(kill));
+        }
+        if let Some(code) = self.status {
+            if code != 0 {
+                return Some(FatalReason::Exit(code));
+            }
+        }
+        if let Some(hit) = stderr_rules::first_fatal(&self.stderr) {
+            return Some(FatalReason::Stderr(hit));
+        }
+        None
+    }
+
+    pub fn ok(&self) -> bool {
+        self.is_fatal().is_none()
+    }
+
+    pub fn summary(&self) -> String {
+        let mut out = format!("{} {:?}", self.program.name(), self.argv);
+        if let Some(kill) = self.killed {
+            out.push_str(&format!(" -> killed({kill:?})"));
+        } else if let Some(code) = self.status {
+            out.push_str(&format!(" -> rc={code}"));
+        }
+        if !self.stderr.trim().is_empty() {
+            out.push_str(&format!(" stderr={}", self.stderr.trim()));
+        }
+        out
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FatalReason {
+    Exit(i32),
+    Killed(Kill),
+    Stderr(&'static str),
+}
+
+impl std::fmt::Display for FatalReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FatalReason::Exit(c) => write!(f, "engine exited {c}"),
+            FatalReason::Killed(k) => write!(f, "engine killed ({k:?})"),
+            FatalReason::Stderr(p) => write!(f, "engine stderr matched fatal pattern {p:?}"),
+        }
+    }
+}
+
+/// Bounded capture (§6.0.3): 1 MiB per stream, head and tail kept.
+const CAPTURE_CAP: usize = 1024 * 1024;
+
+struct Buffer {
+    head: Vec<u8>,
+    tail: Vec<u8>,
+    total: u64,
+}
+
+impl Buffer {
+    fn new() -> Self {
+        Self {
+            head: Vec::new(),
+            tail: Vec::new(),
+            total: 0,
+        }
+    }
+
+    fn push(&mut self, chunk: &[u8]) {
+        self.total += chunk.len() as u64;
+        if self.head.len() < CAPTURE_CAP {
+            let room = CAPTURE_CAP - self.head.len();
+            let take = room.min(chunk.len());
+            self.head.extend_from_slice(&chunk[..take]);
+        }
+        self.tail.extend_from_slice(chunk);
+        if self.tail.len() > CAPTURE_CAP {
+            let drop = self.tail.len() - CAPTURE_CAP;
+            self.tail.drain(..drop);
+        }
+    }
+
+    fn finish(self) -> String {
+        String::from_utf8_lossy(&self.head).into_owned()
+    }
+}
+
+fn drain(mut stream: impl Read + Send + 'static, activity: Arc<AtomicU64>) -> std::thread::JoinHandle<String> {
+    std::thread::spawn(move || {
+        let mut buf = Buffer::new();
+        let mut chunk = [0u8; 8192];
+        loop {
+            match stream.read(&mut chunk) {
+                Ok(0) => break,
+                Ok(n) => {
+                    buf.push(&chunk[..n]);
+                    activity.fetch_add(n as u64, Ordering::Relaxed);
+                }
+                Err(_) => break,
+            }
+        }
+        buf.finish()
+    })
+}
+
+/// Spawn one engine invocation. Everything the contract demands happens here:
+/// absolute program path, constructed environment, scrubbed `VIPS_*`/`GIO_*`,
+/// CWD control, no shell, bounded capture, timeout and stall kill.
+pub fn run(paths: &EnginePaths, inv: &Invocation) -> std::io::Result<Outcome> {
+    run_with(paths, inv, &[])
+}
+
+/// `extra_env` is the one controlled exception to `env_clear`: a caller may pass
+/// `LD_LIBRARY_PATH` for an engine that is not installed into a system prefix
+/// (`tests`, Linux dev). It is never inherited from the parent process.
+pub fn run_with(
+    paths: &EnginePaths,
+    inv: &Invocation,
+    extra_env: &[(OsString, OsString)],
+) -> std::io::Result<Outcome> {
+    let (program_path, engine_dir) = paths.program(inv.program);
+    let started = Instant::now();
+
+    let mut cmd = Command::new(program_path);
+    cmd.args(&inv.args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .current_dir(&inv.cwd)
+        // §6.0.2: a constructed environment, not the inherited one.
+        .env_clear()
+        .env("PATH", engine_dir)
+        .env("TMPDIR", &inv.cwd)
+        .env("TMP", &inv.cwd)
+        .env("TEMP", &inv.cwd)
+        .env("HOME", &inv.cwd)
+        .env("USERPROFILE", &inv.cwd);
+    if let Some(lib) = &paths.lib_dir {
+        cmd.env("LD_LIBRARY_PATH", lib);
+    }
+    for (k, v) in extra_env {
+        cmd.env(k, v);
+    }
+
+    let mut child = cmd.spawn()?;
+    let activity = Arc::new(AtomicU64::new(0));
+    let stdout = child.stdout.take().expect("piped stdout");
+    let stderr = child.stderr.take().expect("piped stderr");
+    let out_handle = drain(stdout, Arc::clone(&activity));
+    let err_handle = drain(stderr, Arc::clone(&activity));
+
+    let deadline = started + inv.program.timeout();
+    let stall_limit = inv.program.stall_limit();
+    let mut last_seen = 0u64;
+    let mut last_change = Instant::now();
+    let mut killed = None;
+
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) => {}
+            Err(e) => return Err(e),
+        }
+        let now = Instant::now();
+        if now >= deadline {
+            killed = Some(Kill::Timeout);
+            let _ = child.kill();
+            break child.wait()?;
+        }
+        if let Some(limit) = stall_limit {
+            let seen = activity.load(Ordering::Relaxed);
+            if seen != last_seen {
+                last_seen = seen;
+                last_change = now;
+            } else if now.duration_since(last_change) >= limit {
+                killed = Some(Kill::Stalled);
+                let _ = child.kill();
+                break child.wait()?;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(15));
+    };
+
+    let stdout = out_handle.join().unwrap_or_default();
+    let stderr = err_handle.join().unwrap_or_default();
+
+    Ok(Outcome {
+        program: inv.program,
+        argv: inv.args.clone(),
+        status: status.code(),
+        killed,
+        stdout,
+        stderr,
+        duration: started.elapsed(),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn relative_paths_are_refused() {
+        assert_eq!(
+            admit(Path::new("out.png"), false),
+            Err(PathError::NotAbsolute(PathBuf::from("out.png")))
+        );
+    }
+
+    #[test]
+    fn leading_dash_file_names_are_refused() {
+        let p = std::env::temp_dir().join("--vips-config");
+        assert_eq!(
+            admit(&p, false),
+            Err(PathError::LeadingDash(p.clone()))
+        );
+    }
+
+    #[test]
+    fn network_and_device_paths_are_refused() {
+        for raw in [
+            r"\\server\share\x.png",
+            r"\\?\C:\x.png",
+            r"\\.\pipe\x",
+            "//server/share/x.png",
+        ] {
+            let p = Path::new(raw);
+            assert!(admit(p, false).is_err(), "{raw} was accepted");
+        }
+    }
+
+    #[test]
+    fn traversal_is_refused() {
+        let p = Path::new("/tmp/../etc/passwd");
+        assert_eq!(admit(p, true), Err(PathError::Traversal(p.to_path_buf())));
+    }
+
+    #[test]
+    fn existing_input_is_canonicalised() {
+        let dir = std::env::temp_dir();
+        let f = dir.join(format!("ezc-admit-{}.bin", std::process::id()));
+        std::fs::write(&f, b"x").unwrap();
+        let got = admit(&f, true).expect("admitted");
+        assert!(got.is_absolute() && got.ends_with(f.file_name().unwrap()));
+        let _ = std::fs::remove_file(&f);
+    }
+
+    #[test]
+    fn output_path_is_canonicalised_through_its_parent() {
+        let dir = std::env::temp_dir();
+        let out = dir.join(format!("ezc-out-{}.png", std::process::id()));
+        let got = admit(&out, false).expect("admitted");
+        assert_eq!(got.file_name(), out.file_name());
+        assert!(got.is_absolute());
+    }
+
+    #[test]
+    fn missing_input_is_reported_not_guessed() {
+        let p = std::env::temp_dir().join("ezc-definitely-absent-42.png");
+        assert_eq!(admit(&p, true), Err(PathError::Missing(p.clone())));
+    }
+
+    #[test]
+    fn capture_is_bounded_and_keeps_the_tail() {
+        let mut b = Buffer::new();
+        let chunk = vec![b'a'; 4096];
+        for _ in 0..1024 {
+            b.push(&chunk);
+        }
+        assert!(b.head.len() <= CAPTURE_CAP);
+        assert!(b.tail.len() <= CAPTURE_CAP);
+        assert_eq!(b.total, 4096 * 1024);
+        let s = b.finish();
+        assert_eq!(s.len(), CAPTURE_CAP);
+    }
+
+    #[test]
+    fn exit_zero_with_fatal_stderr_is_fatal() {
+        let o = Outcome {
+            program: Program::Vips,
+            argv: vec![],
+            status: Some(0),
+            killed: None,
+            stdout: String::new(),
+            stderr: "VipsJpeg: premature end of JPEG image".into(),
+            duration: Duration::ZERO,
+        };
+        assert!(!o.ok());
+        assert!(matches!(o.is_fatal(), Some(FatalReason::Stderr(_))));
+    }
+
+    #[test]
+    fn every_program_has_a_timeout_and_ffmpeg_has_a_stall_limit() {
+        assert!(Program::Vips.timeout().as_secs() > 0);
+        assert!(Program::Ffprobe.timeout().as_secs() > 0);
+        assert!(Program::Ffmpeg.stall_limit().is_some());
+        assert!(Program::Vips.stall_limit().is_none());
+    }
+
+    /// §2.2/§6.0: `proc.rs` is the only file allowed to construct a Command.
+    #[test]
+    fn only_proc_constructs_commands() {
+        let root = match option_env!("EZC_REPO_ROOT") {
+            Some(r) => std::path::Path::new(r).join("src-tauri/src"),
+            // `cargo test` runs with the crate root as the working directory.
+            None => std::path::PathBuf::from("src"),
+        };
+        let mut stack = vec![root];
+        while let Some(dir) = stack.pop() {
+            let entries = std::fs::read_dir(&dir).expect("read src");
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if p.is_dir() {
+                    stack.push(p);
+                    continue;
+                }
+                if p.extension().map(|e| e == "rs").unwrap_or(false) {
+                    let text = std::fs::read_to_string(&p).expect("read file");
+                    if p.ends_with("engine/proc.rs") {
+                        continue;
+                    }
+                    for (i, line) in text.lines().enumerate() {
+                        assert!(
+                            !line.contains("Command::new"),
+                            "{}:{} constructs a Command outside proc.rs: {line}",
+                            p.display(),
+                            i + 1
+                        );
+                    }
+                }
+            }
+        }
+    }
+}

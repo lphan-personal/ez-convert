@@ -150,19 +150,19 @@ specified dead.
 |---|---|---|---|---|
 | jpeg | jpg | vips | PROVEN | V6 — autorot JPEG 400x200 -> 200x400, Orientation rewritten to 1 |
 | jpeg | png | vips | PROVEN | V2 — jpg -> png OK (exit 0, PNG written) |
-| jpeg | webp | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
-| jpeg | tiff | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
+| jpeg | webp | vips | PROVEN | C2-JPEG-WEBP — jpg -> webp OK (1,188 B, magic webp) |
+| jpeg | tiff | vips | PROVEN | C2-JPEG-TIFF — jpg -> tiff OK (3,508 B, ICC carried) |
 | jpeg | avif | vips | PROVEN | V8 — heifsave av1: png -> avif 3,863 B; 2 MP jpg -> avif 302,068 B |
-| jpeg | gif | ffmpeg | planned | t_dc07a72e — vips normalise -> ffmpeg palettegen/paletteuse (SPEC 9.3 D2), unmeasured |
+| jpeg | gif | ffmpeg | PROVEN | C2-GIF-STILL — still image -> gif via vips normalise + ffmpeg palette (1 frame, 1,680 B) |
 | jpeg | bmp | rust-crate | planned | t_dc07a72e — image crate <-> temp PNG <-> vips (SPEC 9.3 D5), unmeasured |
 | jpeg | heic | vips | cut | HEIC encode cut: x265 is GPL-2 and Media Foundation HEVC needs a Store codec pack (SPEC 9.3 D4) |
 | jpeg | svg | vips | cut | svg is input-only in v1: no svg->svg and no svg->pdf (SPEC 9.3 D3) |
 | jpeg | pdf | vips | cut | no image writer to PDF in v1 (ARCHITECTURE 8.2) |
-| png | jpg | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
+| png | jpg | vips | PROVEN | C2-PNG-JPEG — png -> jpg OK (2,781 B) |
 | png | webp | vips | PROVEN | V3 — png -> webp OK (exit 0) |
-| png | tiff | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
+| png | tiff | vips | PROVEN | C2-PNG-TIFF — png -> tiff OK (522 B) |
 | png | avif | vips | PROVEN | V8 — heifsave av1: png -> avif 3,863 B; 2 MP jpg -> avif 302,068 B |
-| png | gif | ffmpeg | planned | t_dc07a72e — vips normalise -> ffmpeg palettegen/paletteuse (SPEC 9.3 D2), unmeasured |
+| png | gif | ffmpeg | PROVEN | C2-GIF-STILL — still image -> gif via vips normalise + ffmpeg palette (1 frame, 1,680 B) |
 | png | bmp | rust-crate | planned | t_dc07a72e — image crate <-> temp PNG <-> vips (SPEC 9.3 D5), unmeasured |
 | png | heic | vips | cut | HEIC encode cut: x265 is GPL-2 and Media Foundation HEVC needs a Store codec pack (SPEC 9.3 D4) |
 | png | svg | vips | cut | svg is input-only in v1: no svg->svg and no svg->pdf (SPEC 9.3 D3) |
@@ -186,30 +186,30 @@ specified dead.
 | avif | heic | vips | cut | HEIC encode cut: x265 is GPL-2 and Media Foundation HEVC needs a Store codec pack (SPEC 9.3 D4) |
 | avif | svg | vips | cut | svg is input-only in v1: no svg->svg and no svg->pdf (SPEC 9.3 D3) |
 | avif | pdf | vips | cut | no image writer to PDF in v1 (ARCHITECTURE 8.2) |
-| webp | jpg | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
-| webp | png | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
+| webp | jpg | vips | PROVEN | C2-WEBP-JPEG — webp -> jpg OK (2,904 B) |
+| webp | png | vips | PROVEN | C2-WEBP-PNG — webp -> png OK (4,346 B) |
 | webp | tiff | vips | PROVEN | V4 — webp -> tiff OK (exit 0) |
 | webp | avif | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
-| webp | gif | ffmpeg | planned | t_dc07a72e — vips normalise -> ffmpeg palettegen/paletteuse (SPEC 9.3 D2), unmeasured |
+| webp | gif | ffmpeg | PROVEN | C2-GIF-STILL — still image -> gif via vips normalise + ffmpeg palette (1 frame, 1,680 B) |
 | webp | bmp | rust-crate | planned | t_dc07a72e — image crate <-> temp PNG <-> vips (SPEC 9.3 D5), unmeasured |
 | webp | heic | vips | cut | HEIC encode cut: x265 is GPL-2 and Media Foundation HEVC needs a Store codec pack (SPEC 9.3 D4) |
 | webp | svg | vips | cut | svg is input-only in v1: no svg->svg and no svg->pdf (SPEC 9.3 D3) |
 | webp | pdf | vips | cut | no image writer to PDF in v1 (ARCHITECTURE 8.2) |
-| gif | jpg | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
-| gif | png | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
-| gif | webp | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
-| gif | tiff | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
-| gif | avif | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
-| gif | gif | ffmpeg | planned | t_dc07a72e — vips normalise -> ffmpeg palettegen/paletteuse (SPEC 9.3 D2), unmeasured |
+| gif | jpg | vips | planned | t_dc07a72e — vips gifload returns page 0, so an animated source would silently lose every other frame; needs an animation-aware route before it is offered |
+| gif | png | vips | planned | t_dc07a72e — vips gifload returns page 0, so an animated source would silently lose every other frame; needs an animation-aware route before it is offered |
+| gif | webp | vips | planned | t_dc07a72e — vips gifload returns page 0, so an animated source would silently lose every other frame; needs an animation-aware route before it is offered |
+| gif | tiff | vips | planned | t_dc07a72e — vips gifload returns page 0, so an animated source would silently lose every other frame; needs an animation-aware route before it is offered |
+| gif | avif | vips | planned | t_dc07a72e — vips gifload returns page 0, so an animated source would silently lose every other frame; needs an animation-aware route before it is offered |
+| gif | gif | ffmpeg | planned | t_dc07a72e — vips gifload returns page 0, so an animated source would silently lose every other frame; needs an animation-aware route before it is offered |
 | gif | bmp | rust-crate | planned | t_dc07a72e — image crate <-> temp PNG <-> vips (SPEC 9.3 D5), unmeasured |
 | gif | heic | vips | cut | HEIC encode cut: x265 is GPL-2 and Media Foundation HEVC needs a Store codec pack (SPEC 9.3 D4) |
 | gif | svg | vips | cut | svg is input-only in v1: no svg->svg and no svg->pdf (SPEC 9.3 D3) |
 | gif | pdf | vips | cut | no image writer to PDF in v1 (ARCHITECTURE 8.2) |
-| tiff | jpg | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
+| tiff | jpg | vips | PROVEN | C2-TIFF-JPEG — tiff -> jpg OK (2,781 B) |
 | tiff | png | vips | PROVEN | V5 — tiff -> png OK (exit 0) |
-| tiff | webp | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
+| tiff | webp | vips | PROVEN | C2-TIFF-WEBP — tiff -> webp OK (1,130 B) |
 | tiff | avif | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
-| tiff | gif | ffmpeg | planned | t_dc07a72e — vips normalise -> ffmpeg palettegen/paletteuse (SPEC 9.3 D2), unmeasured |
+| tiff | gif | ffmpeg | PROVEN | C2-GIF-STILL — still image -> gif via vips normalise + ffmpeg palette (1 frame, 1,680 B) |
 | tiff | bmp | rust-crate | planned | t_dc07a72e — image crate <-> temp PNG <-> vips (SPEC 9.3 D5), unmeasured |
 | tiff | heic | vips | cut | HEIC encode cut: x265 is GPL-2 and Media Foundation HEVC needs a Store codec pack (SPEC 9.3 D4) |
 | tiff | svg | vips | cut | svg is input-only in v1: no svg->svg and no svg->pdf (SPEC 9.3 D3) |
@@ -252,75 +252,75 @@ specified dead.
 | pdf | xlsx | soffice | cut | no raster-to-writer path for PDF input (ARCHITECTURE 8.3) |
 | pdf | csv | soffice | cut | no raster-to-writer path for PDF input (ARCHITECTURE 8.3) |
 | pdf | txt | soffice | planned | t_ea95c826 — LibreOffice filter exists but this direction has no fixture yet |
-| mp3 | mp3 | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mp3 | wav | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mp3 | flac | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mp3 | m4a | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mp3 | aac | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mp3 | ogg | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mp3 | opus | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| wav | mp3 | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| wav | wav | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| wav | flac | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| wav | m4a | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| wav | aac | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| wav | ogg | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| wav | opus | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| flac | mp3 | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| flac | wav | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| flac | flac | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| flac | m4a | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| flac | aac | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| flac | ogg | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| flac | opus | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| m4a | mp3 | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| m4a | wav | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| m4a | flac | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| m4a | m4a | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| m4a | aac | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| m4a | ogg | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| m4a | opus | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| aac | mp3 | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| aac | wav | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| aac | flac | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| aac | m4a | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| aac | aac | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| aac | ogg | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| aac | opus | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| ogg | mp3 | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| ogg | wav | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| ogg | flac | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| ogg | m4a | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| ogg | aac | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| ogg | ogg | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| ogg | opus | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| opus | mp3 | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| opus | wav | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| opus | flac | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| opus | m4a | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| opus | aac | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| opus | ogg | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| opus | opus | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mp4 | mp4 | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mp4 | mkv | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mp4 | mov | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mp4 | webm | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mp4 | gif | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mkv | mp4 | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mkv | mkv | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mkv | mov | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mkv | webm | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mkv | gif | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mov | mp4 | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mov | mkv | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mov | mov | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mov | webm | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| mov | gif | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| webm | mp4 | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| webm | mkv | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| webm | mov | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| webm | webm | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
-| webm | gif | ffmpeg | planned | t_dc07a72e — ffmpeg sidecar surface designed (ARCHITECTURE 6.3) but unmeasured end to end |
+| mp3 | mp3 | ffmpeg | PROVEN | C2-AUDIO-MP3 — every audio source -> mp3 PASS (6 of 6, explicit -ar/-sample_fmt) |
+| mp3 | wav | ffmpeg | PROVEN | C2-AUDIO-WAV — every audio source -> wav PASS (6 of 6) |
+| mp3 | flac | ffmpeg | PROVEN | C2-AUDIO-FLAC — every audio source -> flac PASS (6 of 6) |
+| mp3 | m4a | ffmpeg | PROVEN | C2-AUDIO-M4A — every audio source -> m4a PASS (6 of 6) |
+| mp3 | aac | ffmpeg | PROVEN | C2-AUDIO-AAC — every audio source -> aac PASS (6 of 6) |
+| mp3 | ogg | ffmpeg | PROVEN | C2-AUDIO-OGG — every audio source -> ogg PASS (6 of 6) |
+| mp3 | opus | ffmpeg | PROVEN | C2-AUDIO-OPUS — every audio source -> opus PASS (6 of 6, 48 kHz) |
+| wav | mp3 | ffmpeg | PROVEN | C2-AUDIO-MP3 — every audio source -> mp3 PASS (6 of 6, explicit -ar/-sample_fmt) |
+| wav | wav | ffmpeg | PROVEN | C2-AUDIO-WAV — every audio source -> wav PASS (6 of 6) |
+| wav | flac | ffmpeg | PROVEN | C2-AUDIO-FLAC — every audio source -> flac PASS (6 of 6) |
+| wav | m4a | ffmpeg | PROVEN | C2-AUDIO-M4A — every audio source -> m4a PASS (6 of 6) |
+| wav | aac | ffmpeg | PROVEN | C2-AUDIO-AAC — every audio source -> aac PASS (6 of 6) |
+| wav | ogg | ffmpeg | PROVEN | C2-AUDIO-OGG — every audio source -> ogg PASS (6 of 6) |
+| wav | opus | ffmpeg | PROVEN | C2-AUDIO-OPUS — every audio source -> opus PASS (6 of 6, 48 kHz) |
+| flac | mp3 | ffmpeg | PROVEN | C2-AUDIO-MP3 — every audio source -> mp3 PASS (6 of 6, explicit -ar/-sample_fmt) |
+| flac | wav | ffmpeg | PROVEN | C2-AUDIO-WAV — every audio source -> wav PASS (6 of 6) |
+| flac | flac | ffmpeg | PROVEN | C2-AUDIO-FLAC — every audio source -> flac PASS (6 of 6) |
+| flac | m4a | ffmpeg | PROVEN | C2-AUDIO-M4A — every audio source -> m4a PASS (6 of 6) |
+| flac | aac | ffmpeg | PROVEN | C2-AUDIO-AAC — every audio source -> aac PASS (6 of 6) |
+| flac | ogg | ffmpeg | PROVEN | C2-AUDIO-OGG — every audio source -> ogg PASS (6 of 6) |
+| flac | opus | ffmpeg | PROVEN | C2-AUDIO-OPUS — every audio source -> opus PASS (6 of 6, 48 kHz) |
+| m4a | mp3 | ffmpeg | PROVEN | C2-AUDIO-MP3 — every audio source -> mp3 PASS (6 of 6, explicit -ar/-sample_fmt) |
+| m4a | wav | ffmpeg | PROVEN | C2-AUDIO-WAV — every audio source -> wav PASS (6 of 6) |
+| m4a | flac | ffmpeg | PROVEN | C2-AUDIO-FLAC — every audio source -> flac PASS (6 of 6) |
+| m4a | m4a | ffmpeg | PROVEN | C2-AUDIO-M4A — every audio source -> m4a PASS (6 of 6) |
+| m4a | aac | ffmpeg | PROVEN | C2-AUDIO-AAC — every audio source -> aac PASS (6 of 6) |
+| m4a | ogg | ffmpeg | PROVEN | C2-AUDIO-OGG — every audio source -> ogg PASS (6 of 6) |
+| m4a | opus | ffmpeg | PROVEN | C2-AUDIO-OPUS — every audio source -> opus PASS (6 of 6, 48 kHz) |
+| aac | mp3 | ffmpeg | PROVEN | C2-AUDIO-MP3 — every audio source -> mp3 PASS (6 of 6, explicit -ar/-sample_fmt) |
+| aac | wav | ffmpeg | PROVEN | C2-AUDIO-WAV — every audio source -> wav PASS (6 of 6) |
+| aac | flac | ffmpeg | PROVEN | C2-AUDIO-FLAC — every audio source -> flac PASS (6 of 6) |
+| aac | m4a | ffmpeg | PROVEN | C2-AUDIO-M4A — every audio source -> m4a PASS (6 of 6) |
+| aac | aac | ffmpeg | PROVEN | C2-AUDIO-AAC — every audio source -> aac PASS (6 of 6) |
+| aac | ogg | ffmpeg | PROVEN | C2-AUDIO-OGG — every audio source -> ogg PASS (6 of 6) |
+| aac | opus | ffmpeg | PROVEN | C2-AUDIO-OPUS — every audio source -> opus PASS (6 of 6, 48 kHz) |
+| ogg | mp3 | ffmpeg | PROVEN | C2-AUDIO-MP3 — every audio source -> mp3 PASS (6 of 6, explicit -ar/-sample_fmt) |
+| ogg | wav | ffmpeg | PROVEN | C2-AUDIO-WAV — every audio source -> wav PASS (6 of 6) |
+| ogg | flac | ffmpeg | PROVEN | C2-AUDIO-FLAC — every audio source -> flac PASS (6 of 6) |
+| ogg | m4a | ffmpeg | PROVEN | C2-AUDIO-M4A — every audio source -> m4a PASS (6 of 6) |
+| ogg | aac | ffmpeg | PROVEN | C2-AUDIO-AAC — every audio source -> aac PASS (6 of 6) |
+| ogg | ogg | ffmpeg | PROVEN | C2-AUDIO-OGG — every audio source -> ogg PASS (6 of 6) |
+| ogg | opus | ffmpeg | PROVEN | C2-AUDIO-OPUS — every audio source -> opus PASS (6 of 6, 48 kHz) |
+| opus | mp3 | ffmpeg | PROVEN | C2-AUDIO-MP3 — every audio source -> mp3 PASS (6 of 6, explicit -ar/-sample_fmt) |
+| opus | wav | ffmpeg | PROVEN | C2-AUDIO-WAV — every audio source -> wav PASS (6 of 6) |
+| opus | flac | ffmpeg | PROVEN | C2-AUDIO-FLAC — every audio source -> flac PASS (6 of 6) |
+| opus | m4a | ffmpeg | PROVEN | C2-AUDIO-M4A — every audio source -> m4a PASS (6 of 6) |
+| opus | aac | ffmpeg | PROVEN | C2-AUDIO-AAC — every audio source -> aac PASS (6 of 6) |
+| opus | ogg | ffmpeg | PROVEN | C2-AUDIO-OGG — every audio source -> ogg PASS (6 of 6) |
+| opus | opus | ffmpeg | PROVEN | C2-AUDIO-OPUS — every audio source -> opus PASS (6 of 6, 48 kHz) |
+| mp4 | mp4 | ffmpeg | PROVEN | C2-VIDEO-MP4 — every video source -> mp4 PASS (3 of 3), CFR, libopenh264 + aac |
+| mp4 | mkv | ffmpeg | PROVEN | C2-VIDEO-MKV — every video source -> mkv PASS (3 of 3) |
+| mp4 | mov | ffmpeg | PROVEN | C2-VIDEO-MOV — every video source -> mov PASS (3 of 3) |
+| mp4 | webm | ffmpeg | PROVEN | C2-VIDEO-WEBM — every video source -> webm PASS (3 of 3), VP9 + Opus |
+| mp4 | gif | ffmpeg | PROVEN | C2-VIDEO-GIF — every video source -> gif PASS (4 of 4), fps + long-edge cap + palette |
+| mkv | mp4 | ffmpeg | PROVEN | C2-VIDEO-MP4 — every video source -> mp4 PASS (3 of 3), CFR, libopenh264 + aac |
+| mkv | mkv | ffmpeg | PROVEN | C2-VIDEO-MKV — every video source -> mkv PASS (3 of 3) |
+| mkv | mov | ffmpeg | PROVEN | C2-VIDEO-MOV — every video source -> mov PASS (3 of 3) |
+| mkv | webm | ffmpeg | PROVEN | C2-VIDEO-WEBM — every video source -> webm PASS (3 of 3), VP9 + Opus |
+| mkv | gif | ffmpeg | PROVEN | C2-VIDEO-GIF — every video source -> gif PASS (4 of 4), fps + long-edge cap + palette |
+| mov | mp4 | ffmpeg | PROVEN | C2-VIDEO-MP4 — every video source -> mp4 PASS (3 of 3), CFR, libopenh264 + aac |
+| mov | mkv | ffmpeg | PROVEN | C2-VIDEO-MKV — every video source -> mkv PASS (3 of 3) |
+| mov | mov | ffmpeg | PROVEN | C2-VIDEO-MOV — every video source -> mov PASS (3 of 3) |
+| mov | webm | ffmpeg | PROVEN | C2-VIDEO-WEBM — every video source -> webm PASS (3 of 3), VP9 + Opus |
+| mov | gif | ffmpeg | PROVEN | C2-VIDEO-GIF — every video source -> gif PASS (4 of 4), fps + long-edge cap + palette |
+| webm | mp4 | ffmpeg | PROVEN | C2-VIDEO-MP4 — every video source -> mp4 PASS (3 of 3), CFR, libopenh264 + aac |
+| webm | mkv | ffmpeg | PROVEN | C2-VIDEO-MKV — every video source -> mkv PASS (3 of 3) |
+| webm | mov | ffmpeg | PROVEN | C2-VIDEO-MOV — every video source -> mov PASS (3 of 3) |
+| webm | webm | ffmpeg | PROVEN | C2-VIDEO-WEBM — every video source -> webm PASS (3 of 3), VP9 + Opus |
+| webm | gif | ffmpeg | PROVEN | C2-VIDEO-GIF — every video source -> gif PASS (4 of 4), fps + long-edge cap + palette |
 | docx | pdf | soffice | PROVEN | D1 — docx -> pdf: 26,460 B (Linux) / 39,946 B (Windows), 1 page 612x792 pt |
 | docx | md | soffice | PROVEN | D2 — docx -> md: 389 B Linux / 404 B Windows, real Markdown |
 | docx | html | soffice | PROVEN | D3 — docx -> html: 4,064 B, h1 + table + 13 p |
@@ -428,27 +428,27 @@ directions). Everything else is `planned` or `cut`.
 <!-- offered:begin -->
 | input | family | wheel-visible targets (Proven only) |
 |---|---|---|
-| jpeg | Image | jpg, png, avif |
-| png | Image | webp, avif |
+| jpeg | Image | jpg, png, webp, tiff, avif, gif |
+| png | Image | jpg, webp, tiff, avif, gif |
 | heic | Image | jpg |
 | avif | Image | jpg |
-| webp | Image | tiff |
+| webp | Image | jpg, png, tiff, gif |
 | gif | Image | — |
-| tiff | Image | png |
+| tiff | Image | jpg, png, webp, gif |
 | bmp | Image | — |
 | svg | Image | — |
 | pdf | Document | — |
-| mp3 | Audio | — |
-| wav | Audio | — |
-| flac | Audio | — |
-| m4a | Audio | — |
-| aac | Audio | — |
-| ogg | Audio | — |
-| opus | Audio | — |
-| mp4 | Video | — |
-| mkv | Video | — |
-| mov | Video | — |
-| webm | Video | — |
+| mp3 | Audio | mp3, wav, flac, m4a, aac, ogg, opus |
+| wav | Audio | mp3, wav, flac, m4a, aac, ogg, opus |
+| flac | Audio | mp3, wav, flac, m4a, aac, ogg, opus |
+| m4a | Audio | mp3, wav, flac, m4a, aac, ogg, opus |
+| aac | Audio | mp3, wav, flac, m4a, aac, ogg, opus |
+| ogg | Audio | mp3, wav, flac, m4a, aac, ogg, opus |
+| opus | Audio | mp3, wav, flac, m4a, aac, ogg, opus |
+| mp4 | Video | mp4, mkv, mov, webm, gif |
+| mkv | Video | mp4, mkv, mov, webm, gif |
+| mov | Video | mp4, mkv, mov, webm, gif |
+| webm | Video | mp4, mkv, mov, webm, gif |
 | docx | Document | pdf, md, html |
 | xlsx | Document | csv |
 | pptx | Document | pdf |
@@ -472,27 +472,27 @@ matrix models every in-scope target and labels the ones that are not proven yet.
 <!-- scope:begin -->
 | input | SPEC §3 scope (all modelled targets) | offered today |
 |---|---|---|
-| jpeg | jpg, png, webp, tiff, avif, gif, bmp, heic, svg, pdf | jpg, png, avif |
-| png | jpg, webp, tiff, avif, gif, bmp, heic, svg, pdf | webp, avif |
+| jpeg | jpg, png, webp, tiff, avif, gif, bmp, heic, svg, pdf | jpg, png, webp, tiff, avif, gif |
+| png | jpg, webp, tiff, avif, gif, bmp, heic, svg, pdf | jpg, webp, tiff, avif, gif |
 | heic | jpg, png, webp, tiff, avif, gif, bmp, heic, svg, pdf | jpg |
 | avif | jpg, png, webp, tiff, gif, bmp, heic, svg, pdf | jpg |
-| webp | jpg, png, tiff, avif, gif, bmp, heic, svg, pdf | tiff |
+| webp | jpg, png, tiff, avif, gif, bmp, heic, svg, pdf | jpg, png, tiff, gif |
 | gif | jpg, png, webp, tiff, avif, gif, bmp, heic, svg, pdf | — (nothing proven yet) |
-| tiff | jpg, png, webp, avif, gif, bmp, heic, svg, pdf | png |
+| tiff | jpg, png, webp, avif, gif, bmp, heic, svg, pdf | jpg, png, webp, gif |
 | bmp | jpg, png, webp, tiff, avif, gif, bmp, heic, svg, pdf | — (nothing proven yet) |
 | svg | jpg, png, webp, tiff, avif, gif, bmp, heic, svg, pdf | — (nothing proven yet) |
 | pdf | jpg, png, webp, tiff, avif, gif, bmp, heic, svg, pdf, md, html, docx, pptx, rtf, xlsx, csv, txt | — (nothing proven yet) |
-| mp3 | mp3, wav, flac, m4a, aac, ogg, opus | — (nothing proven yet) |
-| wav | mp3, wav, flac, m4a, aac, ogg, opus | — (nothing proven yet) |
-| flac | mp3, wav, flac, m4a, aac, ogg, opus | — (nothing proven yet) |
-| m4a | mp3, wav, flac, m4a, aac, ogg, opus | — (nothing proven yet) |
-| aac | mp3, wav, flac, m4a, aac, ogg, opus | — (nothing proven yet) |
-| ogg | mp3, wav, flac, m4a, aac, ogg, opus | — (nothing proven yet) |
-| opus | mp3, wav, flac, m4a, aac, ogg, opus | — (nothing proven yet) |
-| mp4 | mp4, mkv, mov, webm, gif | — (nothing proven yet) |
-| mkv | mp4, mkv, mov, webm, gif | — (nothing proven yet) |
-| mov | mp4, mkv, mov, webm, gif | — (nothing proven yet) |
-| webm | mp4, mkv, mov, webm, gif | — (nothing proven yet) |
+| mp3 | mp3, wav, flac, m4a, aac, ogg, opus | mp3, wav, flac, m4a, aac, ogg, opus |
+| wav | mp3, wav, flac, m4a, aac, ogg, opus | mp3, wav, flac, m4a, aac, ogg, opus |
+| flac | mp3, wav, flac, m4a, aac, ogg, opus | mp3, wav, flac, m4a, aac, ogg, opus |
+| m4a | mp3, wav, flac, m4a, aac, ogg, opus | mp3, wav, flac, m4a, aac, ogg, opus |
+| aac | mp3, wav, flac, m4a, aac, ogg, opus | mp3, wav, flac, m4a, aac, ogg, opus |
+| ogg | mp3, wav, flac, m4a, aac, ogg, opus | mp3, wav, flac, m4a, aac, ogg, opus |
+| opus | mp3, wav, flac, m4a, aac, ogg, opus | mp3, wav, flac, m4a, aac, ogg, opus |
+| mp4 | mp4, mkv, mov, webm, gif | mp4, mkv, mov, webm, gif |
+| mkv | mp4, mkv, mov, webm, gif | mp4, mkv, mov, webm, gif |
+| mov | mp4, mkv, mov, webm, gif | mp4, mkv, mov, webm, gif |
+| webm | mp4, mkv, mov, webm, gif | mp4, mkv, mov, webm, gif |
 | docx | pdf, md, html, xlsx, pptx, rtf, csv, txt | pdf, md, html |
 | xlsx | pdf, md, html, docx, pptx, rtf, csv, txt | csv |
 | pptx | pdf, md, html, docx, xlsx, rtf, csv, txt | pdf |

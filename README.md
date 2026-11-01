@@ -34,13 +34,20 @@ is the machine-checked index of every `PROVEN` route.
   owner card named) or `cut`. The wheel may only render `PROVEN`.
 - **Docs cannot drift from code.** `docs/DETECTION.md` and `evidence/ROUTES.md` are generated
   from `src-tauri/src/model/matrix.rs` and asserted by `cargo test`.
+- **Still images never go through ffmpeg.** One vips process per conversion; ffmpeg only
+  palette-encodes GIF output from a PNG that vips wrote, and a unit test enforces it
+  (`ARCHITECTURE.md` §6.3, `spikes/c2/EVIDENCE.md`).
 
 ```bash
 bash scripts/test-model.sh        # the detection core's tests, no cargo and no GTK needed
+bash scripts/test-engine.sh       # argv builders, planner, spawn contract, verifiers (C2)
 bash scripts/check-model-purity.sh# model/ stays Tauri-free (ARCHITECTURE §2.2)
 python3 scripts/gen-fixtures.py   # regenerate fixtures/ + fixtures/PROVENANCE.md
+python3 scripts/gen-media-fixtures.py --vips … --ffmpeg … --icc …
+                                  # the C2 media fixtures (merges PROVENANCE rows)
 rustc --edition 2021 -o /tmp/model-tables scripts/model-tables.rs
 /tmp/model-tables --write         # regenerate the doc tables after changing matrix.rs
+spikes/c2/run-e2e.sh              # the media matrix against real engines (see spikes/c2)
 ```
 
 ---
@@ -55,7 +62,7 @@ rustc --edition 2021 -o /tmp/model-tables scripts/model-tables.rs
 │   ├── logic.js              # pure window logic — unit-tested under node
 │   ├── app.js                # DOM wiring + IPC bridge (Tauri commands in shell/ipc.rs)
 │   └── tests/logic.test.js   # node --test ui/tests (no dependencies)
-├── fixtures/                # detection corpus + PROVENANCE.md (40 files, generated)
+├── fixtures/                # detection + media corpus (46 files) + PROVENANCE.md, generated
 ├── evidence/                # S2/S2b transcripts + ROUTES.md (generated evidence index)
 ├── docs/DETECTION.md        # detection rules + generated type → target matrix
 ├── src-tauri/
@@ -67,7 +74,8 @@ rustc --edition 2021 -o /tmp/model-tables scripts/model-tables.rs
 │   └── src/
 │       ├── main.rs          # thin binary entry
 │       ├── lib.rs           # ez_convert_lib::run() + command registry + boundary test
-│       ├── engine.rs        # placeholder engine contract + unit tests
+│       ├── engine/          # sidecars: proc (spawn contract), vips, ffmpeg, plan, convert,
+│       │                    #   verify, stderr_rules, tags (C2)
 │       ├── model/           # pure rules: types, detect, matrix (C1) + settings, naming (U2/C4)
 │       ├── job/queue.rs     # admission, folder expansion, per-file state, batch progress
 │       └── shell/ipc.rs     # the only Tauri-aware layer (window commands)
@@ -75,10 +83,13 @@ rustc --edition 2021 -o /tmp/model-tables scripts/model-tables.rs
 ├── scripts/make-icons.py        # regenerates src-tauri/icons (stdlib + ffmpeg only)
 ├── scripts/gen-licenses.py      # docs/LICENSES.md from the locked graph (CI-enforced)
 ├── scripts/test-model.sh        # run the model tests without cargo/GTK
+├── scripts/test-engine.sh       # run the engine tests without cargo/GTK (lofty stubbed)
+├── scripts/gen-media-fixtures.py# the C2 media fixtures (+ PROVENANCE row merge)
 ├── scripts/check-model-purity.sh# ARCHITECTURE §2.2 boundary check (CI-enforced)
 ├── scripts/gen-fixtures.py      # regenerate fixtures/ + PROVENANCE.md
 ├── scripts/model-tables.rs      # regenerate the generated doc tables
 ├── spikes/                  # one directory per spike, each with its own run.sh
+│   └── c2/                   # media e2e matrix + the argv discovery scripts (C2)
 └── .github/workflows/build.yml
 ```
 

@@ -38,11 +38,11 @@ Consequences, stated plainly because they change what ships:
   invisible, not greyed out (`SPEC.md` §2 already requires absent-not-greyed).
 - A unit test asserts every `Proven` route names an evidence file that exists on disk and
   every `Planned` route names a live card. Adding a target without evidence fails CI.
-- At the time of writing, `Proven` covers **six measured image pairs through libvips** and
-  **seven document directions through LibreOffice** (`§6.1`, `§6.2`). Audio, video, PDF raster
-  input, SVG input, AVIF/GIF/BMP output, legacy `.doc/.xls/.ppt`, and most of the image grid are
-  **`Planned`**. That is the honest state of the world after S1-S3, not a scope reduction:
-  `C2`, `C3` and `C4` exist to move them.
+- At the time of writing, `Proven` covers **21 image cells and all 69 audio/video cells**
+  (49 audio + 20 video) plus **seven document directions through LibreOffice**
+  (`§6.1`, `§6.2`, `§6.3`). Still `Planned`: PDF raster input, SVG input, BMP in/out, HEIC
+  encode is `cut`, legacy `.doc/.xls/.ppt`, the rest of the document grid, and GIF *input*
+  (deliberately — animation would be lost). `C3` and `C4` exist to move the remainder.
 
 ---
 
@@ -124,13 +124,16 @@ src-tauri/src/
 │   └── settings.rs         # Settings schema, defaults, load/save/migrate (§15)
 │
 ├── engine/                 # the only place a child process is created
-│   ├── mod.rs              # Route -> ExecPlan dispatch; timeouts; cancellation token
+│   ├── mod.rs              # EnginePaths discovery + banner; re-exports (§6.7)
 │   ├── proc.rs             # ChildSpec -> Outcome: scrubbed env, pipes, caps, kill (§6.0)
 │   ├── stderr_rules.rs     # "exit 0 is not success" pattern rules (§6.0.4)
 │   ├── verify.rs           # per-target output validators (§6.0.5)
+│   ├── plan.rs             # (source, target, options) -> ordered steps; pure (§6.3)
+│   ├── convert.rs          # probe -> plan -> spawn -> verify -> tags (§6.3)
+│   ├── tags.rs             # audio tag + cover-art carry-over with lofty (§6.3)
 │   ├── vips.rs             # argv builder; Op is a closed enum (§6.1)
-│   ├── soffice.rs          # argv builder + warm-profile worker (§6.2)
-│   ├── ffmpeg.rs           # argv builder + progress parser (§6.3, Planned)
+│   ├── soffice.rs          # argv builder + warm-profile worker (§6.2, Planned — C3)
+│   ├── ffmpeg.rs           # argv builder: audio, video, GIF, ffprobe (§6.3)
 │   ├── pdfium.rs           # talks to the first-party ezc-pdf sidecar (§6.4, Planned)
 │   ├── resvg.rs            # svg -> png hop (§6.5, Planned)
 │   └── toolpath.rs         # resolve engines under resource_dir, verify version pin
@@ -331,6 +334,12 @@ CWD: the engine's own directory for `vips` (its DLLs are siblings), the job temp
 everything else. Never the bundle directory — on macOS writing there breaks the code
 signature (packaging doc §2).
 
+**One deliberate exception.** `EZC_ENGINE_LIB_DIR` (absolute only) is exported as
+`LD_LIBRARY_PATH` for the child when set, so a Linux engine installed into a private prefix can
+find its own shared libraries. It exists for dev boxes and the C2 harness; a shipped install
+never sets it (Windows DLLs sit beside `vips.exe`, macOS uses the bundle's `@rpath`). Nothing
+else from the parent environment is inherited — `proc::run` still calls `env_clear()` first.
+
 #### 6.0.3 Timeouts, output caps, reaping
 
 - Wall-clock timeout per invocation, enforced by a monitor that kills the child and its
@@ -390,7 +399,7 @@ recorded on the card.
 | xlsx/docx/pptx | ZIP with the required part (`xl/workbook.xml`, `word/document.xml`, `ppt/presentation.xml`) |
 | csv | parses as delimited text, ≥ 1 row, consistent column count ≥ 1 |
 | md/html/txt | valid UTF-8 (or declared encoding), non-empty, no NUL bytes |
-| audio/video | `ffprobe` reports a duration > 0 and the expected stream kind (Planned) |
+| audio/video | `ffprobe` reports duration > 0, the expected stream kind and — for video — `r_frame_rate == avg_frame_rate` (i.e. the output is not variable). Implemented in `engine/verify.rs` (`C2`) |
 
 Two things this does **not** catch, stated so nobody assumes otherwise:
 
@@ -479,13 +488,18 @@ env  = scrubbed (§6.0.2), CWD = <install>/resources/engines/vips
   The double-rotation trap is on the JPEG path.
 - **Metadata** is kept by default. What was measured: the autorot hops keep the EXIF block
   (V6/V7 read `exif-ifd0-Orientation` back from the output) and the build reports
-  `EXIF metadata support with libexif: true` / `ICC profile support with lcms2: true`. The
-  **strip** path is *not* measured on this dist: `C2` must prove which saver option actually
-  removes EXIF/ICC (the research note names `--strip`, unverified here) before the "strip
-  metadata" toggle ships. Until then the toggle is absent rather than fake.
-- Resize/compression flags (`--Q`, `thumbnail` shrink-on-load, size limits) are **not** in
-  this contract yet: none has been measured on this dist. `C2` proves them before the
-  resize/compress UI appears (§8.2).
+  `EXIF metadata support with libexif: true` / `ICC profile support with lcms2: true`. `C2`
+  closed the strip question (`spikes/c2/EVIDENCE.md` §1): the option is the **bracket** form
+  `out.jpg[strip]`, not the flag `--strip` (`Unknown option --strip`), and it removes EXIF
+  **and** the ICC profile on jpg, png, webp and tiff. The toggle is real and off by default.
+  Measured on a 400x200 JPEG with `Orientation=6` and a 736 B sRGB ICC: jpg→png/webp keep
+  both; jpg→tiff keeps the ICC and bakes the orientation into the pixels (a TIFF has no EXIF
+  blob to carry).
+- Resize/compression options are **in** the contract now, all in bracket form: `Q=<1-100>`
+  for jpg/webp, `compression=9` for png, `compression=deflate` for tiff, `strip`, and
+  `resize <in> <out>[opts] <scale>` where the scale is a three-decimal fraction (0.5000 for
+  50 %). `thumbnail` shrink-on-load is not used: the UI's resize control is a percentage and
+  `resize` is what was measured (`spikes/c2/EVIDENCE.md` §1 D12).
 - **AVIF output names its saver and passes the measured option set**:
   `heifsave` + `--compression av1 --Q 60 --effort 6 --bitdepth 8 --keep all` (`§6.1` V8).
   Four corrections from the measurement, each of which costs a bug if ignored:
@@ -649,31 +663,68 @@ Operational contract:
   every file in the batch shares the same route and outdir — mixed batches are split.
 - **`soffice --version`** is the identity check for `§6.7`.
 
-### 6.3 ffmpeg / ffprobe — audio and video (`PLANNED`, card `C2`)
+### 6.3 ffmpeg / ffprobe — audio and video (`PROVEN`, card `C2`)
 
-**No contract is documented here, and none may be inferred from this section.** Reasons:
-S1-S3 measured no ffmpeg invocation in this project; the research findings in
-`media-engine-stack-2026.md` are single-command probes on a different FFmpeg build, not a
-verified matrix; and the binary on the dev box is `n9.0.1 --enable-gpl --enable-version3
---enable-libx264 --enable-libx265` — a build that must never ship.
+Measured on an **LGPL-only** build (BtbN `linux64-lgpl`, `ffmpeg N-128273`, `enable-gpl`
+present 0 times, no `libx264`/`libx265`), through `engine::convert` with a real spawn per
+conversion. Evidence: `spikes/c2/EVIDENCE.md` §3-§5. The box also has a `--enable-gpl` ffmpeg
+on `PATH`; it was never used, and the argv is written so that it could not be: H.264 is
+`libopenh264`, VP9 is `libvpx-vp9`, and `engine/plan.rs` names no other video encoder.
 
-What is fixed now, because it is not an argv detail:
+```
+ffmpeg -nostdin -y -hide_banner -loglevel error
+  audio:  -i <in> -vn -map 0:a:0 -map_metadata -1
+          -c:a <codec> [-b:a <n>k] [-q:a 5] <container flags>
+          -ar <clamped rate> -sample_fmt <fmt> <out>
+  video:  [-ss <start>] -i <in> [-t <length>]
+          -map 0:v:0 [-map 0:a:0?]
+          -fps_mode cfr -r <num>/<den>
+          [-vf scale=<w>:-2:flags=lanczos]
+          -c:v <codec> [-b:v <n>k | -b:v 0 -crf 34] -pix_fmt yuv420p
+          [-c:a <codec> -b:a <n>k -ar <rate> -sample_fmt <fmt>]
+          <container flags> <out>
+  gif:    audio/video or a vips-normalised PNG -> -vf <palette graph> -loop 0 <out>
+```
 
-- LGPL-only build; `scripts/license-assert.sh --scan` must pass on the shipped binaries
-  (`ffmpeg -version` must contain `--enable-gpl` zero times; no `libx264`/`libx265`).
-- ffmpeg **never** converts still images (`SPEC.md` §6 rule 1, measured: EXIF is destroyed
-  even with `-map_metadata 0`). A unit test asserts no image route resolves to `ffmpeg`.
-- Audio conversions pass explicit `-ar` and sample format derived from the source; Opus is
-  48 kHz-only. Sample-rate drift is a known silent-wrongness class.
-- Video honours rotation and variable frame rate explicitly (`-fps_mode cfr`), and trims
-  declare keyframe-vs-frame accuracy in the UI copy.
-- Tags and cover art are merged with the in-process `lofty` crate after the encode; ffmpeg's
-  tag mapping is lossy and is not trusted.
-- GIF output is `palettegen`/`paletteuse`, fed by a vips-normalised PNG (`SPEC.md` §9 D2).
+Rules, each with the measurement that forces it:
 
-`C2` must fill in the argv table for: mp3/wav/flac/m4a/aac/ogg/opus, mp4/mkv/mov/webm,
-trim, resize, GIF, and prove each with a content-checked fixture. Until then the audio/video
-routes are `Planned` and invisible.
+1. **`-ar` and `-sample_fmt` are always explicit.** libmp3lame rejects 96 kHz
+   (`rc=234`, it prints its own supported list: 8000-48000); libopus accepts only 48/24 kHz
+   (`rc=234` otherwise). `ffmpeg::clamp_rate` picks the highest measured-supported rate ≤ the
+   source; Opus is pinned to 48 kHz. WAV/FLAC keep the source rate, and a 24-bit source stays
+   24-bit (`pcm_s24le`/`s32`) instead of being silently truncated.
+2. **`-b:a`/`-b:v` always carry the `k` suffix.** A bare `192` is read as **192 bits per
+   second**: ffmpeg warns "maybe you mean 192k" and then crawls, which looks like a hang. This
+   card found it because the stall detector killed the run; `Arg::Kbps` and a unit test keep it
+   fixed.
+3. **Video is forced to CFR.** `-fps_mode cfr -r <rate>`; measured on a genuinely variable
+   source: with the flag 89 frames at a constant 30 fps, without it 68 frames at an average
+   2040/89 fps — a file that stutters in every player. `verify::is_vfr` checks it.
+4. **Trim is a fast seek plus an exact length**: `-ss` before `-i`, `-t` after it. Measured on a
+   2 s / 25 fps clip: 25 frames, exactly 1.000 s. `-to` *before* `-i` is relative to the seek
+   point and produced 1.040 s — do not use it for an absolute end time.
+5. **Rotation is handled by re-encoding.** ffmpeg applies a display matrix on transcode
+   (320x240 with `rotation=90` → 240x320); `-c:v copy` preserves the matrix instead, which is
+   why the contract never streams-copies.
+6. **Tags are not ffmpeg's job.** `-map_metadata -1` and `engine/tags.rs` (lofty) re-applies the
+   source's tags and cover art afterwards. Measured: title/artist/album/date + cover survive
+   mp3 → wav/flac/m4a/ogg/opus/aac. Two traps found: the tag family must be chosen from the
+   *target container* (ffmpeg writes an Ogg with no tag block, so "reuse the target's type" wrote
+   ID3 into an Ogg file that only lofty could read), and Ogg/Opus tags are **stream-level** in
+   ffprobe, not format-level.
+7. **GIF output is two engines by design.** A still image is decoded, autorotated, stripped and
+   written as PNG by vips; ffmpeg only palette-encodes that PNG
+   (`split[a][b];[a]palettegen=stats_mode=single[p];[b][p]paletteuse=…`). A unit test asserts
+   ffmpeg's input is `Temp(0)`, never the user's file. Video → GIF uses
+   `fps=<n>,scale=min(<w>\,iw):-1:flags=lanczos` + `palettegen=stats_mode=diff` with a long-edge
+   cap so a 4K clip cannot produce a 40 MB GIF.
+8. **Capability is probed by doing** (§6.7). The Linux vips build in the evidence run cannot
+   load its HEIF module (`vips heifsave` → `unknown action`); nothing in the planner trusts
+   `--vips-config`, and the e2e prints `SKIP` with the engine's own error instead of a pass.
+
+Timeouts and kills: `proc::run` gives ffmpeg a 120 s *stall* limit (no output for 120 s) and an
+1800 s wall-clock cap, vips 120 s, ffprobe 30 s. Those are safety limits, not measurements
+(§6.0.3) — the only time the stall detector fired was the real `-b:a` hang above.
 
 ### 6.4 PDFium — PDF pages to raster (`PLANNED`, needs a decision recorded in §17)
 
@@ -812,22 +863,41 @@ fn routes_for(ty: CanonicalType) -> &'static [Route];
 
 ### 8.2 Image types
 
-Only pairs that were actually measured are PROVEN. The four `copy` hops, two `autorot` hops
-and the avif save/decode pair in `§6.1` are the whole of it; every other cell is `planned` and
-invisible in the wheel until `C2` runs that pair against a fixture.
+Only pairs that were actually measured are PROVEN. `C1` proved the `§6.1` `copy`/`autorot`
+hops and the avif pair; `C2` added the 12 raster cells and 4 gif outputs it measured through
+`engine::convert` against a real vips CLI (`spikes/c2/EVIDENCE.md` §2). Every other cell is
+`planned` (invisible in the wheel) or `cut`.
 
 | input | → jpg | → png | → webp | → tiff | → avif | → gif | → bmp | → heic | → svg | → pdf |
 |---|---|---|---|---|---|---|---|---|---|---|
-| jpg | **PROVEN** (V6) | **PROVEN** (V2) | planned | planned | **PROVEN** (V8) | planned (ffmpeg) | planned (`image`) | cut (D4) | cut | cut (no writer) |
-| png | planned | — | **PROVEN** (V3) | planned | **PROVEN** (V8) | planned | planned | cut | cut | cut |
-| webp | planned | planned | — | **PROVEN** (V4) | planned | planned | planned | cut | cut | cut |
-| tiff | planned | **PROVEN** (V5)¹ | planned | — | planned | planned | planned | cut | cut | cut |
+| jpg | **PROVEN** (V6) | **PROVEN** (V2) | **PROVEN** (C2) | **PROVEN** (C2) | **PROVEN** (V8) | **PROVEN** (C2) | planned (`image`) | cut (D4) | cut | cut (no writer) |
+| png | **PROVEN** (C2) | — | **PROVEN** (V3) | **PROVEN** (C2) | **PROVEN** (V8) | **PROVEN** (C2) | planned | cut | cut | cut |
+| webp | **PROVEN** (C2) | **PROVEN** (C2) | — | **PROVEN** (V4) | planned | **PROVEN** (C2) | planned | cut | cut | cut |
+| tiff | **PROVEN** (C2) | **PROVEN** (V5)¹ | **PROVEN** (C2) | — | planned | **PROVEN** (C2) | planned | cut | cut | cut |
 | heic | **PROVEN** (V7) | planned | planned | planned | planned | planned | planned | cut | cut | cut |
 | avif | **PROVEN** (V8b) | planned | planned | planned | — | planned | planned | cut | cut | cut |
-| gif | planned | planned | planned | planned | planned | planned | planned | cut | cut | cut |
-| bmp | planned | planned | planned | planned | planned | planned | planned | cut | cut | cut |
-| svg | planned | planned | planned | planned | planned | planned | planned | cut | cut | cut |
-| pdf | planned | planned | planned | planned | planned | planned | planned | cut | cut | cut |
+| gif | planned (anim)² | planned (anim)² | planned (anim)² | planned (anim)² | planned (anim)² | — | planned | cut | cut | cut |
+| bmp | planned | planned | planned | planned | planned | planned | — | cut | cut | cut |
+| svg | planned (resvg) | planned (resvg) | planned (resvg) | planned (resvg) | planned (resvg) | planned (resvg) | planned | cut | cut | cut |
+| pdf | planned (PDFium) | planned (PDFium) | planned (PDFium) | planned (PDFium) | planned (PDFium) | planned (PDFium) | planned | cut | cut | cut |
+
+¹ V5 is tiff → png; the JBIG/silent-black TIFF trap that made `tiffload --fail-on error`
+mandatory is in `§6.1` V9/V10.
+
+² **GIF input is planned on purpose, not because the route fails.** `vips gifload` returns page
+0, so an animated source would silently lose every other frame; the C2 harness converts a
+single-frame GIF fine and `fixtures/sample_anim.gif` exists so the day we handle animation the
+decision is testable. Offering the route now would be the silent data loss `§6.0.4` forbids.
+
+The measured image rules (`spikes/c2/EVIDENCE.md` §1):
+
+- one `vips` process per conversion, `vips <op> '<in>[fail-on=error]' '<out>[Q=…,strip]'` —
+  the bracket form is the only spelling that carries a loader guard **and** saver options at
+  once (the flag forms are rejected: `Unknown option --Q`, `Unknown option --strip`);
+- `autorot` for sources that can carry an EXIF orientation tag, `copy` otherwise;
+- saver options per target: `Q` for jpg/webp, `compression=9` for png,
+  `compression=deflate` for tiff, the V8 flag set for avif;
+- `strip` removes EXIF **and** ICC on jpg/png/webp/tiff (measured), and is off by default.
 
 `—` = not offered (identity, or cut by `SPEC.md` §9).
 
@@ -862,9 +932,26 @@ target state; this table is the current one.
 
 ### 8.4 Audio and video
 
-All pairs `planned` (`§6.3`). The UI renders no audio/video segment until `C2` proves a
-route. `SPEC.md` §3 lists them as v1 scope — they are v1 scope, gated on measurement, not
-re-scoped.
+**Every audio and video cell is `PROVEN`** (`C2`, `spikes/c2/EVIDENCE.md` §3-§4): 7 audio
+sources × 7 targets = 49, and 4 video sources × 5 targets (mp4/mkv/mov/webm/gif) = 20. Each
+cell ran through `engine::convert` against the LGPL ffmpeg build and its output was re-opened
+with `ffprobe` (codec, sample rate, duration, frame-rate constancy).
+
+Audio (`§6.3`):
+
+| input | → mp3 | → wav | → flac | → m4a | → aac | → ogg | → opus |
+|---|---|---|---|---|---|---|---|
+| mp3/wav/flac/m4a/aac/ogg/opus | **PROVEN** | **PROVEN** | **PROVEN** | **PROVEN** | **PROVEN** | **PROVEN** | **PROVEN** (48 kHz) |
+
+Video:
+
+| input | → mp4 | → mkv | → mov | → webm | → gif |
+|---|---|---|---|---|---|
+| mp4/mkv/mov/webm | **PROVEN** | **PROVEN** | **PROVEN** | **PROVEN** (VP9+Opus) | **PROVEN** |
+
+Still-open cells: BMP (input and output) stays on the `image` crate route, HEIC encode is `cut`
+(D4), SVG input waits on resvg, PDF input on PDFium — all unchanged by C2 and all still
+`planned` with their owner named.
 
 ### 8.5 Multi-file and folder drops
 
@@ -1266,6 +1353,10 @@ do not each decide differently. Each needs `warden` (security/licence) or the st
 | 17.8 | Undo is **same-session only**; a crash abandons the journal without deleting | deleting files after a restart is unrecoverable; keeping them is not | none |
 | 17.9 | PDF raster input is **page 1** in v1 (`pdf.page` exists in settings) | `SPEC.md` is silent; page 1 is the predictable default and multi-page output is a product decision | stakeholder (minor) |
 | 17.10 | AVIF output is **proven on the dist that ships**: `heifsave` + `--compression av1 --Q 60 --effort 6 --bitdepth 8`, EXIF+ICC survive, and the unchanged suite now reports **34/34 on the final 43-file dist** (`spikes/s4/EVIDENCE.md` §1, 2026-11-01). `SPEC.md` §9.3's `speed`→`effort` correction already landed in `t_803b8add` | the parameter name in the spec was wrong; the round-trip is now measured twice, on both dists | none — discharged |
+| 17.11 | Still images are converted by **one vips process** using bracket filename options (`'in.jpg[fail-on=error]' 'out.jpg[Q=90,strip]'`), not by two processes and not by the flag forms | measured: the flag forms are rejected (`Unknown option --Q/--strip/--fail-on`), and the bracket form is the only spelling that carries the loader guard and the saver options together (`spikes/c2/EVIDENCE.md` §1) | warden (argv surface) |
+| 17.12 | **GIF input stays `Planned`** even though the vips route works | `gifload` returns page 0: an animated source would silently lose frames. Offering it would be the silent data loss §6.0.4 forbids. `fixtures/sample_anim.gif` makes the day we handle animation testable | stakeholder (product call: animation in v1?) |
+| 17.13 | Audio tags are applied **after** the encode by `lofty`, never by ffmpeg's mapping | measured: `-map_metadata 0` re-stamps `encoder=Lavf…` and mangles the cover stream; lofty carries 5 items + the cover into wav/flac/m4a/ogg/opus/aac. The tag *family* is chosen from the target container (ffmpeg writes an Ogg with no tag block) | none — discharged |
+| 17.14 | Video is always re-encoded, never stream-copied, even for a same-container conversion | a stream copy preserves the display-matrix rotation but cannot force CFR or apply a trim/resize; the CFR measurement (§6.3.3) is the reason this is not optional | none (implementation) |
 
 ---
 
