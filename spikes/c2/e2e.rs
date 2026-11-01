@@ -273,6 +273,53 @@ fn main() {
         }
     }
 
+    // ------------------------------------------------ heif sources (decode)
+    // Added by card t_44676171 (C2-Win): the loop above feeds only the six
+    // legacy sources, so a dist with a working libheif had no HEIC/AVIF *decode*
+    // row to pass on this pipeline. Same `engine::convert::convert` + verify path.
+    println!("\n## heif sources (decode; avif + heic input)");
+    let heif_sources = [
+        ("sample.heic", CanonicalType::Heic),
+        ("sample.avif", CanonicalType::Avif),
+    ];
+    for (file, from) in heif_sources {
+        let input = h.fixture(file);
+        for to in still_targets
+            .iter()
+            .copied()
+            .chain(std::iter::once(TargetFormat::Gif))
+        {
+            if same_format(from, to) {
+                continue;
+            }
+            h.case(from, to, &input, Default::default(), |h, out| {
+                let exists = verify::exists_nonempty(out);
+                if !exists.is_pass() {
+                    return Err(exists.reason().unwrap_or("missing").to_string());
+                }
+                let magic = verify::magic_matches(out, to);
+                if !magic.is_pass() {
+                    return Err(magic.reason().unwrap_or("wrong family").to_string());
+                }
+                let facts = h.probe(out, true)?;
+                if facts.width.unwrap_or(0) == 0 {
+                    return Err("zero width".to_string());
+                }
+                if to == TargetFormat::Gif && facts.codec_name.as_deref() != Some("gif") {
+                    return Err(format!("codec={:?} not gif", facts.codec_name));
+                }
+                Ok(format!(
+                    "{}B {} {}x{} codec={:?}",
+                    std::fs::metadata(out).unwrap().len(),
+                    to.as_str(),
+                    facts.width.unwrap_or(0),
+                    facts.height.unwrap_or(0),
+                    facts.codec_name
+                ))
+            });
+        }
+    }
+
     // -------------------------------------------------- EXIF / ICC / rotation
     println!("\n## metadata (kept by default, stripped on request)");
     let exif_in = h.fixture("exif_icc.jpg");

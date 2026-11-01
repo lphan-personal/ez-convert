@@ -32,16 +32,20 @@ The generated table below is the contract. Regenerate it with
 | V2 | transcript | `evidence/s2-libvips.md` | jpg -> png OK (exit 0, PNG written) | jpeg → png |
 | C2-JPEG-WEBP | transcript | `spikes/c2/EVIDENCE.md` | jpg -> webp OK (1,188 B, magic webp) | jpeg → webp |
 | C2-JPEG-TIFF | transcript | `spikes/c2/EVIDENCE.md` | jpg -> tiff OK (3,508 B, ICC carried) | jpeg → tiff |
-| V8 | transcript | `evidence/s2b-avif.md` | heifsave av1: png -> avif 3,863 B; 2 MP jpg -> avif 302,068 B | jpeg → avif, png → avif |
+| C2W-AVIF | transcript | `spikes/c2/EVIDENCE-WINDOWS.md` | avif out on the shipping dist: jpg/png/webp/tiff/gif/heic -> avif PASS (875-1740 B), magic-checked | jpeg → avif, png → avif, heic → avif, webp → avif, gif → avif, tiff → avif |
 | C2-GIF-STILL | transcript | `spikes/c2/EVIDENCE.md` | still image -> gif via vips normalise + ffmpeg palette (1 frame, 1,680 B) | jpeg → gif, png → gif, webp → gif, tiff → gif |
 | C2-PNG-JPEG | transcript | `spikes/c2/EVIDENCE.md` | png -> jpg OK (2,781 B) | png → jpg |
 | V3 | transcript | `evidence/s2-libvips.md` | png -> webp OK (exit 0) | png → webp |
 | C2-PNG-TIFF | transcript | `spikes/c2/EVIDENCE.md` | png -> tiff OK (522 B) | png → tiff |
 | V7 | transcript | `evidence/s2-libvips.md` | heic -> jpg, 200x400, libheif already applied irot (autorot is a no-op) | heic → jpg |
+| C2W-HEIC-DECODE | transcript | `spikes/c2/EVIDENCE-WINDOWS.md` | heic decode: heic -> png/webp/tiff PASS, 200x400 (libheif already applied irot) | heic → png, heic → webp, heic → tiff |
+| C2W-HEIF-GIF | transcript | `spikes/c2/EVIDENCE-WINDOWS.md` | heic/avif -> gif PASS via vips normalise -> ffmpeg palette, 200x400 / 64x48 | heic → gif, avif → gif |
 | V8b | transcript | `evidence/s2b-avif.md` | avif -> jpg kept EXIF IFD0 and the 3,144 B ICC profile | avif → jpg |
+| C2W-AVIF-DECODE | transcript | `spikes/c2/EVIDENCE-WINDOWS.md` | avif decode: avif -> png/webp/tiff PASS, 64x48, codec read back by ffprobe | avif → png, avif → webp, avif → tiff |
 | C2-WEBP-JPEG | transcript | `spikes/c2/EVIDENCE.md` | webp -> jpg OK (2,904 B) | webp → jpg |
 | C2-WEBP-PNG | transcript | `spikes/c2/EVIDENCE.md` | webp -> png OK (4,346 B) | webp → png |
 | V4 | transcript | `evidence/s2-libvips.md` | webp -> tiff OK (exit 0) | webp → tiff |
+| C2W-GIF-IN | transcript | `spikes/c2/EVIDENCE-WINDOWS.md` | gif source -> jpg/png/webp/tiff/avif PASS; frame 1 only, labelled in the UI and the route | gif → jpg, gif → png, gif → webp, gif → tiff |
 | C2-TIFF-JPEG | transcript | `spikes/c2/EVIDENCE.md` | tiff -> jpg OK (2,781 B) | tiff → jpg |
 | V5 | transcript | `evidence/s2-libvips.md` | tiff -> png OK (exit 0) | tiff → png |
 | C2-TIFF-WEBP | transcript | `spikes/c2/EVIDENCE.md` | tiff -> webp OK (1,130 B) | tiff → webp |

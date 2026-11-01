@@ -414,10 +414,56 @@ const EV_C2_VIDEO_GIF: EvidenceId = EvidenceId {
     provenance: Provenance::Transcript,
 };
 
+const E_C2W: &str = "spikes/c2/EVIDENCE-WINDOWS.md";
+
+/// Card `t_44676171`: the same pipeline, run on the dist the app actually ships
+/// (`spec-aom` libvips 8.18.7) with a Windows LGPL ffmpeg. The Linux leg could not load
+/// its HEIF module, so AVIF output had no transcript of its own and HEIC/AVIF *decode*
+/// had no matrix row at all. These constants point at that run
+/// (`SUMMARY pass=120 fail=0 skip=0`).
+const EV_C2W_AVIF: EvidenceId = EvidenceId {
+    label: "C2W-AVIF",
+    claim: "avif out on the shipping dist: jpg/png/webp/tiff/gif/heic -> avif PASS (875-1740 B), magic-checked",
+    source: E_C2W,
+    marker: "PASS  Jpeg->\"avif\" sample.jpg",
+    provenance: Provenance::Transcript,
+};
+const EV_C2W_HEIC_DECODE: EvidenceId = EvidenceId {
+    label: "C2W-HEIC-DECODE",
+    claim: "heic decode: heic -> png/webp/tiff PASS, 200x400 (libheif already applied irot)",
+    source: E_C2W,
+    marker: "PASS  Heic->\"png\" sample.heic",
+    provenance: Provenance::Transcript,
+};
+const EV_C2W_AVIF_DECODE: EvidenceId = EvidenceId {
+    label: "C2W-AVIF-DECODE",
+    claim: "avif decode: avif -> png/webp/tiff PASS, 64x48, codec read back by ffprobe",
+    source: E_C2W,
+    marker: "PASS  Avif->\"png\" sample.avif",
+    provenance: Provenance::Transcript,
+};
+const EV_C2W_HEIF_GIF: EvidenceId = EvidenceId {
+    label: "C2W-HEIF-GIF",
+    claim: "heic/avif -> gif PASS via vips normalise -> ffmpeg palette, 200x400 / 64x48",
+    source: E_C2W,
+    marker: "PASS  Heic->\"gif\" sample.heic",
+    provenance: Provenance::Transcript,
+};
+/// v1 decision (Option C): a GIF source is offered for image targets and converts
+/// **frame 1 only**; the route must say so in the UI (`ARCHITECTURE.md` §8.2.1).
+const EV_C2W_GIF_IN: EvidenceId = EvidenceId {
+    label: "C2W-GIF-IN",
+    claim: "gif source -> jpg/png/webp/tiff/avif PASS; frame 1 only, labelled in the UI and the route",
+    source: E_C2W,
+    marker: "PASS  Gif->\"jpg\" sample.gif",
+    provenance: Provenance::Transcript,
+};
+
 const PLANNED_GIF_IN: RouteStatus = RouteStatus::Planned {
     owner: OWNER_C2,
-    hypothesis: "vips gifload returns page 0, so an animated source would silently lose \
-                  every other frame; needs an animation-aware route before it is offered",
+    hypothesis: "gif -> gif (re-encode of an animation) is not measured and not offered yet; \
+                  gif *input* for other image targets is offered and converts frame 1 only \
+                  (Option C, ARCHITECTURE.md §8.2.1)",
 };
 
 const PLANNED_IMG: RouteStatus = RouteStatus::Planned {
@@ -487,7 +533,7 @@ static R_JPEG: &[Route] = &[
     route!(Png, Vips, RouteStatus::Proven { evidence: EV_V2 }),
     route!(Webp, Vips, RouteStatus::Proven { evidence: EV_C2_JPG_WEBP }),
     route!(Tiff, Vips, RouteStatus::Proven { evidence: EV_C2_JPG_TIFF }),
-    route!(Avif, Vips, RouteStatus::Proven { evidence: EV_V8 }),
+    route!(Avif, Vips, RouteStatus::Proven { evidence: EV_C2W_AVIF }),
     route!(Gif, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_GIF_STILL }),
     route!(Bmp, RustCrate, PLANNED_IMG_BMP),
     route!(Heic, Vips, CUT_HEIC),
@@ -499,7 +545,7 @@ static R_PNG: &[Route] = &[
     route!(Jpg, Vips, RouteStatus::Proven { evidence: EV_C2_PNG_JPG }),
     route!(Webp, Vips, RouteStatus::Proven { evidence: EV_V3 }),
     route!(Tiff, Vips, RouteStatus::Proven { evidence: EV_C2_PNG_TIFF }),
-    route!(Avif, Vips, RouteStatus::Proven { evidence: EV_V8 }),
+    route!(Avif, Vips, RouteStatus::Proven { evidence: EV_C2W_AVIF }),
     route!(Gif, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_GIF_STILL }),
     route!(Bmp, RustCrate, PLANNED_IMG_BMP),
     route!(Heic, Vips, CUT_HEIC),
@@ -511,7 +557,7 @@ static R_WEBP: &[Route] = &[
     route!(Jpg, Vips, RouteStatus::Proven { evidence: EV_C2_WEBP_JPG }),
     route!(Png, Vips, RouteStatus::Proven { evidence: EV_C2_WEBP_PNG }),
     route!(Tiff, Vips, RouteStatus::Proven { evidence: EV_V4 }),
-    route!(Avif, Vips, PLANNED_IMG),
+    route!(Avif, Vips, RouteStatus::Proven { evidence: EV_C2W_AVIF }),
     route!(Gif, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_GIF_STILL }),
     route!(Bmp, RustCrate, PLANNED_IMG_BMP),
     route!(Heic, Vips, CUT_HEIC),
@@ -523,7 +569,7 @@ static R_TIFF: &[Route] = &[
     route!(Jpg, Vips, RouteStatus::Proven { evidence: EV_C2_TIFF_JPG }),
     route!(Png, Vips, RouteStatus::Proven { evidence: EV_V5 }),
     route!(Webp, Vips, RouteStatus::Proven { evidence: EV_C2_TIFF_WEBP }),
-    route!(Avif, Vips, PLANNED_IMG),
+    route!(Avif, Vips, RouteStatus::Proven { evidence: EV_C2W_AVIF }),
     route!(Gif, Ffmpeg, RouteStatus::Proven { evidence: EV_C2_GIF_STILL }),
     route!(Bmp, RustCrate, PLANNED_IMG_BMP),
     route!(Heic, Vips, CUT_HEIC),
@@ -533,11 +579,11 @@ static R_TIFF: &[Route] = &[
 
 static R_HEIC: &[Route] = &[
     route!(Jpg, Vips, RouteStatus::Proven { evidence: EV_V7 }),
-    route!(Png, Vips, PLANNED_IMG),
-    route!(Webp, Vips, PLANNED_IMG),
-    route!(Tiff, Vips, PLANNED_IMG),
-    route!(Avif, Vips, PLANNED_IMG),
-    route!(Gif, Ffmpeg, PLANNED_IMG_GIF),
+    route!(Png, Vips, RouteStatus::Proven { evidence: EV_C2W_HEIC_DECODE }),
+    route!(Webp, Vips, RouteStatus::Proven { evidence: EV_C2W_HEIC_DECODE }),
+    route!(Tiff, Vips, RouteStatus::Proven { evidence: EV_C2W_HEIC_DECODE }),
+    route!(Avif, Vips, RouteStatus::Proven { evidence: EV_C2W_AVIF }),
+    route!(Gif, Ffmpeg, RouteStatus::Proven { evidence: EV_C2W_HEIF_GIF }),
     route!(Bmp, RustCrate, PLANNED_IMG_BMP),
     route!(Heic, Vips, CUT_HEIC),
     route!(Svg, Vips, CUT_SVG),
@@ -546,10 +592,10 @@ static R_HEIC: &[Route] = &[
 
 static R_AVIF: &[Route] = &[
     route!(Jpg, Vips, RouteStatus::Proven { evidence: EV_V8B }),
-    route!(Png, Vips, PLANNED_IMG),
-    route!(Webp, Vips, PLANNED_IMG),
-    route!(Tiff, Vips, PLANNED_IMG),
-    route!(Gif, Ffmpeg, PLANNED_IMG_GIF),
+    route!(Png, Vips, RouteStatus::Proven { evidence: EV_C2W_AVIF_DECODE }),
+    route!(Webp, Vips, RouteStatus::Proven { evidence: EV_C2W_AVIF_DECODE }),
+    route!(Tiff, Vips, RouteStatus::Proven { evidence: EV_C2W_AVIF_DECODE }),
+    route!(Gif, Ffmpeg, RouteStatus::Proven { evidence: EV_C2W_HEIF_GIF }),
     route!(Bmp, RustCrate, PLANNED_IMG_BMP),
     route!(Heic, Vips, CUT_HEIC),
     route!(Svg, Vips, CUT_SVG),
@@ -557,11 +603,13 @@ static R_AVIF: &[Route] = &[
 ];
 
 static R_GIF: &[Route] = &[
-    route!(Jpg, Vips, PLANNED_GIF_IN),
-    route!(Png, Vips, PLANNED_GIF_IN),
-    route!(Webp, Vips, PLANNED_GIF_IN),
-    route!(Tiff, Vips, PLANNED_GIF_IN),
-    route!(Avif, Vips, PLANNED_GIF_IN),
+    // v1 (Option C): gif input is offered for image targets and converts frame 1 only.
+    // The UI must label it; see ARCHITECTURE.md §8.2.1.
+    route!(Jpg, Vips, RouteStatus::Proven { evidence: EV_C2W_GIF_IN }),
+    route!(Png, Vips, RouteStatus::Proven { evidence: EV_C2W_GIF_IN }),
+    route!(Webp, Vips, RouteStatus::Proven { evidence: EV_C2W_GIF_IN }),
+    route!(Tiff, Vips, RouteStatus::Proven { evidence: EV_C2W_GIF_IN }),
+    route!(Avif, Vips, RouteStatus::Proven { evidence: EV_C2W_AVIF }),
     route!(Gif, Ffmpeg, PLANNED_GIF_IN),
     route!(Bmp, RustCrate, PLANNED_IMG_BMP),
     route!(Heic, Vips, CUT_HEIC),
@@ -1139,12 +1187,15 @@ mod tests {
                 ),
             }
         }
-        // ARCHITECTURE §8.2: C2 added 12 image cells (incl. 4 gif outputs) to C1's 9 = 21.
+        // ARCHITECTURE §8.2: C2 added 12 image cells (incl. 4 gif outputs) to C1's 9 = 21;
+        // C2-Win added 16 more (the HEIF family, which the Linux leg could not load:
+        // 6 avif outputs that were SKIP, 3 heic decodes + heic->gif, 3 avif decodes +
+        // avif->gif, and 4 gif inputs) = 37.
         // §8.4 audio: 7 sources × 7 targets = 49, every one measured.
         // §8.4 video: 4 sources × 5 targets (mp4/mkv/mov/webm/gif) = 20.
         // §8.3 documents: 7 from S3 + 15 legacy/rtf cells measured by C3 = 22.
         assert_eq!(
-            image, 21,
+            image, 37,
             "proven image cells drifted from ARCHITECTURE §8.2"
         );
         assert_eq!(
@@ -1580,8 +1631,19 @@ mod tests {
     fn multi_file_drop_offers_the_intersection() {
         let plan = multi_file_targets(&[CanonicalType::Jpeg, CanonicalType::Avif]);
         assert!(!plan.used_union_fallback);
-        // jpeg proves jpg, png, avif; avif proves jpg only → intersection = jpg
-        assert_eq!(plan.targets, vec![TargetFormat::Jpg]);
+        // jpeg proves jpg, png, webp, tiff, avif, gif; avif proves those five except
+        // avif itself (no avif->avif) → intersection = jpg, png, webp, tiff, gif
+        let mut targets = plan.targets.clone();
+        targets.sort();
+        let mut expected = vec![
+            TargetFormat::Jpg,
+            TargetFormat::Png,
+            TargetFormat::Webp,
+            TargetFormat::Tiff,
+            TargetFormat::Gif,
+        ];
+        expected.sort();
+        assert_eq!(targets, expected);
     }
 
     #[test]

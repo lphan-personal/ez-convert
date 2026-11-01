@@ -152,7 +152,7 @@ specified dead.
 | jpeg | png | vips | PROVEN | V2 — jpg -> png OK (exit 0, PNG written) |
 | jpeg | webp | vips | PROVEN | C2-JPEG-WEBP — jpg -> webp OK (1,188 B, magic webp) |
 | jpeg | tiff | vips | PROVEN | C2-JPEG-TIFF — jpg -> tiff OK (3,508 B, ICC carried) |
-| jpeg | avif | vips | PROVEN | V8 — heifsave av1: png -> avif 3,863 B; 2 MP jpg -> avif 302,068 B |
+| jpeg | avif | vips | PROVEN | C2W-AVIF — avif out on the shipping dist: jpg/png/webp/tiff/gif/heic -> avif PASS (875-1740 B), magic-checked |
 | jpeg | gif | ffmpeg | PROVEN | C2-GIF-STILL — still image -> gif via vips normalise + ffmpeg palette (1 frame, 1,680 B) |
 | jpeg | bmp | rust-crate | planned | t_dc07a72e — image crate <-> temp PNG <-> vips (SPEC 9.3 D5), unmeasured |
 | jpeg | heic | vips | cut | HEIC encode cut: x265 is GPL-2 and Media Foundation HEVC needs a Store codec pack (SPEC 9.3 D4) |
@@ -161,27 +161,27 @@ specified dead.
 | png | jpg | vips | PROVEN | C2-PNG-JPEG — png -> jpg OK (2,781 B) |
 | png | webp | vips | PROVEN | V3 — png -> webp OK (exit 0) |
 | png | tiff | vips | PROVEN | C2-PNG-TIFF — png -> tiff OK (522 B) |
-| png | avif | vips | PROVEN | V8 — heifsave av1: png -> avif 3,863 B; 2 MP jpg -> avif 302,068 B |
+| png | avif | vips | PROVEN | C2W-AVIF — avif out on the shipping dist: jpg/png/webp/tiff/gif/heic -> avif PASS (875-1740 B), magic-checked |
 | png | gif | ffmpeg | PROVEN | C2-GIF-STILL — still image -> gif via vips normalise + ffmpeg palette (1 frame, 1,680 B) |
 | png | bmp | rust-crate | planned | t_dc07a72e — image crate <-> temp PNG <-> vips (SPEC 9.3 D5), unmeasured |
 | png | heic | vips | cut | HEIC encode cut: x265 is GPL-2 and Media Foundation HEVC needs a Store codec pack (SPEC 9.3 D4) |
 | png | svg | vips | cut | svg is input-only in v1: no svg->svg and no svg->pdf (SPEC 9.3 D3) |
 | png | pdf | vips | cut | no image writer to PDF in v1 (ARCHITECTURE 8.2) |
 | heic | jpg | vips | PROVEN | V7 — heic -> jpg, 200x400, libheif already applied irot (autorot is a no-op) |
-| heic | png | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
-| heic | webp | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
-| heic | tiff | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
-| heic | avif | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
-| heic | gif | ffmpeg | planned | t_dc07a72e — vips normalise -> ffmpeg palettegen/paletteuse (SPEC 9.3 D2), unmeasured |
+| heic | png | vips | PROVEN | C2W-HEIC-DECODE — heic decode: heic -> png/webp/tiff PASS, 200x400 (libheif already applied irot) |
+| heic | webp | vips | PROVEN | C2W-HEIC-DECODE — heic decode: heic -> png/webp/tiff PASS, 200x400 (libheif already applied irot) |
+| heic | tiff | vips | PROVEN | C2W-HEIC-DECODE — heic decode: heic -> png/webp/tiff PASS, 200x400 (libheif already applied irot) |
+| heic | avif | vips | PROVEN | C2W-AVIF — avif out on the shipping dist: jpg/png/webp/tiff/gif/heic -> avif PASS (875-1740 B), magic-checked |
+| heic | gif | ffmpeg | PROVEN | C2W-HEIF-GIF — heic/avif -> gif PASS via vips normalise -> ffmpeg palette, 200x400 / 64x48 |
 | heic | bmp | rust-crate | planned | t_dc07a72e — image crate <-> temp PNG <-> vips (SPEC 9.3 D5), unmeasured |
 | heic | heic | vips | cut | HEIC encode cut: x265 is GPL-2 and Media Foundation HEVC needs a Store codec pack (SPEC 9.3 D4) |
 | heic | svg | vips | cut | svg is input-only in v1: no svg->svg and no svg->pdf (SPEC 9.3 D3) |
 | heic | pdf | vips | cut | no image writer to PDF in v1 (ARCHITECTURE 8.2) |
 | avif | jpg | vips | PROVEN | V8b — avif -> jpg kept EXIF IFD0 and the 3,144 B ICC profile |
-| avif | png | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
-| avif | webp | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
-| avif | tiff | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
-| avif | gif | ffmpeg | planned | t_dc07a72e — vips normalise -> ffmpeg palettegen/paletteuse (SPEC 9.3 D2), unmeasured |
+| avif | png | vips | PROVEN | C2W-AVIF-DECODE — avif decode: avif -> png/webp/tiff PASS, 64x48, codec read back by ffprobe |
+| avif | webp | vips | PROVEN | C2W-AVIF-DECODE — avif decode: avif -> png/webp/tiff PASS, 64x48, codec read back by ffprobe |
+| avif | tiff | vips | PROVEN | C2W-AVIF-DECODE — avif decode: avif -> png/webp/tiff PASS, 64x48, codec read back by ffprobe |
+| avif | gif | ffmpeg | PROVEN | C2W-HEIF-GIF — heic/avif -> gif PASS via vips normalise -> ffmpeg palette, 200x400 / 64x48 |
 | avif | bmp | rust-crate | planned | t_dc07a72e — image crate <-> temp PNG <-> vips (SPEC 9.3 D5), unmeasured |
 | avif | heic | vips | cut | HEIC encode cut: x265 is GPL-2 and Media Foundation HEVC needs a Store codec pack (SPEC 9.3 D4) |
 | avif | svg | vips | cut | svg is input-only in v1: no svg->svg and no svg->pdf (SPEC 9.3 D3) |
@@ -189,18 +189,18 @@ specified dead.
 | webp | jpg | vips | PROVEN | C2-WEBP-JPEG — webp -> jpg OK (2,904 B) |
 | webp | png | vips | PROVEN | C2-WEBP-PNG — webp -> png OK (4,346 B) |
 | webp | tiff | vips | PROVEN | V4 — webp -> tiff OK (exit 0) |
-| webp | avif | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
+| webp | avif | vips | PROVEN | C2W-AVIF — avif out on the shipping dist: jpg/png/webp/tiff/gif/heic -> avif PASS (875-1740 B), magic-checked |
 | webp | gif | ffmpeg | PROVEN | C2-GIF-STILL — still image -> gif via vips normalise + ffmpeg palette (1 frame, 1,680 B) |
 | webp | bmp | rust-crate | planned | t_dc07a72e — image crate <-> temp PNG <-> vips (SPEC 9.3 D5), unmeasured |
 | webp | heic | vips | cut | HEIC encode cut: x265 is GPL-2 and Media Foundation HEVC needs a Store codec pack (SPEC 9.3 D4) |
 | webp | svg | vips | cut | svg is input-only in v1: no svg->svg and no svg->pdf (SPEC 9.3 D3) |
 | webp | pdf | vips | cut | no image writer to PDF in v1 (ARCHITECTURE 8.2) |
-| gif | jpg | vips | planned | t_dc07a72e — vips gifload returns page 0, so an animated source would silently lose every other frame; needs an animation-aware route before it is offered |
-| gif | png | vips | planned | t_dc07a72e — vips gifload returns page 0, so an animated source would silently lose every other frame; needs an animation-aware route before it is offered |
-| gif | webp | vips | planned | t_dc07a72e — vips gifload returns page 0, so an animated source would silently lose every other frame; needs an animation-aware route before it is offered |
-| gif | tiff | vips | planned | t_dc07a72e — vips gifload returns page 0, so an animated source would silently lose every other frame; needs an animation-aware route before it is offered |
-| gif | avif | vips | planned | t_dc07a72e — vips gifload returns page 0, so an animated source would silently lose every other frame; needs an animation-aware route before it is offered |
-| gif | gif | ffmpeg | planned | t_dc07a72e — vips gifload returns page 0, so an animated source would silently lose every other frame; needs an animation-aware route before it is offered |
+| gif | jpg | vips | PROVEN | C2W-GIF-IN — gif source -> jpg/png/webp/tiff/avif PASS; frame 1 only, labelled in the UI and the route |
+| gif | png | vips | PROVEN | C2W-GIF-IN — gif source -> jpg/png/webp/tiff/avif PASS; frame 1 only, labelled in the UI and the route |
+| gif | webp | vips | PROVEN | C2W-GIF-IN — gif source -> jpg/png/webp/tiff/avif PASS; frame 1 only, labelled in the UI and the route |
+| gif | tiff | vips | PROVEN | C2W-GIF-IN — gif source -> jpg/png/webp/tiff/avif PASS; frame 1 only, labelled in the UI and the route |
+| gif | avif | vips | PROVEN | C2W-AVIF — avif out on the shipping dist: jpg/png/webp/tiff/gif/heic -> avif PASS (875-1740 B), magic-checked |
+| gif | gif | ffmpeg | planned | t_dc07a72e — gif -> gif (re-encode of an animation) is not measured and not offered yet; gif *input* for other image targets is offered and converts frame 1 only (Option C, ARCHITECTURE.md §8.2.1) |
 | gif | bmp | rust-crate | planned | t_dc07a72e — image crate <-> temp PNG <-> vips (SPEC 9.3 D5), unmeasured |
 | gif | heic | vips | cut | HEIC encode cut: x265 is GPL-2 and Media Foundation HEVC needs a Store codec pack (SPEC 9.3 D4) |
 | gif | svg | vips | cut | svg is input-only in v1: no svg->svg and no svg->pdf (SPEC 9.3 D3) |
@@ -208,7 +208,7 @@ specified dead.
 | tiff | jpg | vips | PROVEN | C2-TIFF-JPEG — tiff -> jpg OK (2,781 B) |
 | tiff | png | vips | PROVEN | V5 — tiff -> png OK (exit 0) |
 | tiff | webp | vips | PROVEN | C2-TIFF-WEBP — tiff -> webp OK (1,130 B) |
-| tiff | avif | vips | planned | t_dc07a72e — same vips mechanism, different saver; this exact pair has no fixture yet |
+| tiff | avif | vips | PROVEN | C2W-AVIF — avif out on the shipping dist: jpg/png/webp/tiff/gif/heic -> avif PASS (875-1740 B), magic-checked |
 | tiff | gif | ffmpeg | PROVEN | C2-GIF-STILL — still image -> gif via vips normalise + ffmpeg palette (1 frame, 1,680 B) |
 | tiff | bmp | rust-crate | planned | t_dc07a72e — image crate <-> temp PNG <-> vips (SPEC 9.3 D5), unmeasured |
 | tiff | heic | vips | cut | HEIC encode cut: x265 is GPL-2 and Media Foundation HEVC needs a Store codec pack (SPEC 9.3 D4) |
@@ -431,11 +431,11 @@ C3). Everything else is `planned` or `cut`.
 |---|---|---|
 | jpeg | Image | jpg, png, webp, tiff, avif, gif |
 | png | Image | jpg, webp, tiff, avif, gif |
-| heic | Image | jpg |
-| avif | Image | jpg |
-| webp | Image | jpg, png, tiff, gif |
-| gif | Image | — |
-| tiff | Image | jpg, png, webp, gif |
+| heic | Image | jpg, png, webp, tiff, avif, gif |
+| avif | Image | jpg, png, webp, tiff, gif |
+| webp | Image | jpg, png, tiff, avif, gif |
+| gif | Image | jpg, png, webp, tiff, avif |
+| tiff | Image | jpg, png, webp, avif, gif |
 | bmp | Image | — |
 | svg | Image | — |
 | pdf | Document | — |
@@ -475,11 +475,11 @@ matrix models every in-scope target and labels the ones that are not proven yet.
 |---|---|---|
 | jpeg | jpg, png, webp, tiff, avif, gif, bmp, heic, svg, pdf | jpg, png, webp, tiff, avif, gif |
 | png | jpg, webp, tiff, avif, gif, bmp, heic, svg, pdf | jpg, webp, tiff, avif, gif |
-| heic | jpg, png, webp, tiff, avif, gif, bmp, heic, svg, pdf | jpg |
-| avif | jpg, png, webp, tiff, gif, bmp, heic, svg, pdf | jpg |
-| webp | jpg, png, tiff, avif, gif, bmp, heic, svg, pdf | jpg, png, tiff, gif |
-| gif | jpg, png, webp, tiff, avif, gif, bmp, heic, svg, pdf | — (nothing proven yet) |
-| tiff | jpg, png, webp, avif, gif, bmp, heic, svg, pdf | jpg, png, webp, gif |
+| heic | jpg, png, webp, tiff, avif, gif, bmp, heic, svg, pdf | jpg, png, webp, tiff, avif, gif |
+| avif | jpg, png, webp, tiff, gif, bmp, heic, svg, pdf | jpg, png, webp, tiff, gif |
+| webp | jpg, png, tiff, avif, gif, bmp, heic, svg, pdf | jpg, png, tiff, avif, gif |
+| gif | jpg, png, webp, tiff, avif, gif, bmp, heic, svg, pdf | jpg, png, webp, tiff, avif |
+| tiff | jpg, png, webp, avif, gif, bmp, heic, svg, pdf | jpg, png, webp, avif, gif |
 | bmp | jpg, png, webp, tiff, avif, gif, bmp, heic, svg, pdf | — (nothing proven yet) |
 | svg | jpg, png, webp, tiff, avif, gif, bmp, heic, svg, pdf | — (nothing proven yet) |
 | pdf | jpg, png, webp, tiff, avif, gif, bmp, heic, svg, pdf, md, html, docx, pptx, rtf, xlsx, csv, txt | — (nothing proven yet) |

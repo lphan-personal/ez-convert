@@ -38,11 +38,12 @@ Consequences, stated plainly because they change what ships:
   invisible, not greyed out (`SPEC.md` §2 already requires absent-not-greyed).
 - A unit test asserts every `Proven` route names an evidence file that exists on disk and
   every `Planned` route names a live card. Adding a target without evidence fails CI.
-- At the time of writing, `Proven` covers **21 image cells, all 69 audio/video cells**
+- At the time of writing, `Proven` covers **37 image cells, all 69 audio/video cells**
   (49 audio + 20 video) and **22 document directions through LibreOffice** (`§6.1`, `§6.2`,
-  `§6.3`) — 112 routes, every one with a fixture on disk. Still `Planned`: PDF raster input,
-  SVG input, BMP in/out, HEIC encode is `cut`, the rest of the document grid, and GIF *input*
-  (deliberately — animation would be lost). `C3` and `C4` exist to move the remainder.
+  `§6.3`) — 128 routes, every one with a fixture on disk. Still `Planned`: PDF raster input,
+  SVG input, BMP in/out, animated-GIF *preservation* (`gif → gif`; gif input itself is proven
+  and labelled frame-1-only, `§8.2.1`), HEIC encode is `cut`, and the rest of the document
+  grid. `C3` and `C4` exist to move the remainder.
 
 ---
 
@@ -900,18 +901,20 @@ fn routes_for(ty: CanonicalType) -> &'static [Route];
 
 Only pairs that were actually measured are PROVEN. `C1` proved the `§6.1` `copy`/`autorot`
 hops and the avif pair; `C2` added the 12 raster cells and 4 gif outputs it measured through
-`engine::convert` against a real vips CLI (`spikes/c2/EVIDENCE.md` §2). Every other cell is
-`planned` (invisible in the wheel) or `cut`.
+`engine::convert` against a real vips CLI (`spikes/c2/EVIDENCE.md` §2); `C2-Win` added the 16
+HEIF-family cells the Linux leg could not load, measured through the same `engine::convert` on
+the **shipping** `spec-aom` dist (`spikes/c2/EVIDENCE-WINDOWS.md`, `SUMMARY pass=120 fail=0
+skip=0`). Every other cell is `planned` (invisible in the wheel) or `cut`.
 
 | input | → jpg | → png | → webp | → tiff | → avif | → gif | → bmp | → heic | → svg | → pdf |
 |---|---|---|---|---|---|---|---|---|---|---|
-| jpg | **PROVEN** (V6) | **PROVEN** (V2) | **PROVEN** (C2) | **PROVEN** (C2) | **PROVEN** (V8) | **PROVEN** (C2) | planned (`image`) | cut (D4) | cut | cut (no writer) |
-| png | **PROVEN** (C2) | — | **PROVEN** (V3) | **PROVEN** (C2) | **PROVEN** (V8) | **PROVEN** (C2) | planned | cut | cut | cut |
-| webp | **PROVEN** (C2) | **PROVEN** (C2) | — | **PROVEN** (V4) | planned | **PROVEN** (C2) | planned | cut | cut | cut |
-| tiff | **PROVEN** (C2) | **PROVEN** (V5)¹ | **PROVEN** (C2) | — | planned | **PROVEN** (C2) | planned | cut | cut | cut |
-| heic | **PROVEN** (V7) | planned | planned | planned | planned | planned | planned | cut | cut | cut |
-| avif | **PROVEN** (V8b) | planned | planned | planned | — | planned | planned | cut | cut | cut |
-| gif | planned (anim)² | planned (anim)² | planned (anim)² | planned (anim)² | planned (anim)² | — | planned | cut | cut | cut |
+| jpg | **PROVEN** (V6) | **PROVEN** (V2) | **PROVEN** (C2) | **PROVEN** (C2) | **PROVEN** (C2W) | **PROVEN** (C2) | planned (`image`) | cut (D4) | cut | cut (no writer) |
+| png | **PROVEN** (C2) | — | **PROVEN** (V3) | **PROVEN** (C2) | **PROVEN** (C2W) | **PROVEN** (C2) | planned | cut | cut | cut |
+| webp | **PROVEN** (C2) | **PROVEN** (C2) | — | **PROVEN** (V4) | **PROVEN** (C2W) | **PROVEN** (C2) | planned | cut | cut | cut |
+| tiff | **PROVEN** (C2) | **PROVEN** (V5)¹ | **PROVEN** (C2) | — | **PROVEN** (C2W) | **PROVEN** (C2) | planned | cut | cut | cut |
+| heic | **PROVEN** (V7) | **PROVEN** (C2W) | **PROVEN** (C2W) | **PROVEN** (C2W) | **PROVEN** (C2W) | **PROVEN** (C2W) | planned | cut | cut | cut |
+| avif | **PROVEN** (V8b) | **PROVEN** (C2W) | **PROVEN** (C2W) | **PROVEN** (C2W) | — | **PROVEN** (C2W) | planned | cut | cut | cut |
+| gif | **PROVEN** (C2W)² | **PROVEN** (C2W)² | **PROVEN** (C2W)² | **PROVEN** (C2W)² | **PROVEN** (C2W)² | — | planned | cut | cut | cut |
 | bmp | planned | planned | planned | planned | planned | planned | — | cut | cut | cut |
 | svg | planned (resvg) | planned (resvg) | planned (resvg) | planned (resvg) | planned (resvg) | planned (resvg) | planned | cut | cut | cut |
 | pdf | planned (PDFium) | planned (PDFium) | planned (PDFium) | planned (PDFium) | planned (PDFium) | planned (PDFium) | planned | cut | cut | cut |
@@ -919,10 +922,24 @@ hops and the avif pair; `C2` added the 12 raster cells and 4 gif outputs it meas
 ¹ V5 is tiff → png; the JBIG/silent-black TIFF trap that made `tiffload --fail-on error`
 mandatory is in `§6.1` V9/V10.
 
-² **GIF input is planned on purpose, not because the route fails.** `vips gifload` returns page
-0, so an animated source would silently lose every other frame; the C2 harness converts a
-single-frame GIF fine and `fixtures/sample_anim.gif` exists so the day we handle animation the
-decision is testable. Offering the route now would be the silent data loss `§6.0.4` forbids.
+² **GIF input is offered for image targets and converts frame 1 only** (v1 decision, Option C:
+offer it and say so, rather than hide it or lose frames silently). `vips gifload` returns page
+0, so any animation is reduced to its first frame; the UI and the route label must state that
+(`§8.2.1`). `fixtures/sample_anim.gif` stays in the corpus so true animation handling (v1.1)
+is testable when it is built.
+
+#### 8.2.1 GIF input: the frame-1 label is part of the contract
+
+A GIF source is a first-class image input in v1 **only** with this disclosure:
+
+- the target list and the per-file row must read **"converts frame 1 only"** (or the localised
+  equivalent) — visible before the job runs, not in a tooltip or a changelog;
+- the rule is the same one `§6.0.4` sets for silent data loss: no conversion may claim to
+  preserve something it drops, and an animation is content, not metadata;
+- a single-frame GIF is unaffected in practice but is labelled the same way, because the
+  disclosure is a property of the *input type*, not of the individual file;
+- animated-GIF *preservation* (re-encode with all frames) is v1.1 and is not offered until a
+  measured animation-aware route exists. `gif → gif` therefore stays `planned`.
 
 The measured image rules (`spikes/c2/EVIDENCE.md` §1):
 
