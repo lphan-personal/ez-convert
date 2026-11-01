@@ -305,6 +305,7 @@ Every engine spawn goes through one function. Nothing else in the app constructs
 | A5 | The output path is derived by us, not by the engine, and canonicalised inside the job's output root. Traversal (`..`) is impossible by construction, and re-checked. | `vips copy t.ppm ../out.ppm` writes outside CWD as-is |
 | A6 | Never a shell. No `cmd.exe`, no `sh -c`, no string concatenation of arguments. Filter names with spaces are **one argv element with no quote characters**. | A quoted LibreOffice filter name is handed literal quote bytes and fails with rc=1 |
 | A7 | Arguments are enumerated per call site. No wildcard/`args: true` passthrough in the Tauri capability file. | Packaging doc §3.3: argument smuggling (`-f`, `concat:`) |
+| A8 | A vips **input** slot that carries our bracket options (`[fail-on=error]`) never receives a file *name* containing `[` or `]`. A still image whose name carries them is staged into the job temp dir under an app-chosen `input.<ext>` and vips is handed that; the resolver refuses the slot (`PathError::BracketName`) if staging was skipped. Bracket-bearing **output** names stay legal: the app always ends an output name with the target extension, so our options are the trailing group and the name stays literal. | libvips parses a trailing `[...]` on a filename as loader options: `zz3[shrink=2][fail-on=error]` opens a *different* file depending on whether a bare `zz3` sibling exists (Q1 F1) |
 
 The builders are pure functions returning `Vec<OsString>`, which makes A2/A3/A7 unit-testable
 without spawning anything:
@@ -877,7 +878,9 @@ Rules:
    `svg` (root element `<svg`) → `html` (`<!doctype html`/`<html`) → `csv` (≥ 2 lines with a
    stable delimiter count) → `md` (ATX heading, list markers, fenced block, link syntax) →
    `txt`.
-5. **Size and count limits** before any parse: refuse > 2 GiB per input; refuse a declared
+5. **Size and count limits** before any parse: refuse > 2 GiB per input; refuse a still
+   image whose header declares > 250,000,000 pixels (a 1.55 MB PNG declaring 20,000x20,000
+   passed the byte cap and converted through vips); refuse a declared
    uncompressed ZIP size > 8 GiB (bomb guard); refuse more than 10,000 directory entries.
 6. **Unknown is a valid answer.** Unknown bytes ⇒ `ty: Unknown`, no targets, and the wheel
    shows the Empty state with the reason. Never guess.
