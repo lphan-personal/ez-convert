@@ -36,7 +36,12 @@ on:
 
 concurrency:
   group: build-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: false
+  # A push that supersedes an in-flight run wins: the older 3-OS matrix is
+  # cancelled instead of queueing behind it. Serialising was the reason a burst
+  # of commits looked like "CI stopped running" — the tip's evidence only lands
+  # when the queue drains. Cancelled runs publish nothing, so `ci-status` always
+  # ends on the newest run that was allowed to finish.
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -322,7 +327,21 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B ci-status
+          # Keep every run's verdict: base this commit on the existing ci-status
+          # branch instead of resetting it to main's tree, so ci-status/<run_id>.json
+          # accumulates. The previous force-push wiped history, which is why "did a
+          # run even start after 06:28Z?" was unanswerable from the branch alone.
+          mkdir -p "$RUNNER_TEMP/verdict"
+          mv ci-status "$RUNNER_TEMP/verdict/ci-status"
+          git fetch -q origin ci-status:refs/remotes/origin/ci-status 2>/dev/null || true
+          if ! git checkout -q -B ci-status origin/ci-status 2>/dev/null; then
+            echo "ci-status branch absent or unreadable; starting a fresh history"
+            git checkout -q -B ci-status
+          fi
+          mkdir -p ci-status
+          cp "$RUNNER_TEMP"/verdict/ci-status/*.json ci-status/
           git add -f ci-status
-          git commit -m "ci-status: run ${GITHUB_RUN_ID} build=${BUILD_RESULT} license=${LICENSE_RESULT} spike=${SPIKE_RESULT}"
-          git push --force origin ci-status
+          git commit -q -m "ci-status: run ${GITHUB_RUN_ID} build=${BUILD_RESULT} license=${LICENSE_RESULT} spike=${SPIKE_RESULT}"
+          # Fast-forward normally; the lease-protected push only covers the case
+          # where two report jobs overlapped before cancel-in-progress landed.
+          git push origin ci-status || git push --force-with-lease origin ci-status

@@ -1,0 +1,45 @@
+# Line-ending policy.
+#
+# Why this file exists: the GitHub windows-latest image ships core.autocrlf=true,
+# so a plain checkout hands the tests CRLF text while the generators emit LF.
+# src-tauri/src/model/matrix.rs (read_repo_file + between_markers) compares those
+# bytes literally, so two doc-freshness tests failed on Windows only:
+#   model::matrix::tests::detection_doc_matrix_matches_the_code
+#   model::matrix::tests::evidence_index_documents_every_proven_route
+# Forcing LF in the working tree on every OS makes the checkouts deterministic.
+# Generated-doc scripts also hash the files (policy-check job), so the on-disk
+# bytes must not depend on the runner's OS.
+
+# Text we compare or hash byte-for-byte in tests, scripts and CI.
+*.rs     text eol=lf
+*.toml   text eol=lf
+*.lock   text eol=lf
+*.md     text eol=lf
+*.sh     text eol=lf
+*.py     text eol=lf
+*.js     text eol=lf
+*.mjs    text eol=lf
+*.json   text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.html   text eol=lf
+*.css    text eol=lf
+*.txt    text eol=lf
+*.csv    text eol=lf
+*.ps1    text eol=lf
+*.cfb    text eol=lf
+
+# Fixtures and captured artifacts are binary inputs to the conversion matrix.
+# Git must never rewrite a byte of them, on any platform.
+fixtures/**          binary
+spikes/*/artifacts/** binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.avif binary
+*.ico  binary
+*.heic binary
+*.tif  binary
+*.bmp  binary
