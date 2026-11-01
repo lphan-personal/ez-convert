@@ -337,6 +337,136 @@ impl Profile {
 }
 
 // ---------------------------------------------------------------------------
+// Hebrew fidelity: the font-replacement seed (card t_76ca844f)
+// ---------------------------------------------------------------------------
+
+/// The five Culmus families the licence strip removed (card t_20fae747, F1),
+/// each mapped onto an OFL-1.1 family that still ships.
+///
+/// Chosen by measurement, not taste: the advance width of the fixture's Hebrew
+/// line in each candidate, against the stripped original
+/// (`evidence/hebrew-fidelity.md` §2). The three named twins are the Libre
+/// Hebrew faces the pack already carries — David Libre +8.0 %, Frank Ruhl
+/// Hofshi +4.4 %, Miriam Libre +4.3 %, each closer to the original than Noto
+/// Serif Hebrew (+11.1 % / +13.5 % / +6.9 %) and, more to the point, the same
+/// designs. `Miriam Mono CLM` has no Hebrew + monospace twin: Liberation Mono is
+/// monospaced, covers all 27 Hebrew letters and matches the original's width to
+/// 0.02 %. `Nachlieli CLM` is a Hebrew sans (Arial lineage), so it goes to Alef,
+/// the pack's OFL Hebrew sans (−4.0 %, the same band as the other twins).
+pub const FONT_SUBSTITUTIONS: [(&str, &str); 5] = [
+    ("David CLM", "David Libre"),
+    ("Frank Ruehl CLM", "Frank Ruhl Hofshi"),
+    ("Miriam CLM", "Miriam Libre"),
+    ("Miriam Mono CLM", "Liberation Mono"),
+    ("Nachlieli CLM", "Alef"),
+];
+
+/// The config file LibreOffice reads a user profile from. The font-replacement
+/// table (`Tools ▸ Options ▸ LibreOffice ▸ Fonts`) is stored here as
+/// `/org.openoffice.Office.Common/Font/Substitution`.
+pub const REGISTRY_FILE: &str = "registrymodifications.xcu";
+
+const FONT_SUBSTITUTION_PATH: &str = "/org.openoffice.Office.Common/Font/Substitution";
+const XCU_HEADER: &str = concat!(
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
+    "<oor:items xmlns:oor=\"http://openoffice.org/2001/registry\"",
+    " xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"",
+    " xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n"
+);
+const XCU_FOOTER: &str = "</oor:items>\n";
+
+fn replacement_item() -> String {
+    format!(
+        " <item oor:path=\"{FONT_SUBSTITUTION_PATH}\">\
+         <prop oor:name=\"Replacement\" oor:op=\"fuse\"><value>true</value></prop></item>\n"
+    )
+}
+
+fn pair_item(replace: &str, substitute: &str) -> String {
+    // `Always=true` is not decoration. LibreOffice 26.8 applies a pair with
+    // `Always=false` on the screen only: the same document exported to PDF with
+    // `Always=false` came out with LO's fallbacks (Noto Serif / Linux Libertine
+    // G / Noto Sans) byte for byte as if the table did not exist, and only
+    // `Always=true` put the twins in the PDF (measured, §1 of the evidence).
+    format!(
+        " <item oor:path=\"{FONT_SUBSTITUTION_PATH}/FontPairs\">\
+         <node oor:name=\"{replace}\" oor:op=\"replace\">\
+         <prop oor:name=\"ReplaceFont\" oor:op=\"fuse\"><value>{replace}</value></prop>\
+         <prop oor:name=\"SubstituteFont\" oor:op=\"fuse\"><value>{substitute}</value></prop>\
+         <prop oor:name=\"OnScreenOnly\" oor:op=\"fuse\"><value>false</value></prop>\
+         <prop oor:name=\"Always\" oor:op=\"fuse\"><value>true</value></prop>\
+         </node></item>\n"
+    )
+}
+
+/// The `<item>` block this module seeds, without the document envelope.
+pub fn font_substitution_items() -> String {
+    let mut out = replacement_item();
+    for (replace, substitute) in FONT_SUBSTITUTIONS {
+        out.push_str(&pair_item(replace, substitute));
+    }
+    out
+}
+
+impl Profile {
+    /// A profile at an explicit directory — the per-conversion temp profile
+    /// `engine/doc.rs` hands to `-env:UserInstallation`.
+    pub fn at(dir: PathBuf) -> Self {
+        Self { dir }
+    }
+
+    /// Write the font-replacement table into `<profile>/user/registrymodifications.xcu`
+    /// **before** LibreOffice starts on this profile.
+    ///
+    /// Why a profile file and not the engine pack: the same five
+    /// `FontSubstitutions` nodes added to the pack's `share/registry/main.xcd`
+    /// were measured to change nothing on the 26.8.2 export path (a shipped
+    /// substitution, `Agency FB → Agdasima`, is equally inert), and the pack is
+    /// MPL-2.0 content we do not modify. The profile is app-owned and identical
+    /// on Windows and POSIX, so this is the mechanism that travels.
+    ///
+    /// Idempotent and non-destructive: an already-seeded profile (LibreOffice
+    /// rewrites this file on exit and keeps items it did not originate) is left
+    /// alone, and a profile that already holds other settings keeps them — the
+    /// missing items are inserted before `</oor:items>`.
+    pub fn seed_font_substitutions(&self) -> std::io::Result<()> {
+        let user = self.dir.join("user");
+        std::fs::create_dir_all(&user)?;
+        let path = user.join(REGISTRY_FILE);
+        match std::fs::read_to_string(&path) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => std::fs::write(
+                &path,
+                format!("{XCU_HEADER}{}{XCU_FOOTER}", font_substitution_items()),
+            ),
+            Err(error) => Err(error),
+            Ok(existing) => {
+                let mut missing = String::new();
+                if !existing.contains("oor:name=\"Replacement\"") {
+                    missing.push_str(&replacement_item());
+                }
+                for (replace, substitute) in FONT_SUBSTITUTIONS {
+                    if !existing.contains(&format!("<node oor:name=\"{replace}\"")) {
+                        missing.push_str(&pair_item(replace, substitute));
+                    }
+                }
+                if missing.is_empty() {
+                    return Ok(());
+                }
+                match existing.rfind(XCU_FOOTER.trim_end()) {
+                    Some(at) => std::fs::write(
+                        &path,
+                        format!("{}{missing}{}", &existing[..at], &existing[at..]),
+                    ),
+                    // Not a config file we recognise (no closing element): the
+                    // profile is disposable, so replace it with a valid one.
+                    None => std::fs::write(&path, format!("{XCU_HEADER}{missing}{XCU_FOOTER}")),
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // argv
 // ---------------------------------------------------------------------------
 
@@ -953,5 +1083,138 @@ mod tests {
         // Second call sees the bootstrapped profile and spawns nothing.
         assert_eq!(warm_up_at_startup(&paths, &cache), WarmUp::AlreadyWarm);
         let _ = std::fs::remove_dir_all(root.parent().unwrap());
+    }
+
+    // ---------------------------------------------------------------------
+    // Hebrew fidelity seed (card t_76ca844f)
+    // ---------------------------------------------------------------------
+
+    fn scratch_profile(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("ezc-profile-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// The table is the licence decision's other half: every stripped family
+    /// must name a family the pack actually ships, and `Always=true` is the
+    /// measured flag (see `pair_item`).
+    #[test]
+    fn every_stripped_family_maps_to_a_shipped_ofl_twin() {
+        let expected = [
+            ("David CLM", "David Libre"),
+            ("Frank Ruehl CLM", "Frank Ruhl Hofshi"),
+            ("Miriam CLM", "Miriam Libre"),
+            ("Miriam Mono CLM", "Liberation Mono"),
+            ("Nachlieli CLM", "Alef"),
+        ];
+        assert_eq!(FONT_SUBSTITUTIONS, expected);
+        let items = font_substitution_items();
+        assert!(items.contains("<value>true</value></prop></item>"), "Replacement=true");
+        for (replace, substitute) in expected {
+            let node = format!(
+                "<node oor:name=\"{replace}\" oor:op=\"replace\">\
+                 <prop oor:name=\"ReplaceFont\" oor:op=\"fuse\"><value>{replace}</value></prop>\
+                 <prop oor:name=\"SubstituteFont\" oor:op=\"fuse\"><value>{substitute}</value></prop>\
+                 <prop oor:name=\"OnScreenOnly\" oor:op=\"fuse\"><value>false</value></prop>\
+                 <prop oor:name=\"Always\" oor:op=\"fuse\"><value>true</value></prop>"
+            );
+            assert!(items.contains(&node), "missing pair {replace} -> {substitute}");
+        }
+        assert_eq!(items.matches("/FontPairs").count(), 5);
+    }
+
+    /// The seed has to land exactly where LibreOffice looks for a profile's
+    /// config — `<profile>/user/registrymodifications.xcu` — or nothing happens.
+    #[test]
+    fn the_seed_is_written_where_libreoffice_reads_it() {
+        let dir = scratch_profile("where");
+        let profile = Profile::at(dir.clone());
+        profile.seed_font_substitutions().unwrap();
+
+        let path = dir.join("user").join(REGISTRY_FILE);
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
+        assert!(text.trim_end().ends_with("</oor:items>"));
+        assert!(text.contains("/org.openoffice.Office.Common/Font/Substitution"));
+        for (replace, _) in FONT_SUBSTITUTIONS {
+            assert!(text.contains(replace), "missing {replace}");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The profile outlives a batch, so the seed runs on every conversion: it
+    /// must not append a second copy of the table.
+    #[test]
+    fn seeding_twice_does_not_duplicate_the_table() {
+        let dir = scratch_profile("twice");
+        let profile = Profile::at(dir.clone());
+        profile.seed_font_substitutions().unwrap();
+        let once = std::fs::read_to_string(dir.join("user").join(REGISTRY_FILE)).unwrap();
+        profile.seed_font_substitutions().unwrap();
+        profile.seed_font_substitutions().unwrap();
+        let thrice = std::fs::read_to_string(dir.join("user").join(REGISTRY_FILE)).unwrap();
+        assert_eq!(once, thrice);
+        for (replace, _) in FONT_SUBSTITUTIONS {
+            assert_eq!(thrice.matches(replace).count(), 2, "{replace} appears twice per pair");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A profile LibreOffice has already written must keep its own items — the
+    /// seed adds what is missing and touches nothing else.
+    #[test]
+    fn seeding_merges_into_a_profile_libreoffice_already_wrote() {
+        let dir = scratch_profile("merge");
+        let user = dir.join("user");
+        std::fs::create_dir_all(&user).unwrap();
+        let path = user.join(REGISTRY_FILE);
+        let existing = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<oor:items \
+             xmlns:oor=\"http://openoffice.org/2001/registry\" \
+             xmlns:xs=\"http://www.w3.org/2001/XMLSchema\" \
+             xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n\
+             <item oor:path=\"/org.openoffice.Office.Common/Misc\"><prop oor:name=\"FirstRun\" \
+             oor:op=\"fuse\"><value>false</value></prop></item>\n</oor:items>\n";
+        std::fs::write(&path, existing).unwrap();
+
+        Profile::at(dir.clone()).seed_font_substitutions().unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains("/org.openoffice.Office.Common/Misc"), "foreign item lost");
+        assert!(text.contains("FirstRun"));
+        assert!(text.contains("SubstituteFont"), "table not added");
+        assert!(text.trim_end().ends_with("</oor:items>"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// LibreOffice rewrites the file on exit (it reorders properties within an
+    /// item). The re-read after such a rewrite must not re-add the table.
+    #[test]
+    fn a_rewritten_config_is_recognised_as_already_seeded() {
+        let dir = scratch_profile("rewritten");
+        let user = dir.join("user");
+        std::fs::create_dir_all(&user).unwrap();
+        let path = user.join(REGISTRY_FILE);
+        // Shape taken from a profile LibreOffice wrote after reading our seed.
+        let rewritten = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<oor:items \
+             xmlns:oor=\"http://openoffice.org/2001/registry\" \
+             xmlns:xs=\"http://www.w3.org/2001/XMLSchema\" \
+             xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n\
+             <item oor:path=\"/org.openoffice.Office.Common/Font/Substitution\">\
+             <prop oor:name=\"Replacement\" oor:op=\"fuse\"><value>true</value></prop></item>\n\
+             <item oor:path=\"/org.openoffice.Office.Common/Font/Substitution/FontPairs\">\
+             <node oor:name=\"David CLM\" oor:op=\"replace\">\
+             <prop oor:name=\"Always\" oor:op=\"fuse\"><value>true</value></prop>\
+             <prop oor:name=\"ReplaceFont\" oor:op=\"fuse\"><value>David CLM</value></prop>\
+             <prop oor:name=\"SubstituteFont\" oor:op=\"fuse\"><value>David Libre</value></prop>\
+             </node></item>\n</oor:items>\n";
+        std::fs::write(&path, rewritten).unwrap();
+
+        Profile::at(dir.clone()).seed_font_substitutions().unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(text.matches("<node oor:name=\"David CLM\"").count(), 1, "duplicate pair");
+        // The four other families were never in this file and must be added.
+        assert_eq!(text.matches("/FontPairs").count(), 5);
+        assert_eq!(text.matches("oor:name=\"Replacement\"").count(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

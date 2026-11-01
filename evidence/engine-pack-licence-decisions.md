@@ -127,9 +127,31 @@ etc.), the pack was re-run on the same document, and the PDF still used Noto
 Serif / Noto Sans / DejaVu. Control: a document asking for `Agency FB` — which has
 an existing shipped substitution to `Agdasima` in the same table — also rendered
 in Noto Sans. So the table as patched is not what the export path consults, and a
-pack-level patch is not a free fidelity win. Restoring `David CLM → David Libre`
-fidelity is follow-up work (card filed), with the profile-level
-`registrymodifications.xcu` route as the more likely mechanism.
+pack-level patch is not a free fidelity win; the pack file was reverted to its
+pristine digest (`b138b28d…`).
+
+**Outcome (follow-up t_76ca844f, closed):** the mapping does work — just not from
+the pack. LibreOffice keeps the `Tools ▸ Options ▸ Fonts` replacement table in the
+*user profile* (`/org.openoffice.Office.Common/Font/Substitution`, a `Replacement`
+flag plus pairs of `ReplaceFont`/`SubstituteFont`/`Always`), and the app already
+writes a profile per batch. `engine/soffice.rs::Profile::seed_font_substitutions`
+now seeds `<profile>/user/registrymodifications.xcu` before the spawn, with
+`Always=true` — measured to be the load-bearing flag: the same pairs with
+`Always=false` produced output byte-identical to no table at all (28,391 B, same
+four fallback fonts), and `Always=true` put the twins in the PDF. Measured through
+`engine::doc::convert` on the stripped pack, the five families come out as
+`DavidLibre-`, `FrankRuhlHofshi-`, `MiriamLibre-`, `LiberationMono`, `Alef-` and
+no fallback is left in the PDF. Full log: `evidence/hebrew-fidelity.md`.
+
+One correction to this section as first written: the fixture used here
+(`hebrew-clm.fodt`) sets `style:font-name` only, i.e. the **Western** slot — its
+Hebrew runs resolved through the document's CTL default and were drawn in DejaVu
+Sans even with the full pack. The CLM programs were still embedded and used (they
+drew the Latin runs), so the licence finding above is unchanged; but the Hebrew
+fidelity question only becomes measurable with a CTL fixture, which is what
+`evidence/fixtures/hebrew-clm-ctl.{fodt,docx}` (added by t_76ca844f) provides.
+With it, the full pack draws the Hebrew in the Culmus face — i.e. real Hebrew
+documents were embedding GPL font software, which strengthens F1.
 
 ## 4. The strip: what it removes, and proof it changes nothing else
 
@@ -257,12 +279,21 @@ broad one).
 ## 7. Capability loss and follow-up
 
 - Documents that reference `David CLM`, `FrankRuehl CLM`, `Miriam CLM`,
-  `Miriam Mono CLM` or `Nachlieli CLM` now render in Noto Serif / Noto Sans /
-  DejaVu (§2). Hebrew text stays correct and readable; glyph shapes and metrics
-  differ from the Culmus originals.
-- Follow-up (filed): restore `David CLM → David Libre`, `FrankRuehl CLM →
-  FrankRuhlHofshi`, `Miriam CLM → Miriam Libre` fidelity through the LO **user
-  profile** (`registrymodifications.xcu` written into the engine's temp profile),
-  since the pack-level `FontSubstitutions` route is measured ineffective (§3).
+  `Miriam Mono CLM` or `Nachlieli CLM` render in Noto Serif / Noto Sans /
+  DejaVu **unless** the app's profile seed is in place (§3 outcome). Hebrew text
+  stays correct and readable either way; glyph shapes and metrics differ from the
+  Culmus originals.
+- Follow-up **t_76ca844f — done**: the five families are mapped onto shipped
+  OFL-1.1 twins through the LibreOffice **user profile**
+  (`registrymodifications.xcu` written into the engine's temp profile before the
+  spawn, `Always=true`), because the pack-level `FontSubstitutions` route is
+  measured ineffective (§3). The mapping is `David CLM → David Libre`,
+  `Frank Ruehl CLM → Frank Ruhl Hofshi`, `Miriam CLM → Miriam Libre`,
+  `Miriam Mono CLM → Liberation Mono`, `Nachlieli CLM → Alef`; measured through
+  `engine::doc::convert` on the stripped pack, the PDF carries the twins and no
+  fallback. No pack file is modified, and no font is added: the twins already
+  ship. One behaviour change worth knowing: `Always=true` substitutes even when a
+  family is installed, so the product's output is OFL-only regardless of the
+  host's fonts (`Always=false` is inert — evidence §1).
 - Nothing else in the pack changed: the conversion matrix is byte-identical (§4)
   and the gate is green on the stripped tree (§6).

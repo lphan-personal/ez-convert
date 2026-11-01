@@ -214,3 +214,11 @@ against `docs/shipped-inventory.tsv`) and are recorded there as `not-shipped` ro
 The "no GPL component ships" statement in §3 ("Deliberately not present") is about **code**
 shipped next to the app; with the Culmus font files gone the engine pack no longer adds an
 exception to it either.
+
+Hebrew documents that name the stripped families keep their fidelity through fonts that *do*
+ship: the app seeds LibreOffice's font-replacement table in its own profile
+(`engine/soffice.rs::Profile::seed_font_substitutions`, card t_76ca844f) so that `David CLM` →
+David Libre, `Frank Ruehl CLM` → Frank Ruhl Hofshi, `Miriam CLM` → Miriam Libre, `Miriam Mono
+CLM` → Liberation Mono and `Nachlieli CLM` → Alef. All five targets are OFL-1.1 rows already
+listed in the engine pack's own notices; no font is added and none of the stripped files is
+needed.

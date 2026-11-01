@@ -290,7 +290,18 @@ pub fn convert_batch(
     std::fs::create_dir_all(temp_dir).map_err(|e| DocError::Io(e.to_string()))?;
 
     let platform = soffice::native_platform();
-    let profile_url = soffice::file_url(&temp_dir.join("profile"), platform);
+    // Hebrew fidelity (card t_76ca844f): the five GPL Culmus families are
+    // stripped from the engine pack (F1), so a Hebrew document that asks for
+    // them falls through to LibreOffice's per-script guesses — a single
+    // paragraph ends up drawn by Noto Serif, Linux Libertine G and Noto Sans at
+    // once. Seeding the font-replacement table into the profile *before* the
+    // spawn is what puts the shipped OFL twins back in the PDF; it is
+    // idempotent, so a reused profile costs a read on every batch.
+    let profile = soffice::Profile::at(temp_dir.join("profile"));
+    profile
+        .seed_font_substitutions()
+        .map_err(|e| DocError::Io(format!("soffice profile: {e}")))?;
+    let profile_url = profile.url(platform);
     let launcher = if paths.soffice.is_file() {
         paths.soffice.clone()
     } else {
@@ -724,6 +735,49 @@ mod tests {
         }
         assert!(!work.join("out.pdf").exists(), "nothing may be published");
         assert!(err.user_message().contains("wrote no file"), "{}", err.user_message());
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    /// The font-replacement seed is part of the spawn contract: it is written
+    /// into the very profile the batch hands to `-env:UserInstallation`, before
+    /// the engine runs (card t_76ca844f). With the Culmus families stripped,
+    /// this table is what keeps Hebrew on the shipped OFL twins.
+    #[cfg(unix)]
+    #[test]
+    fn a_document_batch_seeds_the_font_replacement_table_into_its_profile() {
+        let work = scratch("seed");
+        let input = work.join("sample.docx");
+        std::fs::copy(crate::model::test_support::fixture("sample.docx"), &input).unwrap();
+        let paths = stub_engine(&work.join("engine"), "exit 0");
+        let _ = convert(
+            &paths,
+            &DocJob {
+                from: CanonicalType::Docx,
+                to: TargetFormat::Pdf,
+            },
+            &input,
+            &work.join("out.pdf"),
+            &work.join("tmp"),
+        )
+        .unwrap_err();
+        let xcu = work
+            .join("tmp")
+            .join("doc")
+            .join("profile")
+            .join("user")
+            .join("registrymodifications.xcu");
+        let text = std::fs::read_to_string(&xcu)
+            .unwrap_or_else(|e| panic!("profile seed missing at {}: {e}", xcu.display()));
+        for (replace, substitute) in [
+            ("David CLM", "David Libre"),
+            ("Frank Ruehl CLM", "Frank Ruhl Hofshi"),
+            ("Miriam CLM", "Miriam Libre"),
+            ("Miriam Mono CLM", "Liberation Mono"),
+            ("Nachlieli CLM", "Alef"),
+        ] {
+            assert!(text.contains(replace), "missing {replace}");
+            assert!(text.contains(substitute), "missing {substitute}");
+        }
         let _ = std::fs::remove_dir_all(&work);
     }
 

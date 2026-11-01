@@ -732,6 +732,29 @@ Known residual, unchanged: a ZIP with a valid central directory and a broken
 `word/document.xml` passes detection and can still produce a plausible PDF. Not claimed as
 caught (§6.0.5).
 
+#### 6.2.6 Hebrew fidelity — the profile font-replacement seed (card `t_76ca844f`)
+
+The licence decision stripped the five GPL-2.0 Culmus families (`David CLM`,
+`FrankRuehl CLM`, `Miriam CLM`, `Miriam Mono CLM`, `Nachlieli CLM`), and LibreOffice does not
+substitute the shipped OFL twins on its own: a Hebrew paragraph came out drawn by three fonts at
+once, the Hebrew in Linux Libertine G. The `FontSubstitutions` table in the pack's
+`share/registry/main.xcd` is **not** what the export path consults (measured inert, including a
+shipped control), so the mapping lives in the profile the app already owns:
+`Profile::seed_font_substitutions` writes `<profile>/user/registrymodifications.xcu` with
+`/org.openoffice.Office.Common/Font/Substitution` — `Replacement=true` and five
+`FontPairs` — before the spawn. The mapping is David CLM→David Libre, Frank Ruehl CLM→Frank Ruhl
+Hofshi, Miriam CLM→Miriam Libre, Miriam Mono CLM→Liberation Mono, Nachlieli CLM→Alef; all five
+already ship as OFL-1.1 rows, no pack file is modified and no font is added.
+
+`Always=true` on each pair is load-bearing and measured: with `Always=false` the export is
+byte-identical to no table at all (28,391 B, the same four fallback fonts). The consequence, taken
+deliberately, is that the replacement applies even when the family *is* installed — the product's
+PDFs are OFL-only regardless of the host's fonts. The seed merges into a profile LibreOffice has
+already written and is idempotent (unit-tested); measured through `engine::doc::convert` on the
+stripped pack, the PDF carries `DavidLibre-`, `FrankRuhlHofshi-`, `MiriamLibre-`, `LiberationMono`,
+`Alef-` and no fallback. Reproduce with `bash scripts/hebrew-fidelity.sh <stripped-pack>`;
+log in `evidence/hebrew-fidelity.md`.
+
 ### 6.3 ffmpeg / ffprobe — audio and video (`PROVEN`, card `C2`)
 
 Measured on an **LGPL-only** build (BtbN `linux64-lgpl`, `ffmpeg N-128273`, `enable-gpl`

@@ -147,12 +147,31 @@ obligation on the user, not on us. Keeping them "lawfully in the pack" misses
 that the pack's whole job is to write documents.
 
 Consequence: Hebrew documents that reference the CLM families render with
-LibreOffice's substitutes (measured after the strip: Noto Serif / Noto Sans /
-DejaVu). The OFL-1.1 twins (DavidLibre, FrankRuhlHofshi, MiriamLibre) stay in the
-pack, but LO 26.8 does **not** map `David CLM → David Libre` on its own — a
-`FontSubstitutions` entry added to `share/registry/main.xcd` was measured to have
-no effect on export, so restoring that mapping is follow-up work, not a free win.
-18 files, 1,333,708 B.
+LibreOffice's substitutes unless the app maps them — measured after the strip:
+Noto Serif / Linux Libertine G / Noto Sans / DejaVu Sans Mono, three fonts inside
+one paragraph, and the Hebrew in Linux Libertine G. The OFL-1.1 twins
+(DavidLibre, FrankRuhlHofshi, MiriamLibre, plus Liberation Mono and Alef) stay in
+the pack, and **t_76ca844f mapped the five families onto them in app code**:
+
+| stripped family | twin (already shipped) |
+|---|---|
+| David CLM | David Libre |
+| Frank Ruehl CLM | Frank Ruhl Hofshi |
+| Miriam CLM | Miriam Libre |
+| Miriam Mono CLM | Liberation Mono |
+| Nachlieli CLM | Alef |
+
+Mechanism: `engine/soffice.rs::Profile::seed_font_substitutions` writes the
+`Tools ▸ Options ▸ Fonts` replacement table into the per-batch LibreOffice
+profile (`<profile>/user/registrymodifications.xcu`, `/org.openoffice.Office.Common/Font/Substitution`,
+`Always=true`) before the spawn. A `FontSubstitutions` entry added to the pack's
+`share/registry/main.xcd` was measured to have no effect on export — the pack
+file is pristine and no pack content is modified. Measured through
+`engine::doc::convert` on the stripped pack: the PDF carries
+`DavidLibre-`, `FrankRuhlHofshi-`, `MiriamLibre-`, `LiberationMono`, `Alef-` and
+no fallback font (`scripts/hebrew-fidelity.sh`, `evidence/hebrew-fidelity.md`).
+No font is added and no licence changes: every twin is already a shipped OFL-1.1
+row in §5.1. 18 files, 1,333,708 B stripped.
 
 ### D2 — `share/gallery/**`: **STRIP** (was F2, MEDIUM)
 
