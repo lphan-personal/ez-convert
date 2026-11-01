@@ -45,4 +45,4 @@ Dispatching an id whose `run.sh` is missing fails the job on purpose.
 | `s0-runner-smoke` | reference implementation: proves the dispatch → runner → artifact path works |
 | `s1` | reserved — attach when the card lands |
 | `s2` | reserved — attach when the card lands |
-| `s3` | reserved — attach when the card lands |
+| `s3` | LibreOffice document direction matrix: 7 directions, output asserted + content-checked, cold/warm timings, no-output controls (`spikes/s3/run.sh`) |
