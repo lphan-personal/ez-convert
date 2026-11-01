@@ -17,7 +17,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 # Folder/file pickers for "Add files" and the chosen-output-folder control.
 # A native dialog, not a shell-out: engine/ keeps exclusive ownership of
 # std::process::Command (ARCHITECTURE.md §2.2).

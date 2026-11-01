@@ -1131,6 +1131,13 @@ y = clamp(cursor.y - H/2, rcWork.top,  rcWork.bottom - H)
 This is the exact gap that leaves S1's e2 UNPROVEN, and it becomes `U3`'s acceptance test
 (summon with the cursor on each monitor, including one with negative coordinates).
 
+*Implemented in `U3`* (`shell/geometry.rs::place_on_monitor`, `shell/screen.rs`); evidence
+in `evidence/u3-intake.md`. Measured on win11-dev: cursor at the monitor centre → wheel
+centred on the cursor and wholly inside `rcWork`; 5 px from each work-area edge → wheel
+clamped inside `rcWork` (taskbar strip never covered). The negative-coordinate case is
+covered by unit tests over synthetic layouts because the test VM has a single display —
+stated as a gap, not claimed as measured.
+
 ### 10.3 States and transitions
 
 | state | meaning | exits |

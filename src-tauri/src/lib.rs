@@ -20,6 +20,10 @@ use shell::ipc::{
     queue_set_target, queue_set_target_all, queue_snapshot, settings_apply, settings_apply_many,
     settings_reload, settings_view, undo_last, AppState,
 };
+use shell::summon::{
+    hotkey_rebind, hotkey_view, smart_grab_now_cmd, smart_grab_set, smart_grab_view, wheel_placement,
+    wheel_summon,
+};
 
 /// Builds and runs the Tauri application.
 pub fn run() {
@@ -48,6 +52,16 @@ pub fn run() {
                 let outcome = engine::soffice::warm_up_at_startup(&paths, &cache);
                 eprintln!("document warm-up: {outcome}");
             });
+
+            // Intake surface (`SPEC.md` §2, card U3): the tray/menu-bar item and the
+            // global hotkey. Neither is fatal to launch — a taken hotkey or a tray the
+            // shell refuses must not stop the app from opening, or the user cannot
+            // reach the settings that would fix it.
+            let handle = app.handle().clone();
+            if let Err(error) = shell::tray::build(&handle) {
+                eprintln!("tray unavailable: {error}");
+            }
+            shell::summon::start_hotkeys(&handle);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -69,6 +83,14 @@ pub fn run() {
             // completion + diagnostics
             undo_last,
             app_info,
+            // intake: tray, hotkey, smart grab (U3)
+            wheel_summon,
+            wheel_placement,
+            hotkey_view,
+            hotkey_rebind,
+            smart_grab_set,
+            smart_grab_view,
+            smart_grab_now_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

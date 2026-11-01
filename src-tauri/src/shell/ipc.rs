@@ -25,16 +25,132 @@ pub struct AppState {
     pub settings: Mutex<SettingsStore>,
     pub queue: Mutex<Queue>,
     pub started: Instant,
+    /// The global-hotkey thread (Windows). `None` until `summon::start_hotkeys` runs,
+    /// and `None` on platforms where registration is not implemented — the settings
+    /// panel shows the reason instead of a fake "registered".
+    pub hotkeys: Mutex<Option<crate::shell::hotkey::PlatformHotkeys>>,
+    /// The last registration outcome, so the UI can explain a conflict without
+    /// re-registering (which would be a side effect on every render).
+    pub hotkey_state: Mutex<Option<crate::shell::hotkey::Acquisition>>,
+    /// Smart grab: opt-in, off until the user flips the toggle (`SPEC.md` §2).
+    pub smart_grab: Mutex<crate::shell::grab::SmartGrab>,
 }
 
 impl AppState {
     pub fn new() -> Self {
         let store = SettingsStore::in_config_dir(&settings::config_dir());
+        let smart_grab = {
+            let s = store.get();
+            crate::shell::summon::initial_smart_grab(
+                s.smart_grab.enabled,
+                &s.smart_grab.permission_state,
+            )
+        };
         Self {
             settings: Mutex::new(store),
             queue: Mutex::new(Queue::new()),
             started: Instant::now(),
+            hotkeys: Mutex::new(None),
+            hotkey_state: Mutex::new(None),
+            smart_grab: Mutex::new(smart_grab),
         }
+    }
+
+    /// The accelerator string from settings (the source of truth, `§15`).
+    pub fn hotkey_setting(&self) -> String {
+        self.settings
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get()
+            .hotkey
+            .accelerator
+            .clone()
+    }
+
+    pub fn hotkey_status(&self) -> Option<crate::shell::hotkey::Acquisition> {
+        self.hotkey_state
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
+    /// Records a failure that happened before any chord could be attempted (the
+    /// registration thread itself did not start).
+    pub fn note_hotkey_failure(&self, detail: &str) {
+        *self.hotkey_state.lock().unwrap_or_else(|e| e.into_inner()) =
+            Some(crate::shell::hotkey::Acquisition::Failed {
+                attempts: vec![crate::shell::hotkey::Attempt {
+                    accelerator: self.hotkey_setting(),
+                    code: 0,
+                    detail: detail.to_string(),
+                }],
+            });
+    }
+
+    pub fn install_hotkey_thread(&self, hotkeys: crate::shell::hotkey::PlatformHotkeys) {
+        *self.hotkeys.lock().unwrap_or_else(|e| e.into_inner()) = Some(hotkeys);
+    }
+
+    /// Registers `accelerator`, remembers the outcome, and persists the chord that
+    /// actually got registered (a fallback must survive a restart, or the next launch
+    /// would fight the same conflict again).
+    pub fn rebind_hotkey(&self, accelerator: &str) -> crate::shell::hotkey::Acquisition {
+        let outcome = {
+            let guard = self.hotkeys.lock().unwrap_or_else(|e| e.into_inner());
+            match guard.as_ref() {
+                Some(hotkeys) => hotkeys.acquire_from_settings(accelerator),
+                None => crate::shell::hotkey::Acquisition::Failed {
+                    attempts: vec![crate::shell::hotkey::Attempt {
+                        accelerator: accelerator.to_string(),
+                        code: 0,
+                        detail: "the hotkey service is not running on this platform".into(),
+                    }],
+                },
+            }
+        };
+        if let Some(registered) = outcome.accelerator() {
+            let mut store = self.settings.lock().unwrap_or_else(|e| e.into_inner());
+            let _ = store.apply(
+                "hotkey.accelerator",
+                serde_json::Value::String(registered.canonical()),
+            );
+        }
+        *self.hotkey_state.lock().unwrap_or_else(|e| e.into_inner()) = Some(outcome.clone());
+        outcome
+    }
+
+    pub fn smart_grab_now(&self) -> crate::shell::grab::SmartGrab {
+        self.smart_grab
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
+    /// Flips the toggle, probing the OS only on enable (`ARCHITECTURE.md` §15).
+    pub fn set_smart_grab(&self, enabled: bool) -> crate::shell::grab::EnableOutcome {
+        let mut probe = crate::shell::summon::system_permission();
+        let mut grab = self.smart_grab.lock().unwrap_or_else(|e| e.into_inner());
+        grab.set_enabled(enabled, &mut probe)
+    }
+
+    /// Writes `smart_grab.enabled` + `permission_state` through the settings store, so
+    /// the panel and `settings.json` agree without a second code path.
+    pub fn persist_smart_grab(
+        &self,
+        enabled: bool,
+        permission: crate::shell::grab::PermissionState,
+    ) {
+        let mut store = self.settings.lock().unwrap_or_else(|e| e.into_inner());
+        let _ = store.apply_many(&[
+            (
+                "smart_grab.enabled".to_string(),
+                serde_json::Value::Bool(enabled),
+            ),
+            (
+                "smart_grab.permission_state".to_string(),
+                serde_json::Value::String(permission.as_str().to_string()),
+            ),
+        ]);
     }
 }
 
