@@ -2,10 +2,11 @@
 
 Local file conversion desktop app. Tauri 2 shell, Rust core, radial "wheel" UI.
 
-**Status: window surface + settings implemented (card U2).** The app has its main window:
-queue with per-file state, multi-file / folder drag-and-drop, batch controls, a settings panel
-generated from the Rust schema, and a completion toast. Nothing converts files yet — the
-detection matrix, the engines and the output writer land in `C1`–`C4`, so queue rows show
+**Status: window surface + detection core.** The app has its main window (card U2): queue with
+per-file state, multi-file / folder drag-and-drop, batch controls, a settings panel generated
+from the Rust schema, and a completion toast. `src-tauri/src/model/` also holds the real
+content-first detection and the target matrix (card C1, `docs/DETECTION.md`). Nothing converts
+files yet — the engines and the output writer land in `C2`–`C4` — so queue rows still say
 "checking type…" and no conversion is started.
 
 Prior art, reference-policy and licensing rules live in `docs/PRIOR_ART.md`,
@@ -17,6 +18,30 @@ window: crate/module layout, engine invocation contracts (with the measured argv
 detection → target-matrix pipeline, the wheel state machine, the error model, the settings
 schema and the undo journal. It is a byte-identical mirror of the canonical copy kept beside
 `SPEC.md`; `cmp` them before changing either.
+
+`docs/DETECTION.md` is the implemented half of §7/§8: the detection rules, the fixture corpus,
+and the generated type → target matrix with per-route status and evidence. `evidence/ROUTES.md`
+is the machine-checked index of every `PROVEN` route.
+
+---
+
+## Detection and the target matrix
+
+- **Content decides, never the name.** A JPEG renamed `.png` resolves to JPEG; a text file
+  renamed `.docx` resolves to text and never reaches LibreOffice (the measured silent-garbage
+  trap, `ARCHITECTURE.md` §6.2 N3). OOXML/CFB containers are validated structurally.
+- **A capability exists when evidence exists.** Every route is `PROVEN`, `planned` (invisible,
+  owner card named) or `cut`. The wheel may only render `PROVEN`.
+- **Docs cannot drift from code.** `docs/DETECTION.md` and `evidence/ROUTES.md` are generated
+  from `src-tauri/src/model/matrix.rs` and asserted by `cargo test`.
+
+```bash
+bash scripts/test-model.sh        # the detection core's tests, no cargo and no GTK needed
+bash scripts/check-model-purity.sh# model/ stays Tauri-free (ARCHITECTURE §2.2)
+python3 scripts/gen-fixtures.py   # regenerate fixtures/ + fixtures/PROVENANCE.md
+rustc --edition 2021 -o /tmp/model-tables scripts/model-tables.rs
+/tmp/model-tables --write         # regenerate the doc tables after changing matrix.rs
+```
 
 ---
 
@@ -30,6 +55,9 @@ schema and the undo journal. It is a byte-identical mirror of the canonical copy
 │   ├── logic.js              # pure window logic — unit-tested under node
 │   ├── app.js                # DOM wiring + IPC bridge (Tauri commands in shell/ipc.rs)
 │   └── tests/logic.test.js   # node --test ui/tests (no dependencies)
+├── fixtures/                # detection corpus + PROVENANCE.md (40 files, generated)
+├── evidence/                # S2/S2b transcripts + ROUTES.md (generated evidence index)
+├── docs/DETECTION.md        # detection rules + generated type → target matrix
 ├── src-tauri/
 │   ├── Cargo.toml           # tauri = "2", tauri-build = "2", tauri-plugin-dialog = "2"
 │   ├── Cargo.lock           # committed — CI builds with --locked
@@ -40,12 +68,16 @@ schema and the undo journal. It is a byte-identical mirror of the canonical copy
 │       ├── main.rs          # thin binary entry
 │       ├── lib.rs           # ez_convert_lib::run() + command registry + boundary test
 │       ├── engine.rs        # placeholder engine contract + unit tests
-│       ├── model/           # pure rules: settings, settings_schema, naming, types
+│       ├── model/           # pure rules: types, detect, matrix (C1) + settings, naming (U2/C4)
 │       ├── job/queue.rs     # admission, folder expansion, per-file state, batch progress
 │       └── shell/ipc.rs     # the only Tauri-aware layer (window commands)
-├── scripts/license-assert.sh# ffmpeg LGPL gate (CI-enforced)
-├── scripts/make-icons.py    # regenerates src-tauri/icons (stdlib + ffmpeg only)
-├── scripts/gen-licenses.py  # docs/LICENSES.md from the locked graph (CI-enforced)
+├── scripts/license-assert.sh    # ffmpeg LGPL gate (CI-enforced)
+├── scripts/make-icons.py        # regenerates src-tauri/icons (stdlib + ffmpeg only)
+├── scripts/gen-licenses.py      # docs/LICENSES.md from the locked graph (CI-enforced)
+├── scripts/test-model.sh        # run the model tests without cargo/GTK
+├── scripts/check-model-purity.sh# ARCHITECTURE §2.2 boundary check (CI-enforced)
+├── scripts/gen-fixtures.py      # regenerate fixtures/ + PROVENANCE.md
+├── scripts/model-tables.rs      # regenerate the generated doc tables
 ├── spikes/                  # one directory per spike, each with its own run.sh
 └── .github/workflows/build.yml
 ```
@@ -119,7 +151,7 @@ requested spike, so a spike can never land on a broken trunk.
 | `build (windows-latest)` | windows-latest | same on MSVC toolchain |
 | `build (macos-latest)` | macos-latest | same on Apple silicon runner |
 | `license-assert` | ubuntu-latest | the ffmpeg licence gate works (`--selftest`) and no shipped ffmpeg is GPL (`--scan`) |
-| `policy-check` | ubuntu-latest | R1-R3 deny-list (prior-art names only in the policy docs), no C#/.NET or submodule, `docs/LICENSES.md` in sync with the locked graph (R6) |
+| `policy-check` | ubuntu-latest | R1-R3 deny-list (prior-art names only in the policy docs), no C#/.NET or submodule, `docs/LICENSES.md` in sync with the locked graph (R6), the model boundary (§2.2), the model tests without the shell, and the generated doc tables in sync |
 | `spike (<id>)` | ubuntu-latest | the dispatched spike script (only on `workflow_dispatch` with `spike_id != none`) |
 | `report` | ubuntu-latest | publishes the run's own verdict to the `ci-status` branch |
 
@@ -227,7 +259,15 @@ cargo test
 cargo run        # opens the placeholder window (needs a desktop session)
 ```
 
-Containerised agents cannot run this (no cargo, no desktop); use the CI dispatch above.
+Containerised agents usually cannot run the full `cargo test`: the Tauri shell needs
+GTK/WebKit development packages. The pure model does not, so use:
+
+```bash
+bash scripts/test-model.sh        # detection + matrix tests, plain rustc
+```
+
+If `cargo` is absent entirely, that script is still the only local path — CI remains
+authoritative for the full build.
 
 ---
 

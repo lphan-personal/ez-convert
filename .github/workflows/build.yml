@@ -195,6 +195,32 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      # ARCHITECTURE §2.2: model/ must stay Tauri-free, process-free, crate-free.
+      # This is the boundary that makes detection and the matrix unit-testable.
+      - name: Model boundary (model/ is pure)
+        run: bash scripts/check-model-purity.sh
+
+      # The same tests `cargo test` runs, compiled without the Tauri shell: proves
+      # the model is testable on a host with no GTK/WebKit.
+      - name: Model tests without the shell
+        run: bash scripts/test-model.sh
+
+      # The matrix and the evidence index are generated; drift fails the test
+      # above, and this step prints the diff to make the fix obvious.
+      - name: Generated docs are in sync
+        run: |
+          set -euo pipefail
+          before=$(sha256sum docs/DETECTION.md evidence/ROUTES.md)
+          rustc --edition 2021 -o /tmp/model-tables scripts/model-tables.rs
+          /tmp/model-tables --write >/dev/null
+          after=$(sha256sum docs/DETECTION.md evidence/ROUTES.md)
+          if [ "$before" != "$after" ]; then
+            echo "::error::docs/DETECTION.md or evidence/ROUTES.md was out of date; run '/tmp/model-tables --write'"
+            git --no-pager diff -- docs/DETECTION.md evidence/ROUTES.md
+            exit 1
+          fi
+          echo "generated docs in sync"
+
       - name: docs/LICENSES.md matches the locked dependency graph
         run: python3 scripts/gen-licenses.py --check
 

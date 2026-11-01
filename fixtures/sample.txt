@@ -1,0 +1,3 @@
+This is a plain text fixture.
+It has no headings, no delimiters in a stable count, and no markup.
+Line three, with a comma, but the previous lines do not match it.

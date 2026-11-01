@@ -16,6 +16,9 @@ dist/
 spikes/*/out/
 spikes/*/out-win/
 
+# Local build artefacts from the shell-less model test runner
+.model-tests
+
 # OS / editor
 .DS_Store
 Thumbs.db

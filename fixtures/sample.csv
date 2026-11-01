@@ -1,0 +1,4 @@
+id,name,amount,note
+1,Widget A,10.50,"comma, inside"
+2,Widget B,3.25,café
+3,Widget C,7.00,"quote "" inside"""
