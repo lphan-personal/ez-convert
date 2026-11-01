@@ -930,7 +930,7 @@ is testable when it is built.
 
 #### 8.2.1 GIF input: the frame-1 label is part of the contract
 
-A GIF source is a first-class image input in v1 **only** with this disclosure:
+A GIF source is a supported image input in v1 **only** with this disclosure:
 
 - the target list and the per-file row must read **"converts frame 1 only"** (or the localised
   equivalent) — visible before the job runs, not in a tooltip or a changelog;

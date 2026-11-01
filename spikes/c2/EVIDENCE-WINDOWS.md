@@ -37,8 +37,8 @@ scp target/x86_64-pc-windows-gnu/debug/ezc-c2-e2e.exe  ryo@10.0.0.191:C:/ezc/
 
 So the plan, the spawn contract, the stderr rules, `verify::*` and the `lofty` tag merge are
 the ones that ship — not a transcription of them. `EnginePaths::discover` picks `vips.exe` /
-`vipsheader.exe` / `ffmpeg.exe` / `ffprobe.exe` on Windows (`cfg!(windows)`), which this run
-exercised for the first time.
+`vipsheader.exe` / `ffmpeg.exe` / `ffprobe.exe` on Windows (`cfg!(windows)`), a code path this
+run exercised on Windows.
 
 ## 2. The dist is the shipping dist, by hash
 
