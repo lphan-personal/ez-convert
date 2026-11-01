@@ -1,0 +1,20 @@
+PASS  image type: six segments at most, overflow behind one more segment
+PASS  only valid targets for the detected type appear
+PASS  nothing rendered smaller than the 11 pt legibility floor
+PASS  hit-testing is correct at every angle (DOM raster vs arithmetic)
+PASS  labels sit inside their ring band and never overlap each other
+PASS  material is backdrop-filter glass, and no surface stacks translucency
+PASS  feedback starts on pointer-down, not on release
+PASS  a tap commits without moving the ring (no momentum without a drag)
+PASS  a flick projects momentum and the ring overshoots (damping 0.8)
+PASS  catching the ring mid-flight stops it exactly where it is
+PASS  keyboard move uses a critical spring: no overshoot, monotone approach
+PASS  the more segment opens a sub-ring, and the nested surface turns opaque
+PASS  typography: system-ui with size-dependent tracking
+PASS  prefers-reduced-motion: the spring is removed, not shortened
+PASS  prefers-reduced-transparency: surfaces become solid
+PASS  Escape dismisses the wheel
+
+SUMMARY pass=16 fail=0 checks=16
+report: /opt/data/profiles/wright/cache/scratch/u1-shots/report.json
+screenshots: /opt/data/profiles/wright/cache/scratch/u1-shots

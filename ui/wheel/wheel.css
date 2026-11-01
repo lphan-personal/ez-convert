@@ -1,0 +1,282 @@
+/* Wheel overlay — Apple design language (skill: apple-design).
+ *
+ * Only `transform` and `opacity` are animated from JS (principle 11); the
+ * material uses `backdrop-filter` (principle 12); every size below is in rem
+ * or derived from the model's px geometry so Dynamic Type does not break the
+ * layout (principle 15).
+ */
+
+:root {
+  --wheel-size: 520px;
+  --ink: rgba(255, 255, 255, 0.94);
+  --ink-dim: rgba(255, 255, 255, 0.62);
+  --material-bg: rgba(28, 28, 30, 0.55);
+  --material-blur: 30px;
+  --selection: rgba(255, 255, 255, 0.16);
+  --selection-strong: rgba(255, 255, 255, 0.26);
+  --ring-edge: rgba(255, 255, 255, 0.22);
+  --font: system-ui, -apple-system, "Segoe UI Variable Text", "SF Pro Text", "Helvetica Neue", sans-serif;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #0a0a0c radial-gradient(120% 90% at 50% 0%, #23252b 0%, #0a0a0c 60%);
+  font: 100%/1.4 var(--font);
+  -webkit-font-smoothing: antialiased;
+  color: var(--ink);
+}
+
+.stage {
+  min-height: 100%;
+  display: grid;
+  place-content: center;
+  gap: 1.25rem;
+  padding: 1.5rem;
+}
+
+/* ---- the wheel ------------------------------------------------------- */
+
+.wheel {
+  position: relative;
+  width: var(--wheel-size);
+  height: var(--wheel-size);
+  outline: none;
+  transition: opacity 160ms ease;
+  /* transform is written by JS every frame; no CSS transition on purpose:
+     a transition cannot be caught mid-flight (principle 3). */
+}
+
+.wheel.dismissed { opacity: 0; pointer-events: none; }
+
+.wheel:focus-visible .ring { filter: drop-shadow(0 0 0.5rem rgba(120, 190, 255, 0.55)); }
+
+/* The annulus is a clipped, blurred div rather than an SVG element because
+   backdrop-filter does not apply to SVG geometry. */
+.surface {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--material-bg);
+  backdrop-filter: blur(var(--material-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  /* annulus: everything outside the rim's inner edge is masked away */
+  mask: radial-gradient(circle at 50% 50%, transparent calc(var(--size-inner, 144px) - 1px), #000 var(--size-inner, 144px));
+  -webkit-mask: radial-gradient(circle at 50% 50%, transparent calc(var(--size-inner, 144px) - 1px), #000 var(--size-inner, 144px));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 1.25rem 3rem rgba(0, 0, 0, 0.45);
+  will-change: transform, opacity;
+}
+
+/* Material "arrival" (principle 12): the surface animates blur + scale in
+   instead of a plain opacity fade. */
+
+
+.hub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(var(--size-inner, 144px) * 2);
+  height: calc(var(--size-inner, 144px) * 2);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  display: grid;
+  place-content: center;
+  gap: 0.15rem;
+  text-align: center;
+  background: rgba(28, 28, 30, 0.38);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+  transition: background 120ms ease, backdrop-filter 120ms ease;
+}
+
+/* Recursive-transparency rule (principle 12): the sub-ring is drawn inside the
+   hub, so the hub stops being translucent instead of stacking a second blur. */
+.wheel.ring-open .hub {
+  background: rgba(18, 18, 20, 0.96);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.hub-kicker {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink-dim);
+  text-transform: none;
+}
+
+.hub-value {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  max-width: 11rem;
+}
+
+/* ---- ring drawing ---------------------------------------------------- */
+
+.ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.wedge {
+  fill: rgba(255, 255, 255, 0.03);
+  opacity: 1;
+}
+
+.wedge-highlight {
+  fill: var(--selection);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.divider {
+  stroke: var(--ring-edge);
+  stroke-width: 1;
+}
+
+.ring-edge {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 1;
+}
+
+/* ---- labels ---------------------------------------------------------- */
+
+.labels { position: absolute; inset: 0; pointer-events: none; }
+
+.label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  gap: 0.1rem;
+  min-width: 3.25rem;
+  min-height: 3.25rem;
+  padding: 0.25rem 0.35rem;
+  border-radius: 0.55rem;
+  /* Solid layer under text, never text directly on glass (principle 12). */
+  background: transparent;
+  transform-origin: center;
+  will-change: transform;
+}
+
+.label .name {
+  font-weight: 600;
+  letter-spacing: 0; /* overwritten per size by wheel.js (principle 15) */
+  line-height: 1.05;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.label .sub {
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+.label.selected {
+  background: rgba(12, 12, 14, 0.92); /* solid, so vibrancy stays legible */
+  box-shadow: 0 0.35rem 0.9rem rgba(0, 0, 0, 0.35);
+}
+
+.label.more .name { color: rgba(190, 215, 255, 0.95); }
+
+/* Decorative geometry must never swallow a pointer: a 1 px divider or the
+   notch on top of a wedge would otherwise win elementFromPoint. */
+.divider,
+.ring-edge,
+.notch { pointer-events: none; }
+
+/* ---- keyboard focus / selection notch -------------------------------- */
+
+.notch {
+  position: absolute;
+  left: 50%;
+  top: -0.35rem;
+  width: 0.35rem;
+  height: 0.7rem;
+  margin-left: -0.175rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  opacity: 0.5;
+}
+
+/* ---- demo chrome (not part of the shipping overlay) ------------------ */
+
+.demo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: center;
+  font-size: 0.8125rem;
+  color: var(--ink-dim);
+}
+
+.demo button {
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+  transition: transform 100ms ease-out, background 120ms ease;
+}
+
+.demo button:active { transform: scale(0.97); }
+.demo button.on { background: rgba(255, 255, 255, 0.2); }
+
+.demo-label { font-weight: 600; color: var(--ink); }
+.demo-hint { flex-basis: 100%; text-align: center; }
+
+.log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-width: 34rem;
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.75rem;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.log li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- accessibility fallbacks (principle 14) -------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .wheel, .surface, .hub, .label { transition: opacity 160ms linear; }
+  .demo button:active { transform: none; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root { --material-bg: rgba(22, 22, 24, 1); --material-blur: 0px; }
+  .surface, .hub {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(22, 22, 24, 1);
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root { --ink: #fff; --ink-dim: rgba(255, 255, 255, 0.86); --ring-edge: rgba(255, 255, 255, 0.5); }
+  .surface { border: 1px solid rgba(255, 255, 255, 0.6); }
+  .label.selected { background: #000; outline: 2px solid #fff; }
+}

@@ -62,8 +62,11 @@ spikes/c2/run-e2e.sh              # the media matrix against real engines (see s
 │   ├── logic.js              # pure window logic — unit-tested under node
 │   ├── app.js                # DOM wiring + IPC bridge (Tauri commands in shell/ipc.rs)
 │   └── tests/logic.test.js   # node --test ui/tests (no dependencies)
+├── ui/wheel/                 # (A) overlay prototype: model.js + spring.js + wheel.js
+│   ├── tests/                # node --test ui/wheel/tests — layout, hit-test, springs
+│   └── checks/               # real-Chromium interaction check over CDP (no npm)
 ├── fixtures/                # detection + media corpus (46 files) + PROVENANCE.md, generated
-├── evidence/                # S2/S2b transcripts + ROUTES.md (generated evidence index)
+├── evidence/                # S2/S2b transcripts + ROUTES.md + u1-wheel.md
 ├── docs/DETECTION.md        # detection rules + generated type → target matrix
 ├── src-tauri/
 │   ├── Cargo.toml           # tauri = "2", tauri-build = "2", tauri-plugin-dialog = "2"
