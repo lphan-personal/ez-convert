@@ -31,7 +31,7 @@ use crate::model::types::TargetFormat;
 // Protocol guard
 // ---------------------------------------------------------------------------
 
-/// The only protocols an ffmpeg/ffprobe input may reach.
+/// The protocols an ffmpeg/ffprobe input may reach.
 ///
 /// `file` is the admitted path itself. `crypto` and `data` are what this ffmpeg
 /// build already assumes for a plain file input (measured: `[file @ …] Setting
@@ -41,7 +41,7 @@ use crate::model::types::TargetFormat;
 /// `http`, `tcp`, `udp`, `rtmp`, `concat`, `subfile`, `pipe` are refused inside
 /// libavformat instead of being fetched. That keeps the property
 /// `proc::admit` guarantees (absolute, existing, regular file) true for every
-/// nested open, not just the first one.
+/// nested open, not just the outermost one.
 pub const INPUT_PROTOCOLS: &str = "file,crypto,data";
 
 /// `-protocol_whitelist file,crypto,data` as a closed pair.
@@ -486,7 +486,7 @@ pub fn build_probe_video() -> Vec<Arg> {
 ///  -show_entries format=duration -of default=nw=1 <path>`
 ///
 /// The cheapest "which streams exist" probe. The video path needs it before it
-/// can plan an audio rate, and it is a *first contact with the container*, so it
+/// can plan an audio rate, and it is the opening contact with the container, so it
 /// carries the same guard as every other input.
 pub fn build_probe_streams() -> Vec<Arg> {
     let mut args: Vec<Arg> = protocol_guard().to_vec();
@@ -759,7 +759,7 @@ mod tests {
     }
 
     /// Every builder that names an input carries the guard, exactly once, and
-    /// before the first path slot — so it applies to that input. A builder that
+    /// ahead of the input path slot — so it applies to that input. A builder that
     /// forgets it would let a container-driven nested open reach any protocol.
     #[test]
     fn every_ffmpeg_and_ffprobe_input_carries_the_protocol_guard() {
