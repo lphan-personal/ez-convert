@@ -32,7 +32,11 @@
 #                                                    whole point; see THIRD-PARTY-NOTICES).
 #   everything else (MIT/BSD/Apache/MPL/0BSD/Zlib/Unlicense/OFL/...) -> OK.
 #   LicenseRef-unverified on a binary row         -> FAIL; on data -> WARN + listed.
-#   rows with status `planned` / `not-shipped`    -> not enforced (nothing ships yet).
+#   rows with status `planned` / `not-shipped`    -> not enforced (nothing ships yet) —
+#                                                    and, in --scan, a file that matches
+#                                                    such a row FAILS: a decision to drop
+#                                                    content is only real once the file is
+#                                                    gone from the tree.
 #
 # --scan additionally:
 #   * every file must attribute to an inventory row (basename or path glob), else FAIL;
@@ -161,6 +165,19 @@ match_row() { # <relpath> -> sets M_* globals for the best (longest-pattern) mat
       *\**)   case "$base" in ${pat}) hit=1 ;; esac ;;
       *)      if [ "$pat" = "$base" ] || [ "$pat" = "$rel" ]; then hit=1; fi ;;
     esac
+    # A directory-qualified pattern whose LAST segment is a glob — e.g.
+    # share/fonts/truetype/DavidCLM-* — must match prefix + basename, otherwise
+    # the per-file rows lose to a shorter directory row (`share/*`) and a GPL
+    # font file would be attributed to already-covered in-tree content.
+    case "$pat" in
+      */*\**)
+        if [ "$hit" -eq 0 ]; then
+          local pfx="${pat%/*}" tll="${pat##*/}"
+          case "$rel" in
+            "${pfx}/"*) case "$base" in ${tll}) hit=1 ;; esac ;;
+          esac
+        fi ;;
+    esac
     if [ "$hit" -eq 1 ] && [ "${#pat}" -gt "$matched" ]; then
       matched="${#pat}"
       M_KIND="$kind"; M_COMP="$comp"; M_VER="$ver"; M_PAT="$pat"
@@ -180,6 +197,11 @@ scan_tree() {
       log "FAIL unattributed file in dist: $rel (no row in shipped-inventory.tsv)"
       fails=$((fails + 1)); continue
     fi
+    case "$M_STATUS" in
+      not-shipped|planned)
+        log "FAIL $rel :: inventory row '${M_COMP}' is marked ${M_STATUS}, but the file is in the shipped tree — a strip/drop decision is only real once the file is gone"
+        fails=$((fails + 1)); continue ;;
+    esac
     classify "$M_KIND" "$M_LIC" "$M_STATUS"
     case "$C_VERDICT" in
       OK) ;;
@@ -286,7 +308,41 @@ EOF
   INVENTORY="$tmp/inv-ffmpeg.tsv" bash "${BASH_SOURCE[0]}" --scan "$tmp/plug" >/dev/null 2>&1
   expect_fail "ffmpeg with --enable-gpl" $?
 
-  # 6: the REAL inventory must pass classification
+  # 6: a file that matches a `not-shipped` row must fail the scan — an inventory
+  #    decision to drop content only counts once the content is actually gone
+  rm -f "$tmp/tree/evil.dll"
+  cat > "$tmp/inv-strip.tsv" <<EOF
+# fixture inventory: one live row + one stripped row
+binary	fixture	1.0	good.dll	MIT	https://example.invalid/good	${good_sha}	shipped	selftest fixture
+font	fixture-stripped	-	stripped-*	GPL-2.0-only	https://example.invalid/font	-	not-shipped	stripped by decision
+EOF
+  printf 'stripped font fixture' > "$tmp/tree/stripped-font.ttf"
+  INVENTORY="$tmp/inv-strip.tsv" bash "${BASH_SOURCE[0]}" --scan "$tmp/tree" >/dev/null 2>&1
+  expect_fail "file matching a not-shipped row" $?
+  rm -f "$tmp/tree/stripped-font.ttf"
+
+  # 7: a directory-qualified row whose last segment is a glob must attribute the
+  #    file (control), and must beat a shorter broad row when it says not-shipped
+  mkdir -p "$tmp/pack/share/fonts/truetype"
+  printf 'font fixture' > "$tmp/pack/share/fonts/truetype/DavidCLM-Bold.otf"
+  cat > "$tmp/inv-font.tsv" <<EOF
+# fixture inventory: only the specific row — attribution proves dir+basename matching
+font	fixture-font	-	share/fonts/truetype/DavidCLM-*	OFL-1.1	https://example.invalid/font	-	shipped	selftest fixture
+EOF
+  INVENTORY="$tmp/inv-font.tsv" bash "${BASH_SOURCE[0]}" --scan "$tmp/pack" >/dev/null 2>&1
+  expect_pass "dir-qualified basename glob attributes its file" $?
+
+  cat > "$tmp/inv-font2.tsv" <<EOF
+# fixture inventory: the broad row is shipped, the specific one is stripped —
+# the specific row must win, so the file has to FAIL
+data	fixture-share	-	share/*	MPL-2.0	https://example.invalid/share	-	shipped	selftest fixture
+font	fixture-font	-	share/fonts/truetype/DavidCLM-*	GPL-2.0-only	https://example.invalid/font	-	not-shipped	stripped by decision
+EOF
+  INVENTORY="$tmp/inv-font2.tsv" bash "${BASH_SOURCE[0]}" --scan "$tmp/pack" >/dev/null 2>&1
+  expect_fail "specific not-shipped row beats a broad shipped row" $?
+  rm -rf "$tmp/pack"
+
+  # 8: the REAL inventory must pass classification
   bash "${BASH_SOURCE[0]}" --check-inventory >/dev/null 2>&1
   expect_pass "real shipped-inventory.tsv" $?
 

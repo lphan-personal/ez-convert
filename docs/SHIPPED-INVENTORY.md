@@ -27,10 +27,10 @@ through the gate (13,979 + 258 + 21 files attributed, 0 failures).
 | claim | verdict | evidence |
 |---|---|---|
 | ffmpeg built with `--disable-gpl --disable-nonfree`, `enable-gpl==0` asserted in CI | **PROVEN** | BtbN `*-lgpl` N-128273 builds: `--enable-gpl`/`--enable-nonfree` occurrences **0** on both legs; `--disable-libx264 --disable-libx265` in config; `license-assert.sh --scan` + `--selftest` (GPL fixture rejected, LGPL fixture accepted) run in CI on every push; now also covers `ffprobe` |
-| no GPL binary linked or bundled | **PROVEN for binaries** | vips dist: 35/35 binaries attributed, licences per `THIRD-PARTY-NOTICES.md` §3, import closure over dist DLLs + Windows system DLLs only, `jbigkit` absent (S2c relink; the only `jbig` strings are the disabled-codec stubs `ISO JBIG` / `tif_jbig.c`); app: 416 crates, zero GPL/AGPL terms, `#[link]` only `user32`/`kernel32`; ffmpeg: LGPL. **See finding F1** — GPL-licensed *font files* (not binaries) ride in the LibreOffice pack |
+| no GPL binary linked or bundled | **PROVEN for binaries** | vips dist: 35/35 binaries attributed, licences per `THIRD-PARTY-NOTICES.md` §3, import closure over dist DLLs + Windows system DLLs only, `jbigkit` absent (S2c relink; the only `jbig` strings are the disabled-codec stubs `ISO JBIG` / `tif_jbig.c`); app: 416 crates, zero GPL/AGPL terms, `#[link]` only `user32`/`kernel32`; ffmpeg: LGPL. **F1 decided (§6): the five GPL-2.0 Culmus *font files* are stripped from the engine pack** |
 | LibreOffice shipped as an MPL engine pack (separate process, not linked) | **PROVEN** | pack `LICENSE`: "made available subject to the terms of the Mozilla Public License, v. 2.0"; separate process: `engine/soffice.rs` builds argv for `proc::run` and never constructs a `Command` or loads a library; no LO/UNO reference anywhere in `Cargo.toml`/`Cargo.lock`; ARCHITECTURE §0: "Engines are separate processes. The app never loads … LibreOffice" |
 | no AGPL component anywhere | **PROVEN, with one precision note** | 416 crates: 0 AGPL terms; vips dist: 0 (the gate bans AGPL unconditionally); LibreOffice: its *source* is offered under a tri-licence MPL-2.0/LGPL-3.0/AGPL-3.0 — the binary we redistribute is made available under **MPL-2.0**, which we elect, so no AGPL obligation attaches to us or to users. There is no AGPL-only component |
-| every bundled font/asset's redistribution terms verified | **PROVEN — all terms identified; two asset groups unverified and flagged** | fonts: 16 family rows, each traced to the pack's `LICENSE.html` Fonts section (see §5); app assets: icons/UI generated in-house, zero bundled fonts (system-ui stack); extensions: per-file README/licence evidence. **See findings F1–F3** |
+| every bundled font/asset's redistribution terms verified | **PROVEN — all terms identified; three groups stripped** | fonts: 16 family rows, each traced to the pack's `LICENSE.html` Fonts section (see §5); app assets: icons/UI generated in-house, zero bundled fonts (system-ui stack); extensions: per-file README/licence evidence. **F1–F3 are decided in §6** — five Culmus families (GPL-2.0, no font exception), `share/gallery/**` and `help/**` are stripped, not shipped |
 
 ## 2. The application
 
@@ -90,11 +90,11 @@ is the per-component authority for everything below.
 | Amiri (+AmiriQuran) | OFL-1.1 | per `LICENSE.html` | shipped |
 | Caladea | Apache-2.0 | per `LICENSE.html` | shipped |
 | Carlito | OFL-1.1 | per `LICENSE.html` | shipped |
-| **DavidCLM** | **GPL-2.0-only WITH Font-exception-2.0** (Culmus; Bitstream Charter glyphs under the Bitstream Charter licence) | culmus.org.il | **decision-needed (F1)** |
-| **FrankRuehlCLM** | **GPL-2.0-only WITH Font-exception-2.0** (Culmus) | culmus.org.il | **decision-needed (F1)** |
-| **MiriamCLM** | **GPL-2.0-only WITH Font-exception-2.0** (Culmus) | culmus.org.il | **decision-needed (F1)** |
-| **MiriamMonoCLM** | **GPL-2.0-only WITH Font-exception-2.0** (Culmus) | culmus.org.il | **decision-needed (F1)** |
-| **NachlieliCLM** | **GPL-2.0-only WITH Font-exception-2.0** (Culmus) | culmus.org.il | **decision-needed (F1)** |
+| DavidCLM | ~~GPL-2.0-only WITH Font-exception-2.0~~ → **GPL-2.0-only, no exception** (Culmus; Bitstream Charter glyphs under the Bitstream Charter licence) | culmus upstream | **stripped (F1)** |
+| FrankRuehlCLM | **GPL-2.0-only, no exception** (Culmus) | culmus upstream | **stripped (F1)** |
+| MiriamCLM | **GPL-2.0-only, no exception** (Culmus) | culmus upstream | **stripped (F1)** |
+| MiriamMonoCLM | **GPL-2.0-only, no exception** (Culmus) | culmus upstream | **stripped (F1)** |
+| NachlieliCLM | **GPL-2.0-only, no exception** (Culmus) | culmus upstream | **stripped (F1)** |
 | DejaVu (Sans/Serif/condensed/mono/MathTeXGyre) | Bitstream Vera licence + public-domain changes + Arev glyphs | per `LICENSE.html` | shipped |
 | Liberation (Sans/Serif/Mono/SansNarrow) | OFL-1.1 (Red Hat trademark noted) | per `LICENSE.html` | shipped |
 | Libre Hebrew (DavidLibre, FrankRuhlHofshi, MiriamLibre, Rubik) | OFL-1.1 | per `LICENSE.html` | shipped |
@@ -114,31 +114,67 @@ is the per-component authority for everything below.
 | wiki-publisher | MPL-2.0 | LibreOffice core (in-tree) | shipped |
 | `share/numbertext/*.sor` | LGPL-3.0-or-later OR CC-BY-SA-3.0 | numbertext project (file headers) | elected:LGPL-3.0 |
 | `share/*` remainder (palette, templates, themes, registry, filters, config) | MPL-2.0 (in-tree) | LibreOffice core | shipped |
-| `share/gallery/**` (175 clipart files) | **not stated in the pack's licence documents** | — | **decision-needed (F2)** |
-| `help/**` | **not stated in the pack's licence documents** | — | **decision-needed (F3)** |
+| `share/gallery/**` (175 clipart files) | MPL-2.0 in-tree *(upstream reading; not itemised per asset)* | LibreOffice core (Debian `Files: *`) | **stripped (F2)** |
+| `help/**` (5,334 files) | MPL-2.0 + MIT / Apache-2.0 / BSD-2-Clause / Expat for the `help3xsl` assets — **verified** | LibreOffice core + help (Debian `copyright`) | **stripped (F3) — unused, not unlicensed** |
 | `LICENSE`, `LICENSE.html`, `NOTICE`, `CREDITS.fodt`, `readmes/` | licence documents (MPL-2.0 doc) | TDF release | notice-text |
 | lo-deps (Linux runtimes: libICE, libSM, libXinerama, libcairo-gobject) | MIT AND X11 AND (LGPL-2.1 OR MPL-1.1) → MPL arm | Debian runtime libs (`usr/share/doc/*/copyright`) | shipped:linux |
 
-## 6. Findings (warden)
+## 6. Engine-pack licence decisions (card t_20fae747)
 
-- **F1 (HIGH, decision needed): the LibreOffice pack bundles GPL-2.0 fonts.** The
-  five Culmus families (DavidCLM, FrankRuehlCLM, MiriamCLM, MiriamMonoCLM,
-  NachlieliCLM) are `GPL-2.0-only WITH Font-exception-2.0` with **no permissive
-  arm** (pack `LICENSE.html`, Fonts §Culmus). They are separate font files
-  (mere aggregation — the font exception protects documents that embed them),
-  and shipping them under GPL-2.0 terms is lawful, but it contradicts the
-  "no GPL component ships" posture the vips sidecar is held to. Options:
-  (a) strip these five families from the engine pack (LO substitutes fonts at
-  render time; Hebrew fidelity drops), (b) keep them and ship the GPL-2.0 text
-  + font sources (the fonts themselves) as part of the notices pack. Not a
-  warden call — filed as a decision card.
-- **F2 (MEDIUM): `share/gallery/**` (175 clipart files) has no licence statement
-  in the pack's own `LICENSE`/`LICENSE.html`/`NOTICE`.** Redistribution terms are
-  therefore *unverified*. Options: verify upstream terms, or strip the gallery
-  from the engine pack (it is not needed for document conversion).
-- **F3 (MEDIUM): `help/**` likewise carries no pack-level licence statement**
-  (`help/media/icon-themes/README.txt` exists but is not a licence). Same options
-  as F2.
+The Q2 audit left three decisions open. All three are **decided and executed**:
+the strip is enforced by `scripts/strip-engine-pack.py` (run it over the assembled
+pack before packaging) and by the gate, which now FAILS if a file matching a
+`not-shipped` row is still present in a scanned tree. Full measurement log:
+`evidence/engine-pack-licence-decisions.md`.
+
+### D1 — five Culmus families: **STRIP** (was F1, HIGH)
+
+The five families (DavidCLM, FrankRuehlCLM, MiriamCLM, MiriamMonoCLM,
+NachlieliCLM) are **GPL-2.0 with no font-embedding exception** — the Q2 card's
+"WITH Font-exception-2.0" was wrong for these five. In the pack's own
+`LICENSE.html` (Fonts §Culmus) the exception paragraph appears only under the six
+Yoram Gnat families (Shofar, Keter YG, Hadasim, Simple, Stam Ashkenaz, Stam
+Sefarad); the five we ship carry a bare copyright line and "All rights
+reserved". The upstream Culmus README shows the same split.
+
+What settled it is not posture but output: LibreOffice's PDF export **embeds the
+font program**. A converted Hebrew document produced
+`BaseFont BAAAAA+DavidCLM-Medium … IAAAAA+NachlieliCLM-Light` — five GPL font
+subsets inside a document a user will mail to someone. Subsetting is a
+modification, so keeping these fonts would make every Hebrew PDF the product
+writes carry GPL font software with no embedding permission, and put the
+obligation on the user, not on us. Keeping them "lawfully in the pack" misses
+that the pack's whole job is to write documents.
+
+Consequence: Hebrew documents that reference the CLM families render with
+LibreOffice's substitutes (measured after the strip: Noto Serif / Noto Sans /
+DejaVu). The OFL-1.1 twins (DavidLibre, FrankRuhlHofshi, MiriamLibre) stay in the
+pack, but LO 26.8 does **not** map `David CLM → David Libre` on its own — a
+`FontSubstitutions` entry added to `share/registry/main.xcd` was measured to have
+no effect on export, so restoring that mapping is follow-up work, not a free win.
+18 files, 1,333,708 B.
+
+### D2 — `share/gallery/**`: **STRIP** (was F2, MEDIUM)
+
+175 clipart files, no licence statement anywhere in the pack's own
+`LICENSE`/`LICENSE.html`/`NOTICE`, and no per-asset provenance upstream either —
+the strongest available reading is the core tri-licence (Debian's
+`debian/copyright` carries `Files: * → MPL-2.0`), which is weaker than every other
+row in the inventory. It is also unused: the engine runs headless and never opens
+a gallery. Verified not to matter: the document conversion matrix is byte-identical
+with the gallery gone. 175 files, 13,556,254 B.
+
+### D3 — `help/**`: **VERIFIED, then STRIP** (was F3, MEDIUM)
+
+Terms turn out to be verifiable, contrary to the Q2 note: Debian's copyright for
+LibreOffice 26.8.1.1 covers `helpcontent2` with `Files: * → MPL-2.0`, and names the
+individual `help3xsl` assets that carry their own permissive notices
+(`normalize.css` Expat, `prism.js`/`prism.css`/`polyfills.js` MIT, `flexsearch*.js`
+Apache-2.0). So the strip here is a product call, not a licence necessity: the
+engine never opens a help viewer and the content is 5,334 files / 11,167,640 B.
+Restoring it means flipping the TSV row back to `shipped` with those terms.
+
+### Still open (INFO, no decision needed)
 - **F4 (INFO): dual-licence elections recorded** in the TSV `status` column with
   the same semantics as the vips `elections.tsv`: Linux Libertine G→OFL-1.0,
   dict-es→MPL-1.1, Lightproof→MPL-1.1, numbertext→LGPL-3.0, lcms2→MIT,
@@ -165,9 +201,22 @@ runtime exception; a GPL term recorded nowhere (fail-closed); an **unattributed
 file** in a scanned dist tree (this is the `libjbig-0.dll` shape — a component
 nobody thought of cannot pass by not being on a name list); sha256 drift vs the
 inventory; and any bundled `ffmpeg`/`ffprobe` whose build config advertises
-`--enable-gpl`/`--enable-nonfree`. `--selftest` demonstrates each rejection on
+`--enable-gpl`/`--enable-nonfree`; and a file matching a `not-shipped` inventory
+row that is nevertheless present in a scanned tree (a strip decision only counts
+once the file is gone). `--selftest` demonstrates each rejection on
 deliberately contaminated fixtures and is itself a CI step, so the gate can
 never silently become a no-op.
+
+The engine pack has one extra step before it is scannable:
+
+```bash
+scripts/strip-engine-pack.py --pack <pack-root> [--dry-run] [--manifest out.tsv]
+```
+
+It removes the content decided in §6 (five Culmus families, `share/gallery/**`,
+`help/**`), writes a per-file manifest, and is idempotent. Run it before `--scan`
+— otherwise the gate fails on the very files the inventory now marks
+`not-shipped`.
 
 Release-path rule (P2/P3): run `--scan` over the assembled installer/DMG tree
 before publishing; every file must attribute to a `docs/shipped-inventory.tsv`
