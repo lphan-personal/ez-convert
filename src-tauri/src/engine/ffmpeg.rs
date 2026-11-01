@@ -28,6 +28,34 @@ use super::plan::{Arg, PathOpts, PathRef, Trim};
 use crate::model::types::TargetFormat;
 
 // ---------------------------------------------------------------------------
+// Protocol guard
+// ---------------------------------------------------------------------------
+
+/// The only protocols an ffmpeg/ffprobe input may reach.
+///
+/// `file` is the admitted path itself. `crypto` and `data` are what this ffmpeg
+/// build already assumes for a plain file input (measured: `[file @ …] Setting
+/// default whitelist 'file,crypto,data'`), so naming all three changes nothing
+/// for a well-formed job. What it does change is the failure mode when a demuxer
+/// opens something *the container asked for* rather than something we admitted:
+/// `http`, `tcp`, `udp`, `rtmp`, `concat`, `subfile`, `pipe` are refused inside
+/// libavformat instead of being fetched. That keeps the property
+/// `proc::admit` guarantees (absolute, existing, regular file) true for every
+/// nested open, not just the first one.
+pub const INPUT_PROTOCOLS: &str = "file,crypto,data";
+
+/// `-protocol_whitelist file,crypto,data` as a closed pair.
+///
+/// Both halves are `Arg::Word` — static text, never a filename, never a number
+/// parsed out of the container — so no input can extend the list.
+fn protocol_guard() -> [Arg; 2] {
+    [
+        Arg::Word("-protocol_whitelist"),
+        Arg::Word(INPUT_PROTOCOLS),
+    ]
+}
+
+// ---------------------------------------------------------------------------
 // Filter graphs — numeric templates only, never user text
 // ---------------------------------------------------------------------------
 
@@ -393,24 +421,28 @@ pub fn build_gif_from_video(fps: u8, max_width: u32, trim: Option<Trim>) -> Vec<
 }
 
 /// Flags every invocation starts with: no stdin, overwrite our own temp/output,
-/// and a log level whose noise cannot mask a real error.
+/// a log level whose noise cannot mask a real error, and the closed protocol set
+/// the input is allowed to reach.
 fn base() -> Vec<Arg> {
-    vec![
+    let mut args = vec![
         Arg::Word("-nostdin"),
         Arg::Word("-y"),
         Arg::Word("-hide_banner"),
         Arg::Word("-loglevel"),
         Arg::Word("error"),
-    ]
+    ];
+    args.extend(protocol_guard());
+    args
 }
 
 // ---------------------------------------------------------------------------
 // ffprobe
 // ---------------------------------------------------------------------------
 
-/// `ffprobe -v error -select_streams a:0 -show_entries stream=… -of default=nw=1 <path>`
+/// `ffprobe -protocol_whitelist … -v error -select_streams a:0 -show_entries … <path>`
 pub fn build_probe_audio() -> Vec<Arg> {
-    vec![
+    let mut args: Vec<Arg> = protocol_guard().to_vec();
+    args.extend([
         Arg::Word("-v"),
         Arg::Word("error"),
         Arg::Word("-select_streams"),
@@ -426,11 +458,13 @@ pub fn build_probe_audio() -> Vec<Arg> {
         Arg::Word("-of"),
         Arg::Word("default=nw=1"),
         Arg::Path(PathRef::Input, PathOpts::default()),
-    ]
+    ]);
+    args
 }
 
 pub fn build_probe_video() -> Vec<Arg> {
-    vec![
+    let mut args: Vec<Arg> = protocol_guard().to_vec();
+    args.extend([
         Arg::Word("-v"),
         Arg::Word("error"),
         Arg::Word("-select_streams"),
@@ -444,7 +478,30 @@ pub fn build_probe_video() -> Vec<Arg> {
         Arg::Word("-of"),
         Arg::Word("default=nw=1"),
         Arg::Path(PathRef::Input, PathOpts::default()),
-    ]
+    ]);
+    args
+}
+
+/// `ffprobe -protocol_whitelist … -v error -show_entries stream=codec_type
+///  -show_entries format=duration -of default=nw=1 <path>`
+///
+/// The cheapest "which streams exist" probe. The video path needs it before it
+/// can plan an audio rate, and it is a *first contact with the container*, so it
+/// carries the same guard as every other input.
+pub fn build_probe_streams() -> Vec<Arg> {
+    let mut args: Vec<Arg> = protocol_guard().to_vec();
+    args.extend([
+        Arg::Word("-v"),
+        Arg::Word("error"),
+        Arg::Word("-show_entries"),
+        Arg::Word("stream=codec_type"),
+        Arg::Word("-show_entries"),
+        Arg::Word("format=duration"),
+        Arg::Word("-of"),
+        Arg::Word("default=nw=1"),
+        Arg::Path(PathRef::Input, PathOpts::default()),
+    ]);
+    args
 }
 
 #[cfg(test)]
@@ -672,12 +729,108 @@ mod tests {
     #[test]
     fn gif_from_a_still_reads_only_a_temp_png() {
         let args = build_gif_from_png(GifSource::Still);
-        assert_eq!(args[5], Arg::Word("-i"));
-        assert_eq!(args[6], Arg::Path(PathRef::Temp(0), PathOpts::default()));
+        let i = args
+            .iter()
+            .position(|a| *a == Arg::Word("-i"))
+            .expect("-i present");
+        assert_eq!(args[i + 1], Arg::Path(PathRef::Temp(0), PathOpts::default()));
         assert!(!args
             .iter()
             .any(|a| matches!(a, Arg::Path(PathRef::Input, _))));
-        assert_eq!(args[7], Arg::Word("-vf"));
+        assert_eq!(args[i + 2], Arg::Word("-vf"));
+    }
+
+    /// The protocol set is pinned: `file` for the admitted path, and the two
+    /// pseudo-protocols ffmpeg itself defaults to for a file input. Anything
+    /// that could fetch (http/tcp/udp/rtmp) or splice (`concat`, `subfile`,
+    /// `pipe`) must never appear here.
+    #[test]
+    fn input_protocol_set_is_closed_and_pinned() {
+        assert_eq!(INPUT_PROTOCOLS, "file,crypto,data");
+        for banned in [
+            "http", "https", "tcp", "udp", "rtmp", "rtsp", "ftp", "concat", "subfile", "pipe",
+            "crypto+file", "*", "all",
+        ] {
+            assert!(
+                !INPUT_PROTOCOLS.split(',').any(|p| p == banned),
+                "{banned} must not be whitelisted"
+            );
+        }
+    }
+
+    /// Every builder that names an input carries the guard, exactly once, and
+    /// before the first path slot — so it applies to that input. A builder that
+    /// forgets it would let a container-driven nested open reach any protocol.
+    #[test]
+    fn every_ffmpeg_and_ffprobe_input_carries_the_protocol_guard() {
+        let mut built: Vec<(String, Vec<Arg>)> = Vec::new();
+        for to in [
+            TargetFormat::Mp3,
+            TargetFormat::Wav,
+            TargetFormat::Flac,
+            TargetFormat::M4a,
+            TargetFormat::Aac,
+            TargetFormat::Ogg,
+            TargetFormat::Opus,
+        ] {
+            let enc = AudioEncode::for_target(to, 44100, 16, 90).unwrap();
+            built.push((format!("audio {to:?}"), build_audio(&enc, false)));
+        }
+        for to in [
+            TargetFormat::Mp4,
+            TargetFormat::Mkv,
+            TargetFormat::Mov,
+            TargetFormat::Webm,
+        ] {
+            let enc = VideoEncode::for_target(to, 44100).unwrap();
+            built.push((
+                format!("video {to:?}"),
+                build_video(&enc, 25, 1, true, Some(640), None, 90),
+            ));
+        }
+        built.push(("gif from png".into(), build_gif_from_png(GifSource::Still)));
+        built.push(("gif from video".into(), build_gif_from_video(12, 480, None)));
+        built.push(("probe audio".into(), build_probe_audio()));
+        built.push(("probe video".into(), build_probe_video()));
+        built.push(("probe streams".into(), build_probe_streams()));
+
+        for (label, args) in built {
+            let hits: Vec<usize> = args
+                .iter()
+                .enumerate()
+                .filter(|(_, a)| **a == Arg::Word("-protocol_whitelist"))
+                .map(|(i, _)| i)
+                .collect();
+            assert_eq!(hits.len(), 1, "{label}: guard count {:?}", hits);
+            let at = hits[0];
+            assert_eq!(
+                args[at + 1],
+                Arg::Word(INPUT_PROTOCOLS),
+                "{label}: guard value must be the closed static word"
+            );
+            // The guard is an input option: it must precede the path it governs.
+            let first_path = args
+                .iter()
+                .position(|a| matches!(a, Arg::Path(_, _)))
+                .expect("a path slot");
+            assert!(at < first_path, "{label}: guard after the input path");
+            if label.starts_with("audio") || label.starts_with("video") || label == "gif from video" {
+                let i = args
+                    .iter()
+                    .position(|a| *a == Arg::Word("-i"))
+                    .expect("-i");
+                assert!(at < i, "{label}: guard must precede -i");
+            }
+        }
+    }
+
+    /// The guard is static text: no filename, number or filter can extend it.
+    #[test]
+    fn protocol_guard_is_words_only() {
+        let args = protocol_guard();
+        assert!(matches!(args[0], Arg::Word("-protocol_whitelist")));
+        assert!(matches!(args[1], Arg::Word(_)));
+        assert!(args.iter().all(|a| !a.is_option() || *a == Arg::Word("-protocol_whitelist")));
     }
 
     #[test]

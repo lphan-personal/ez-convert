@@ -98,17 +98,7 @@ pub fn probe_source(
         plan::Family::Video => {
             let kinds = run_probe(
                 paths,
-                vec![
-                    super::plan::Arg::Word("-v"),
-                    super::plan::Arg::Word("error"),
-                    super::plan::Arg::Word("-show_entries"),
-                    super::plan::Arg::Word("stream=codec_type"),
-                    super::plan::Arg::Word("-show_entries"),
-                    super::plan::Arg::Word("format=duration"),
-                    super::plan::Arg::Word("-of"),
-                    super::plan::Arg::Word("default=nw=1"),
-                    super::plan::Arg::Path(super::plan::PathRef::Input, Default::default()),
-                ],
+                super::ffmpeg::build_probe_streams(),
                 input,
                 cwd,
             )?;
