@@ -26,8 +26,10 @@ use super::types::{
 
 /// C2 — media pipeline (vips images, ffmpeg audio/video).
 pub const OWNER_C2: CardId = CardId("t_dc07a72e");
-/// C3 — document pipeline (soffice, pandoc, rust crates).
-pub const OWNER_C3: CardId = CardId("t_ea95c826");
+/// C3b — the remaining document directions. `C3` (`t_ea95c826`) shipped the pipeline and
+/// flipped 22 cells; the cells still `Planned` are owned by the follow-up it filed, so a
+/// planned route never points at a finished card.
+pub const OWNER_C3: CardId = CardId("t_f8d19f60");
 /// C4 — output rules. No route is owned here today; kept for symmetry.
 pub const OWNER_C4: CardId = CardId("t_b2723c61");
 
