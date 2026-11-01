@@ -442,7 +442,8 @@ const PLANNED_PDF_IN: RouteStatus = RouteStatus::Planned {
 };
 const PLANNED_DOC: RouteStatus = RouteStatus::Planned {
     owner: OWNER_C3,
-    hypothesis: "LibreOffice filter exists but this direction has no fixture yet",
+    hypothesis: "not offered in v1: C3's probe result for this pair (pass, family-filter fail, \
+                  or not run) is on the owning card, which flips it or cuts it",
 };
 const PLANNED_DOC_CRATE: RouteStatus = RouteStatus::Planned {
     owner: OWNER_C3,

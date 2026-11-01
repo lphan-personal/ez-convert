@@ -251,7 +251,7 @@ specified dead.
 | pdf | rtf | soffice | cut | no raster-to-writer path for PDF input (ARCHITECTURE 8.3) |
 | pdf | xlsx | soffice | cut | no raster-to-writer path for PDF input (ARCHITECTURE 8.3) |
 | pdf | csv | soffice | cut | no raster-to-writer path for PDF input (ARCHITECTURE 8.3) |
-| pdf | txt | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| pdf | txt | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | mp3 | mp3 | ffmpeg | PROVEN | C2-AUDIO-MP3 — every audio source -> mp3 PASS (6 of 6, explicit -ar/-sample_fmt) |
 | mp3 | wav | ffmpeg | PROVEN | C2-AUDIO-WAV — every audio source -> wav PASS (6 of 6) |
 | mp3 | flac | ffmpeg | PROVEN | C2-AUDIO-FLAC — every audio source -> flac PASS (6 of 6) |
@@ -324,22 +324,22 @@ specified dead.
 | docx | pdf | soffice | PROVEN | D1 — docx -> pdf: 26,460 B (Linux) / 39,946 B (Windows), 1 page 612x792 pt |
 | docx | md | soffice | PROVEN | D2 — docx -> md: 389 B Linux / 404 B Windows, real Markdown |
 | docx | html | soffice | PROVEN | D3 — docx -> html: 4,064 B, h1 + table + 13 p |
-| docx | xlsx | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| docx | xlsx | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | docx | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
-| docx | rtf | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| docx | rtf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | docx | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
-| docx | txt | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
-| xlsx | pdf | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| docx | txt | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
+| xlsx | pdf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | xlsx | md | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
-| xlsx | html | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| xlsx | html | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | xlsx | docx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | xlsx | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | xlsx | rtf | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | xlsx | csv | soffice | PROVEN | D5 — xlsx -> csv: 147 B, named <stem>-<sheet>.csv |
-| xlsx | txt | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| xlsx | txt | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | pptx | pdf | soffice | PROVEN | D7 — pptx -> pdf: 33,957 B, 2 pages 720x540 pt |
-| pptx | md | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
-| pptx | html | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| pptx | md | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
+| pptx | html | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | pptx | docx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | pptx | xlsx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | pptx | rtf | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
@@ -350,66 +350,66 @@ specified dead.
 | doc | html | soffice | PROVEN | C3-DOC-HTML — doc -> html PASS both legs (4,352 B Linux / 4,427 B Windows) |
 | doc | docx | soffice | PROVEN | C3-DOC-DOCX — doc -> docx PASS both legs (8,771 B Linux / 8,791 B Windows) |
 | doc | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
-| doc | rtf | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| doc | rtf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | doc | xlsx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | doc | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | doc | txt | soffice | PROVEN | C3-DOC-TXT — doc -> txt PASS both legs (341 B Linux / 349 B Windows via txt:Text (encoded):UTF8) |
 | xls | pdf | soffice | PROVEN | C3-XLS-PDF — xls -> pdf PASS both legs with pdf:calc_pdf_Export (26,212 B / 41,142 B) |
-| xls | md | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| xls | md | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | xls | html | soffice | PROVEN | C3-XLS-HTML — xls -> html PASS both legs with html:HTML (StarCalc) (5,235 B / 5,330 B) |
 | xls | docx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | xls | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | xls | rtf | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | xls | xlsx | soffice | PROVEN | C3-XLS-XLSX — xls -> xlsx PASS both legs (7,327 B / 7,330 B, workbooks re-opened) |
 | xls | csv | soffice | PROVEN | C3-XLS-CSV — xls -> csv PASS both legs, named <stem>-<sheet>.csv (147 B / 151 B) |
-| xls | txt | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| xls | txt | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | ppt | pdf | soffice | PROVEN | C3-PPT-PDF — ppt -> pdf PASS both legs with pdf:impress_pdf_Export (33,915 B / 79,102 B) |
-| ppt | md | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
-| ppt | html | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| ppt | md | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
+| ppt | html | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | ppt | docx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | ppt | pptx | soffice | PROVEN | C3-PPT-PPTX — ppt -> pptx PASS both legs (pptx:Impress MS PowerPoint 2007 XML) |
 | ppt | rtf | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | ppt | xlsx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | ppt | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
-| ppt | txt | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| ppt | txt | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | rtf | pdf | soffice | PROVEN | C3-RTF-PDF — rtf -> pdf PASS both legs (13,100 B / 13,335 B) |
-| rtf | md | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| rtf | md | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | rtf | html | soffice | PROVEN | C3-RTF-HTML — rtf -> html PASS both legs (668 B / 687 B) |
 | rtf | docx | soffice | PROVEN | C3-RTF-DOCX — rtf -> docx PASS both legs (5,015 B / 5,041 B) |
 | rtf | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | rtf | xlsx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | rtf | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | rtf | txt | soffice | PROVEN | C3-RTF-TXT — rtf -> txt PASS both legs (33 B / 34 B) |
-| csv | pdf | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| csv | pdf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | csv | md | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | csv | html | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | csv | docx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | csv | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | csv | rtf | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | csv | xlsx | soffice | PROVEN | D4 — csv -> xlsx: 5,802 B, numeric cells, UTF-8 via filter options |
-| csv | txt | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
-| md | pdf | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| csv | txt | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
+| md | pdf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | md | html | rust-crate | planned | t_f8d19f60 — in-process comrak/htmd conversion; unmeasured |
-| md | docx | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| md | docx | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | md | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
-| md | rtf | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| md | rtf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | md | xlsx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | md | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
-| md | txt | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
-| html | pdf | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| md | txt | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
+| html | pdf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | html | md | rust-crate | planned | t_f8d19f60 — in-process comrak/htmd conversion; unmeasured |
 | html | docx | soffice | PROVEN | D6 — html -> docx: 6,863 B, real 2x2 Word table |
 | html | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
-| html | rtf | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| html | rtf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | html | xlsx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | html | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
-| html | txt | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
-| txt | pdf | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| html | txt | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
+| txt | pdf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | txt | md | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | txt | html | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
-| txt | docx | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| txt | docx | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | txt | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
-| txt | rtf | soffice | planned | t_f8d19f60 — LibreOffice filter exists but this direction has no fixture yet |
+| txt | rtf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | txt | xlsx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | txt | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 <!-- matrix:end -->

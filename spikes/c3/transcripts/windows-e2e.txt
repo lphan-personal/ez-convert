@@ -1,0 +1,53 @@
+2026-11-01T21:20:46Z reverified on c3-doc @ 2410edb
+warning: unused import: `ALL_TARGETS`
+  --> /opt/data/kanban/boards/ezconvert/workspaces/t_ea95c826/repo/src-tauri/src/model/matrix.rs:20:26
+   |
+20 |     ALL_CANONICAL_TYPES, ALL_TARGETS,
+   |                          ^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: 1 warning emitted
+
+-rwxr-xr-x 1 hermes hermes 5491521 Nov  1 21:20 /opt/data/profiles/wright/cache/scratch/ezc-c3-e2e.186489/ezc-c3-e2e.exe
+--- windows leg ---
+=== EZ Convert C3 document matrix ===
+fixtures: C:\ezc\fixtures
+work:     C:\ezc\work
+launcher: soffice.com
+engine: LibreOffice 26.8.2.2 9dea406ab7695df6325b11b0e19fdca8db4b7276  (matches the pin)
+PASS  warm-up            fresh profile 216 ms, warm 200 ms, profile bootstrapped
+--- advertised directions (matrix Proven) ---
+PASS  Csv -> xlsx        5796 B  1573 ms  xlsx container with xl/workbook.xml
+PASS  Doc -> docx        8791 B  1572 ms  docx container with word/document.xml
+PASS  Doc -> html        4427 B  1571 ms  4427 bytes of html
+PASS  Doc -> md          400 B  1539 ms  400 bytes of markdown, marker present
+PASS  Doc -> pdf         46489 B  1614 ms  1 page(s)
+PASS  Doc -> txt         349 B  1569 ms  349 bytes of text
+PASS  Docx -> html       4134 B  1872 ms  4134 bytes of html
+PASS  Docx -> md         404 B  1905 ms  404 bytes of markdown, marker present
+PASS  Docx -> pdf        46489 B  1947 ms  1 page(s)
+PASS  Html -> docx       5380 B  1420 ms  docx container with word/document.xml
+PASS  Ppt -> pdf         79102 B  1709 ms  2 page(s)
+PASS  Ppt -> pptx        10258 B  1736 ms  pptx container with ppt/presentation.xml
+PASS  Pptx -> pdf        79145 B  1903 ms  2 page(s)
+PASS  Rtf -> docx        5041 B  1859 ms  docx container with word/document.xml
+PASS  Rtf -> html        687 B  1827 ms  687 bytes of html
+PASS  Rtf -> pdf         13335 B  1827 ms  1 page(s)
+PASS  Rtf -> txt         34 B  1789 ms  34 bytes of text
+PASS  Xls -> csv         151 B  1531 ms  produced as xls-to-csv.csv, source cell present
+PASS  Xls -> html        5330 B  1539 ms  5330 bytes of html
+PASS  Xls -> pdf         41142 B  1931 ms  2 page(s)
+PASS  Xls -> xlsx        7330 B  1583 ms  xlsx container with xl/workbook.xml
+PASS  Xlsx -> csv        151 B  1562 ms  produced as xlsx-to-csv.csv, source cell present
+--- batching ---
+PASS  batch 8            8 outputs in 3798 ms = 475 ms/file
+PASS  3 individual       3 outputs in 5863 ms = 1954 ms/file
+      batch speedup: 4.12x  (475 ms/file batched vs 1954 ms/file spawned)
+--- negative controls ---
+PASS  trap text.doc→pdf  detected Txt, document targets offered: []
+PASS  trap refusal       refused before spawning
+PASS  truncated.docx     reported error: Unknown -> Pdf has no measured LibreOffice filter
+PASS  missing input      reported: path does not exist: C:\ezc\work\does-not-exist.docx
+--- summary ---
+29 passed, 0 failed
