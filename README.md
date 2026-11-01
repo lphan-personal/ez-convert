@@ -10,6 +10,12 @@ Prior art, reference-policy and licensing rules live in `docs/PRIOR_ART.md`,
 `docs/REFERENCE_POLICY.md` and `docs/LICENSES.md`. They are binding on every card: read
 `docs/REFERENCE_POLICY.md` before pushing.
 
+`docs/ARCHITECTURE.md` is the engineering contract for everything that converts or draws a
+window: crate/module layout, engine invocation contracts (with the measured argv), the
+detection → target-matrix pipeline, the wheel state machine, the error model, the settings
+schema and the undo journal. It is a byte-identical mirror of the canonical copy kept beside
+`SPEC.md`; `cmp` them before changing either.
+
 ---
 
 ## Repo map
