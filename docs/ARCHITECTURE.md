@@ -428,10 +428,15 @@ false`), `libaom` linked for AVIF encode. Layout: `vips.exe` + `vipsheader.exe` 
 `vipsthumbnail.exe` + 32 DLLs + `licenses/`. **Ship the whole directory**, not the exe:
 `vips.exe` is a 62 KB launcher over `libvips-42.dll` (S2 F4).
 
-⚠ The AVIF round-trip was proven on the **S2b** dist (37 files / 35,649,889 B). The current
-dist (43 files, +licence texts, after the libtiff/JBIG rebuild) carries relinked binaries
-(`libvips-42.dll` sha changed) and **has not re-run that suite**. Re-running it is part of the
-CI vips contract test (`§19`) and a precondition for advertising avif output.
+⚠ **Closed 2026-11-01 (`spikes/s4/EVIDENCE.md` §1).** The AVIF round-trip was originally proven
+on the **S2b** dist (37 files / 35,649,889 B); the shipped dist was relinked afterwards by the
+libtiff/JBIG rebuild. The unchanged `18-avif-tests.sh` (sha256 `d5314fbf…74224`) was re-run
+against the final dist and reports **34 assertions, 0 failures** — jpg→avif→jpg with all four
+`exif-ifd0-*` tags and the 3,144 B sRGB ICC surviving, orientation-6 landing at 1152×1728 with no
+stale `Orientation` left to double-rotate, avif→jpg via dav1d, HEIC decode unchanged, `--encoder
+aom` accepted, 0 banned imports, no `libjbig-0.dll`. The 43-file / 35,824,560 B dist tested is
+hash-identical to the S2c manifest (`FINAL-dist-spec-aom-sha256.txt`, 43/43 entries, 0
+mismatches). Avif output is `Proven` on the artifact that ships; nothing in the wheel moves.
 
 Measured invocations (Windows 11 Pro 26200, MSYS2/UCRT64 build; evidence: `S2 §1`-`§3`,
 `build/windows/EVIDENCE-S2-libvips.md`, `t_65624d81`):
@@ -586,19 +591,32 @@ there vs 34,607 B on Linux). Same metrics, different outlines: "layout-faithful"
 "pixel-identical", never "Word-identical" (`SPEC.md` §4). **Aptos remains unbundled with no
 metric clone** — modern Word documents will reflow; do not claim otherwise.
 
-#### 6.2.4 Windows text-layer caveat (affects our validators, not the conversion)
+#### 6.2.4 Windows text layer — measured in real viewers, 2026-11-01
 
-On Windows, `docx → pdf` renders accented Latin correctly and the PDF is correct, but
-`pypdf 6.21.4` text extraction of the Cambria subset returns control characters where `é`
-/ `ï` should be (`cafe\x1c`, `naï\x1f`); the subset's `ToUnicode` CMap is missing exactly
-those two codes, and PyMuPDF recovers the character by falling back to the embedded font's
-cmap. Consequences for this architecture:
+On Windows, `docx → pdf` renders accented Latin correctly and the PDF is correct, but the
+**text layer** is degraded: `pypdf 6.21.4` extracts `cafe\x1c` / `naï\x1fve` because the Cambria
+subset's `ToUnicode` CMap is missing exactly `0x1C` and `0x1F`. That finding was originally a
+library result, so it was tested in **real viewers** (`spikes/s4/EVIDENCE.md` §2) on a fresh
+conversion of the S3 fixture (39,946 B, `%PDF-1.7`):
+
+| viewer | renders `café – naïve → 中文` | find `café` | copy / screen-reader text |
+|---|---|---|---|
+| Chrome 156 (PDFium) | yes | **1 of 1** | `caf[00E9] – na[00EF]ve → 中文` — correct |
+| Brave 156 (PDFium) | yes | **1 of 1** | `caf[00E9] – na[00EF]ve → 中文` — correct |
+| Edge 156 (Adobe-Acrobat-branded PDF engine) | yes | **1 of 1**, highlighted | `cafe ` — **the `é` is dropped** |
+| `pdf.js` 5.7.284 (Firefox's text layer) | — | — | `caf e[1C] – na ï[1F] ve` — same defect as pypdf |
+
+Verdict: **some viewers are affected.** Consequences for this architecture:
 
 - **No validator may depend on text extraction of non-ASCII characters.** `§6.0.5` validates
-  PDFs by header + page count, not by text. That is now load-bearing, not incidental.
-- The app must **not** advertise "searchable text intact" on Windows until a real viewer test
-  (Acrobat / Chrome PDFium / Edge / Preview) is done — relevant for a Vietnamese user base.
-  The conversion itself is fine (`html`/`csv` outputs keep `café` correctly on both legs).
+  PDFs by header + page count, not by text. Confirmed by two independent engines, not one
+  library; load-bearing, not incidental.
+- The app **must not** advertise "searchable text intact" / "text stays searchable" on Windows.
+  Rendering and in-viewer search are fine; copying accented text out is not, outside PDFium.
+  This matters for a Vietnamese user base and is a **LibreOffice Windows exporter** behaviour,
+  not something the packaging introduces.
+- Not measured: Acrobat Reader itself (not installed on the build host) and macOS Preview. Do not
+  extend the table above by assumption.
 
 
 Negative controls, all measured — these define the error model:
@@ -1247,7 +1265,7 @@ do not each decide differently. Each needs `warden` (security/licence) or the st
 | 17.7 | **No idle auto-dismiss** in v1 | an unmeasured dismissal path can only lose work | none |
 | 17.8 | Undo is **same-session only**; a crash abandons the journal without deleting | deleting files after a restart is unrecoverable; keeping them is not | none |
 | 17.9 | PDF raster input is **page 1** in v1 (`pdf.page` exists in settings) | `SPEC.md` is silent; page 1 is the predictable default and multi-page output is a product decision | stakeholder (minor) |
-| 17.10 | AVIF output is **proven** (`heifsave` + `--compression av1 --Q 60 --effort 6 --bitdepth 8`, EXIF+ICC survive, 33/33 assertions on the S2b dist) — but it must be re-proven on the final dist before it is advertised (`§6.1`), and `SPEC.md` §9.3 needs its `speed`→`effort` correction | the parameter name in the spec is wrong; the round-trip is measured | stakeholder (spec correction), CI re-run |
+| 17.10 | AVIF output is **proven on the dist that ships**: `heifsave` + `--compression av1 --Q 60 --effort 6 --bitdepth 8`, EXIF+ICC survive, and the unchanged suite now reports **34/34 on the final 43-file dist** (`spikes/s4/EVIDENCE.md` §1, 2026-11-01). `SPEC.md` §9.3's `speed`→`effort` correction already landed in `t_803b8add` | the parameter name in the spec was wrong; the round-trip is now measured twice, on both dists | none — discharged |
 
 ---
 
@@ -1308,16 +1326,19 @@ fixture (a known input with known output properties) and a test that consumes it
    owns the measurement; nothing in this document should be read as an ffmpeg design.
 2. **PDFium and resvg argv are unspecified** — the binaries were never built or run in this
    project (`§6.4`, `§6.5`).
-3. **AVIF is proven on the S2b dist, not on the final one.** The round-trip suite (33
-   assertions) ran against 37 files / 35,649,889 B; the shipped dist was relinked afterwards by
-   the libtiff/JBIG rebuild. Re-running that suite on the final dist is a release gate (`§19`),
-   not a formality.
+3. ~~**AVIF is proven on the S2b dist, not on the final one.**~~ **Closed 2026-11-01.** The
+   unchanged suite was re-run against the final dist: 34 assertions, 0 failures, on a directory
+   hash-identical to the S2c manifest (`spikes/s4/EVIDENCE.md` §1). The CI vips contract test
+   (`§19`) still has to reproduce it, but the measurement now exists on the shipping artifact.
 4. **macOS is unmeasured for every contract in this document**, including the wheel
-   (`§10.5`). S1-S3 ran on Windows (S1, S2) and Linux (S3).
+   (`§10.5`). S1-S4 ran on Windows (S1, S2, S4) and Linux (S3).
 5. **Windows LibreOffice is measured for the seven document directions** (`spikes/s3/EVIDENCE.md`
-   §9, card `t_20ced994`) but **not** for: real-viewer text fidelity (Acrobat/Chrome/Edge were
-   not tested, §6.2.4), very large documents, or the bundled-tree layout `P2` will ship. Legacy
-   `.doc/.xls/.ppt` are unmeasured on both platforms.
+   §9, card `t_20ced994`) and now for **real-viewer text fidelity** in Chrome, Edge and Brave
+   plus Firefox's `pdf.js` text layer (`spikes/s4/EVIDENCE.md` §2, `§6.2.4`) — which is where the
+   accented-text caveat was confirmed as a real cross-engine defect. Still **not** measured:
+   Acrobat Reader itself, macOS Preview, Vietnamese stacked diacritics, very large documents, and
+   the bundled-tree layout `P2` will ship. Legacy `.doc/.xls/.ppt` are unmeasured on both
+   platforms.
 6. **Timeouts and concurrency defaults are safety limits, not measurements.** No large file
    has been converted yet.
 7. **Legacy binary Office formats** (`.doc/.xls/.ppt`) have no fixture on either platform, so
@@ -1334,6 +1355,8 @@ fixture (a known input with known output properties) and a test that consumes it
 | vips build, dist contents, import audit, HEIC decode, orientation, the four copy directions | `build/windows/EVIDENCE-S2-libvips.md`; card `t_7d0ad299` |
 | JBIG TIFF silent black frame vs `tiffload --fail-on error` | `t_65624d81` (`jbig-c34661-probe.txt`, `S2C-FIX-REPORT.md` §5) |
 | avif save/decode, `effort`-not-`speed`, EXIF+ICC survival, `--encoder` rc=0 trap, config-lying trap | `build/windows/EVIDENCE-S2b-avif-encode.md`; card `t_803b8add` (warden-approved) |
+| **avif re-proven on the final dist** (34/34, EXIF IFD0 ×4 + 3,144 B ICC through jpg→avif→jpg, orientation-6 at 1152×1728 with no stale tag, dav1d decode, dist hash-identical to S2c) | `spikes/s4/EVIDENCE.md` §1 + `artifacts/avif-final.log`, `artifacts/FINAL-dist-spec-aom-sha256.txt`; card `t_61e55863` |
+| **real-viewer text fidelity for Windows `docx → pdf`** (Chrome/Brave/Edge GUI: render, find result, clipboard via `CF_UNICODETEXT`; Edge + `pdf.js` lose `é`, PDFium keeps it) | `spikes/s4/EVIDENCE.md` §2 + `artifacts/*-clipboard.txt`, `artifacts/*-uia*.txt`, `artifacts/*.png`; card `t_61e55863` |
 | vips argv hardening (system op, leading `--`, UNC, traversal, env) | `warden` audit `t_cccf4bf3`, condition C-3 |
 | 7 document directions, argv, timings, failure modes, fidelity (Linux leg) | `spikes/s3/EVIDENCE.md` §1-§8, `spikes/s3/run_s3.py`, `result.json`; card `t_d910a4c8` |
 | the same 7 directions on **Windows**, `soffice.com` vs `soffice.exe` vs `soffice.bin`, file-URL profile rule, real Calibri/Cambria, text-layer degradation, install-cold 5,111 ms | `spikes/s3/EVIDENCE.md` §9, `spikes/s3/run.ps1`; card `t_20ced994` |

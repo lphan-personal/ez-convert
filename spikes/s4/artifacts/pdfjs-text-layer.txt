@@ -1,0 +1,16 @@
+pdfjs version : 5.7.284
+pages         : 1
+chars         : 361
+cafe accent   : false
+cafe + 0x1c   : false
+naive ok      : false
+naive + 0x1f  : false
+cjk           : true
+MARKER-ALPHA  : true
+excerpt       : " fixture  MARKER-ALPHA this paragraph proves text survives the conversion. caf e\u001c   – na ï\u001f ve →   中文  Second paragraph with a tab"
+
+# command: node pdfjs_text.mjs C:\build\s4\pdf\out\sample.pdf C:\build\s4\pdf\pdfjs-text.txt
+# pdfjs-dist 5.7.284 installed into C:\build\s4\nodepdf (npm install pdfjs-dist@5)
+# NOTE: 'cafe + 0x1c' is false only because pdf.js emits text items with spaces between them
+#       ("caf" + " e\u001c"); the excerpt shows the 0x1c byte is present at the same position
+#       pypdf reports it. The accent is absent in both.

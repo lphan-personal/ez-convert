@@ -1,0 +1,10 @@
+# S4 item 2 — docx -> pdf on Ryo-PC, the S3-proven argv, fresh profile (console output verbatim)
+# host: Ryo-PC (Windows 11 Pro 26200), user ryoin, LibreOffice 26.8.2.2
+# command: powershell -NoProfile -ExecutionPolicy Bypass -File C:\build\s4\convert.ps1
+soffice       : C:\Program Files\LibreOffice\program\soffice.com  exists=True
+input         : C:\build\s4\pdf\in\sample.docx  size=37058  sha256=C760304BAD00D1AFBA8A4289E84CAAC2C38DA84094B9F5418BD5D41BE32C6347
+rc            : 0
+wall_ms       : 2653
+stdout/stderr :
+  convert C:\build\s4\pdf\in\sample.docx as a Writer document -> C:\build\s4\pdf\out\sample.pdf using filter : writer_pdf_Export
+output        : sample.pdf  39946 B  sha256=D962480477BC053B9DA5CFA0A706D14818D93A16D1EDD32D01FDEB4772FA3534
