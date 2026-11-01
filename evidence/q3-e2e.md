@@ -3,6 +3,9 @@
 Card `t_9a4c622d`. Suite: `scripts/e2e.sh` (code in `e2e/q3/`, README there).
 Transcripts: `evidence/q3-e2e/` (`transcript.txt`, `report.tsv`, `report.json`,
 `matrix.md`, `fault-injection.txt`).
+Windows leg (card `t_4b6ee179`): `evidence/q3-e2e/windows.txt`,
+`windows-report.tsv`, `windows-report.json`, `windows-matrix.md`,
+`windows-fault-injection.txt`.
 
 **Result on this container (Linux leg, 2026-11-01):**
 
@@ -22,6 +25,34 @@ The 6 SKIPs are the six `→ avif` directions: this test dist has `libheif` and 
 AV1 *decoder* but no AV1 *encoder*, so `heifsave` answers `Unsupported compression`.
 They stay `Proven` on the Windows dist (`V8`, `spikes/c2/EVIDENCE-WINDOWS.md`) and
 the row says so; nothing is silently green. `--strict` turns any SKIP into a red run.
+
+**Result on the shipping Windows dist (VM `win11-dev`, 2026-11-01, card
+`t_4b6ee179`)** — same suite, same fixtures, the 43-file `spec-aom` vips dist and
+a LGPL-only ffmpeg:
+
+```
+advertised=154  pass=150  fail=4  skip=0  controls=13/13 caught
+SUMMARY RED  (4 direction failure(s), 0 control(s) not caught)
+```
+
+| family | advertised | pass | fail | skip |
+|---|---|---|---|---|
+| image | 37 | 33 | 4 | 0 |
+| audio | 49 | 49 | 0 | 0 |
+| video | 20 | 20 | 0 | 0 |
+| document | 42 | 42 | 0 | 0 |
+
+Zero SKIP: the AVIF encoder is present, so all six `→ avif` directions actually
+run. Two of them pass; four are **red** — not because AVIF is broken (the encode,
+geometry and mean all verify) but because the `strip` half of the metadata policy
+cannot complete on an AVIF target. That is a real engine defect the Linux leg
+could not reach, measured and written up in *The Windows leg* below. Nothing here
+flips a matrix cell: the four rows are a finding for the matrix owner.
+
+Note on arithmetic: the suite's summary line counts its six `policy`/`preflight`
+rows together with the direction rows, which is where `154` comes from on both
+legs (`148` directions + `6` preflight). The per-family table counts directions
+only: 148 directions, 144 PASS, 4 FAIL, 0 SKIP.
 
 ## What "advertised" means here, mechanically
 
@@ -99,6 +130,139 @@ cannot go red is not evidence.
    `plugin_env_maps_an_unpacked_tree_and_stays_empty_otherwise`). Nine directions
    (heic/avif *decode*) went from unreachable to green.
 
+## The Windows leg — the shipping dist (card `t_4b6ee179`)
+
+The Linux leg cannot answer one question about itself: does the suite still
+describe the product when the AVIF encoder *is* present? This leg runs the same
+`scripts/e2e.sh` against the dist the app actually ships, on a dedicated Windows
+11 VM.
+
+### Environment (measured on the VM, not assumed)
+
+| item | value |
+|---|---|
+| host | `win11-dev` (pve-ryo VM 110), Windows 11 Pro 10.0.26200.6584, 6 vCPU, 8 GB |
+| vips | 8.18.7, `spec-aom` dist at `C:\ezc\dist` — 43 files / 35,824,560 B, **43/43 sha256 + size identical** to `spikes/s4/artifacts/FINAL-dist-spec-aom-sha256.txt`, re-hashed on the VM |
+| ffmpeg | `N-128273-g836436cfb9-20261101`, BtbN `win64-lgpl`, `C:\ezc\ffmpeg` |
+| LibreOffice | 26.8.2.2 (`9dea406ab7695df6325b11b0e19fdca8db4b7276`), `C:\Program Files\LibreOffice\program` |
+| checkout | origin/main tree of `cb05606` at `C:\msys64\ezc\repo2`; tree hash over every file (`.git` excluded) `78a84f470a56ecef410ff76ca9d759050e50a886a5d56bb4f7e688742351ccc3`, computed independently on the Linux and Windows sides and equal |
+| rust | rustc/cargo 1.99.1, host `x86_64-pc-windows-gnu` |
+| shell | MSYS2 bash 5.3.20 |
+| fixtures | 47 files — the repo `fixtures/` at that commit |
+
+Two setup facts worth recording, because they are not obvious and they are not a
+change to the product:
+
+- The VM has no Rust, no MSVC and no mingw. Rust was installed with
+  `rustup --default-host x86_64-pc-windows-gnu`, and the windows-gnu link uses
+  the toolchain's own `rust-lld` against its self-contained mingw import
+  libraries (`RUSTFLAGS="-Clinker=rust-lld -Clink-self-contained=y"`). No
+  compiler install and no MSVC build tools, so the linked code is the same Rust
+  the suite is built from anywhere else.
+- The runner is POSIX bash: MSYS2 base 5.3.20, unpacked from a mirror because the
+  VM cannot reach github.com. MSYS2's `/` is `C:\msys64`, so the checkout sits
+  under it (`/ezc/repo2` = `C:\msys64\ezc\repo2`) with a junction
+  `C:\ezc\repo2` → that path; that is what makes the POSIX-style absolute paths
+  `scripts/e2e.sh` embeds in the generated crate resolve for native `rustc`.
+  No file in the repo was edited for the leg.
+
+### What was run
+
+```bash
+bash scripts/e2e.sh                                    # media + documents
+bash scripts/e2e.sh --media-only --inject=drop-output  # the gate must go red
+```
+
+with `EZC_VIPS_DIR`, `EZC_FFMPEG_DIR` and `EZC_SOFFICE_DIR` pointing at the three
+engine locations above. The driver around it only exports those and `cd`s into the
+checkout; it does not touch argv, the table or the counts.
+
+### The six `→ avif` directions, as the suite printed them
+
+| direction | verdict | what the row says |
+|---|---|---|
+| `jpeg->avif` | **FAIL** | encode verified (899 B, 64×48, mean 124.9); `strip run failed: output failed verification: …/meta-jpeg-to-avif-strip.avif is missing` |
+| `png->avif` | **FAIL** | same shape — 875 B encoded, strip output missing |
+| `webp->avif` | **FAIL** | same shape — 971 B encoded, strip output missing |
+| `tiff->avif` | **FAIL** | same shape — 875 B encoded, strip output missing |
+| `heic->avif` | PASS | 990 B, 200×400, `meta=n/a: no heic fixture carrying EXIF/ICC can be produced on this dist` |
+| `gif->avif` | PASS | 964 B, 64×48, `meta=n/a: no gif fixture carrying EXIF/ICC…` |
+
+So: the AVIF **encoder** works on this dist (all six encode, geometry and mean
+verify, the two rows whose metadata policy is `n/a` pass end to end). What fails
+is the `strip` half of the metadata policy, and only where a metadata-bearing
+source of the same input type exists — that is exactly the four rows above.
+
+### Finding: the AVIF `strip` path is broken, in two independent ways
+
+Both were measured on the VM, with the shipped dist, outside the suite, and then
+confirmed in the suite's own output directory.
+
+1. **A bracket on a `heifsave` filename argument is a literal filename, not
+   options.** `model`→`plan` renders `strip` into the saver path as
+   `out.avif[strip]`. Ops whose output is a `VipsImage` (`copy`, `autorot`,
+   `thumbnail`, `resize`) parse that bracket; ops whose output is a plain
+   filename string do not. Measured:
+
+   ```
+   vips heifsave in.jpg "out.avif[strip]" --compression av1 … --strip
+     → exit 0, no stderr, nothing at out.avif
+     → a file named  out.avif[strip]  appears (1740 B)
+   vips pngsave  in.jpg "out.png[strip]"     → same: out.png[strip] (3681 B)
+   vips copy     in.jpg "out.png[strip]"     → out.png (2885 B), metadata gone
+   ```
+
+   The suite's own work dir shows the consequence for all four red rows:
+   `meta-jpeg-to-avif-strip.avif[strip]`, `meta-png-…`, `meta-webp-…`,
+   `meta-tiff-…` — 1740 / 1715 / 1566 / 1739 B. The requested path never exists,
+   so `convert::convert` reports `Verify`, which is the row text above.
+
+2. **`--keep all` beats `--strip`.** The AVIF argv passes both. Measured on the
+   same source, `vipsheader -a` for EXIF presence and file size:
+
+   | argv | bytes | EXIF after save |
+   |---|---|---|
+   | `--keep all` (the keep run) | 1740 | present |
+   | `--keep all --strip` (what the plan sends) | 1740 | **present** |
+   | `--strip` alone | 760 | absent |
+
+   So even once (1) is fixed, the strip run would still carry the source's EXIF
+   and the metadata policy would still fail — the fix has to drop `--keep all`
+   when stripping, not just the bracket.
+
+Impact: a user who asks for AVIF output **with metadata stripped** does not get
+a file at the requested path; they get a stray `*.avif[strip]` name in the
+destination folder. The keep path is unaffected. Nothing was changed here: this
+card runs the suite, the fix belongs to the engine owner and is filed as card
+`t_ade3f5a7`. The four red rows are reported to the matrix owner as-is — no cell
+was flipped, and the matrix still says `Proven` only where it already said so.
+
+### The gate is not Linux-only
+
+`bash scripts/e2e.sh --media-only --inject=drop-output` on the same VM:
+
+```
+FAIL  image     jpeg->jpg   output missing or empty: C:/ezc/q3work\out\jpeg-to-jpg.jpg is missing
+…
+SUMMARY RED  (5 direction failure(s), 0 control(s) not caught) — see report.tsv
+EXIT=1
+```
+
+Five, not one: the injected fault plus the four real AVIF `strip` failures above.
+Exit code 1, `SUMMARY RED` — the same red the Linux leg produces
+(`windows-fault-injection.txt`).
+
+### The leg is deterministic
+
+The full suite was run twice at the same head. After removing timings and byte
+counts the two transcripts are identical except for the report-directory line;
+both report `154/150/4/0`, `13/13` controls. The committed transcript is the
+second run.
+
+Artifacts: `windows.txt` (full transcript), `windows-report.tsv`,
+`windows-report.json`, `windows-matrix.md` (the 154 rows),
+`windows-fault-injection.txt` (the injected run).
+
 ## How to run it
 
 ```bash
@@ -111,12 +275,18 @@ bash scripts/e2e.sh                 # add --strict to fail on SKIP
 On the CI runner (`ubuntu-latest`) the workflow job `e2e` installs test-only
 engines (`libvips-tools`, `ffmpeg`, `libreoffice-core/writer/calc/impress`), runs
 the suite, runs the fault-injection gate, and uploads `e2e-report/` + `e2e.log`.
-Windows parity remains `forge`'s card (`t_44676171`, the shipping dist).
+On Windows the same two commands run under MSYS2 bash against the shipping dist
+(card `t_4b6ee179`; environment, tree hash and the driver's env vars in *The
+Windows leg* above). The media matrix measured by hand on that dist is
+`spikes/c2/EVIDENCE-WINDOWS.md` (card `t_44676171`).
 
 ## Gaps, stated
 
-- **AVIF output** (6 directions) is measured on the Windows dist only; this box has
-  no AV1 encoder. SKIP, never PASS.
+- **AVIF output** (6 directions): this box has no AV1 encoder, so the Linux leg is
+  all SKIP. The Windows leg (`windows.txt`) runs all six — 2 PASS, and 4 red on the
+  `strip` half of the metadata policy because of a real engine defect (bracket
+  filename + `--keep all` vs `--strip`, card `t_ade3f5a7`). The AVIF encode itself
+  is measured and passes there; the strip path is not green on any dist yet.
 - **macOS** is unmeasured for every direction: nothing here ran on a Mac.
 - The **CI verdict for this head** is not observable from this container (Contents
   scope only; Actions API 403). The suite is wired into `.github/workflows/build.yml`
