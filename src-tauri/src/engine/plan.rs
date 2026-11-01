@@ -280,8 +280,6 @@ pub struct Request<'a> {
 pub enum PlanError {
     /// The matrix says this direction is not routed (Planned or Cut).
     NotRouted { from: CanonicalType, to: TargetFormat },
-    /// Same-family no-op; the queue should skip it rather than re-encode.
-    SameFormat(TargetFormat),
     /// The option does not apply to this media family.
     BadOption(&'static str),
     /// Facts missing: the caller must probe before planning.
@@ -296,7 +294,6 @@ impl std::fmt::Display for PlanError {
             PlanError::NotRouted { from, to } => {
                 write!(f, "{:?} -> {:?} has no routed engine", from, to.extension())
             }
-            PlanError::SameFormat(t) => write!(f, "already {}", t.as_str()),
             PlanError::BadOption(what) => write!(f, "option does not apply: {what}"),
             PlanError::FactsMismatch(what) => write!(f, "missing source facts: {what}"),
             PlanError::Path(e) => write!(f, "{e}"),
@@ -316,9 +313,13 @@ impl From<PathError> for PlanError {
 
 /// Build the plan for one conversion. Pure.
 pub fn plan(req: &Request<'_>) -> Result<Plan, PlanError> {
-    if req.to == from_extension_target(req.from) {
-        return Err(PlanError::SameFormat(req.to));
-    }
+    // Identity (`from` and `to` are the same format) is a **real direction**
+    // here, not a skip: the target matrix only models it where the re-encode
+    // does work the user can ask for — jpg autorot/compress (`V6`), an audio
+    // bitrate change, a video trim/resize. Refusing it made twelve wheel-visible
+    // targets unconvertible (found by the Q3 suite, card `t_9a4c622d`), so the
+    // planner now treats `from == to` like any other target and lets the plan
+    // and the output validators decide. See `ARCHITECTURE.md` §17.15.
     match media_family(req.from) {
         Family::Still => plan_still(req),
         Family::Audio => plan_audio(req),
@@ -360,32 +361,6 @@ pub fn media_family(t: CanonicalType) -> Family {
             Family::Video
         }
         _ => Family::None,
-    }
-}
-
-fn from_extension_target(t: CanonicalType) -> TargetFormat {
-    match t {
-        CanonicalType::Jpeg => TargetFormat::Jpg,
-        CanonicalType::Png => TargetFormat::Png,
-        CanonicalType::Heic => TargetFormat::Heic,
-        CanonicalType::Avif => TargetFormat::Avif,
-        CanonicalType::WebP => TargetFormat::Webp,
-        CanonicalType::Gif => TargetFormat::Gif,
-        CanonicalType::Tiff => TargetFormat::Tiff,
-        CanonicalType::Bmp => TargetFormat::Bmp,
-        CanonicalType::Svg => TargetFormat::Svg,
-        CanonicalType::Mp3 => TargetFormat::Mp3,
-        CanonicalType::Wav => TargetFormat::Wav,
-        CanonicalType::Flac => TargetFormat::Flac,
-        CanonicalType::M4a => TargetFormat::M4a,
-        CanonicalType::Aac => TargetFormat::Aac,
-        CanonicalType::Ogg => TargetFormat::Ogg,
-        CanonicalType::Opus => TargetFormat::Opus,
-        CanonicalType::Mp4 => TargetFormat::Mp4,
-        CanonicalType::Mkv => TargetFormat::Mkv,
-        CanonicalType::Mov => TargetFormat::Mov,
-        CanonicalType::WebM => TargetFormat::Webm,
-        _ => TargetFormat::Txt,
     }
 }
 
@@ -936,9 +911,6 @@ mod tests {
                 TargetFormat::Webp,
                 TargetFormat::Tiff,
             ] {
-                if from_extension_target(from) == to {
-                    continue;
-                }
                 let p = still(from, to).unwrap_or_else(|e| panic!("{from:?}->{to:?}: {e}"));
                 assert_eq!(p.steps.len(), 1);
                 assert_eq!(p.steps[0].program, Program::Vips);
@@ -1011,9 +983,6 @@ mod tests {
         ];
         for from in sources {
             for to in targets {
-                if from_extension_target(from) == to {
-                    continue;
-                }
                 let p = audio(from, to);
                 let args = &p.steps[0].args;
                 let words: Vec<&'static str> = args
@@ -1161,32 +1130,34 @@ mod tests {
         assert_eq!(args[ss + 1], Arg::Millis(500));
     }
 
+    /// Identity is advertised by the matrix (jpg autorot/compress, an audio
+    /// bitrate change, a video trim/resize), so it must *plan*, not refuse:
+    /// twelve wheel-visible targets were unconvertible while this returned
+    /// `SameFormat` (found by the Q3 end-to-end suite).
     #[test]
-    fn same_format_is_a_skip_not_a_reencode() {
-        assert_eq!(
-            still(CanonicalType::Jpeg, TargetFormat::Jpg),
-            Err(PlanError::SameFormat(TargetFormat::Jpg))
-        );
-        assert_eq!(
-            plan(&Request {
-                from: CanonicalType::Mp3,
-                to: TargetFormat::Mp3,
-                options: Options::default(),
-                facts: SourceFacts::audio(),
-                temp_dir: Path::new("/tmp"),
-            }),
-            Err(PlanError::SameFormat(TargetFormat::Mp3))
-        );
-        assert_eq!(
-            plan(&Request {
-                from: CanonicalType::Mp4,
-                to: TargetFormat::Mp4,
-                options: Options::default(),
-                facts: SourceFacts::video(),
-                temp_dir: Path::new("/tmp"),
-            }),
-            Err(PlanError::SameFormat(TargetFormat::Mp4))
-        );
+    fn identity_is_planned_as_a_real_re_encode() {
+        let jpg = still(CanonicalType::Jpeg, TargetFormat::Jpg).expect("jpg->jpg plans");
+        assert_eq!(jpg.steps.len(), 1);
+        assert_eq!(jpg.steps[0].program, Program::Vips);
+        let mp3 = plan(&Request {
+            from: CanonicalType::Mp3,
+            to: TargetFormat::Mp3,
+            options: Options::default(),
+            facts: SourceFacts::audio(),
+            temp_dir: Path::new("/tmp"),
+        })
+        .expect("mp3->mp3 plans");
+        assert_eq!(mp3.steps[0].program, Program::Ffmpeg);
+        let mp4 = plan(&Request {
+            from: CanonicalType::Mp4,
+            to: TargetFormat::Mp4,
+            options: Options::default(),
+            facts: SourceFacts::video(),
+            temp_dir: Path::new("/tmp"),
+        })
+        .expect("mp4->mp4 plans");
+        assert_eq!(mp4.steps[0].program, Program::Ffmpeg);
+        assert_eq!(mp4.expect, Expect::Video { target: TargetFormat::Mp4 });
     }
 
     #[test]

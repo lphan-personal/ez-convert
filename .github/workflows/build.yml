@@ -235,6 +235,78 @@ jobs:
       - name: docs/LICENSES.md matches the locked dependency graph
         run: python3 scripts/gen-licenses.py --check
 
+  # ------------------------------------------------- Q3 end-to-end suite
+  # One real conversion per advertised direction (matrix Proven + the document
+  # pipeline's own proven routes), with a per-direction PASS/FAIL table, a
+  # metadata-policy assertion per family, and planted-fault controls that must
+  # be caught. The engines here are test-only apt builds; the *shipped* dist is
+  # built and licence-checked elsewhere (license-assert).
+  e2e:
+    name: e2e (one run per advertised direction)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      # Test-only engines: apt builds on the runner. The *shipped* dist is built
+      # and licence-checked elsewhere (license-assert); nothing here is bundled.
+      - name: Install engines
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libvips-tools ffmpeg libreoffice-core libreoffice-writer \
+            libreoffice-calc libreoffice-impress fonts-dejavu-core
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: End-to-end suite (per-direction table)
+        env:
+          EZC_E2E_WORK: ${{ github.workspace }}/.e2e-work
+          EZC_E2E_REPORT: ${{ github.workspace }}/e2e-report
+          EZC_VIPS_DIR: /usr/bin
+          EZC_FFMPEG_DIR: /usr/bin
+          EZC_SOFFICE_DIR: /usr/lib/libreoffice/program
+        run: |
+          set -o pipefail
+          bash scripts/e2e.sh 2>&1 | tee e2e.log
+
+      # A green run only means something if the gate can go red: delete one
+      # converted output before it is checked and require a FAIL row + exit 1.
+      - name: Fault injection must fail the run
+        env:
+          EZC_E2E_WORK: ${{ github.workspace }}/.e2e-inject
+          EZC_VIPS_DIR: /usr/bin
+          EZC_FFMPEG_DIR: /usr/bin
+          EZC_SOFFICE_DIR: /usr/lib/libreoffice/program
+        run: |
+          set +e
+          bash scripts/e2e.sh --media-only --inject=drop-output > inject.log 2>&1
+          code=$?
+          cat inject.log
+          if [ "$code" -eq 0 ]; then
+            echo "::error::the suite reported success after a conversion was sabotaged"
+            exit 1
+          fi
+          grep -q 'SUMMARY RED' inject.log || {
+            echo "::error::injected fault produced no red summary"
+            exit 1
+          }
+          echo "fault injection produced exit $code and a red summary"
+
+      - name: Upload the per-direction report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: q3-e2e-report
+          path: |
+            e2e-report/**
+            e2e.log
+          if-no-files-found: warn
+          retention-days: 30
+
   # ------------------------------------------------------------- spike runner
   spike:
     name: spike (${{ inputs.spike_id }})

@@ -344,6 +344,13 @@ find its own shared libraries. It exists for dev boxes and the C2 harness; a shi
 never sets it (Windows DLLs sit beside `vips.exe`, macOS uses the bundle's `@rpath`). Nothing
 else from the parent environment is inherited — `proc::run` still calls `env_clear()` first.
 
+**A second, narrower one.** `EZC_VIPS_PLUGIN_DIR` (absolute only) tells a `vips` child where an
+unpacked tree keeps its loadable modules: `proc::plugin_env` sets `VIPS_PLUGINDIR` to the highest
+`vips-modules-*` directory and `LIBHEIF_PLUGIN_PATH` to `libheif/plugins` when they exist. Without
+it the Debian `.deb` extraction used by the Q3 suite loads `libheif` but not its codecs, and
+HEIC/AVIF decode fails with *"no decoding plugin installed"* although the engine can do it. It is
+dev/CI only: the engine pack ships its plugins beside the sidecar and the OS loader finds them.
+
 #### 6.0.3 Timeouts, output caps, reaping
 
 - Wall-clock timeout per invocation, enforced by a monitor that kills the child and its
@@ -978,7 +985,9 @@ The measured image rules (`spikes/c2/EVIDENCE.md` §1):
   `compression=deflate` for tiff, the V8 flag set for avif;
 - `strip` removes EXIF **and** ICC on jpg/png/webp/tiff (measured), and is off by default.
 
-`—` = not offered (identity, or cut by `SPEC.md` §9).
+`—` = not offered (identity, or cut by `SPEC.md` §9). Identity cells exist only where the
+re-encode does visible work (`jpg→jpg` autorot/compress, the audio and video rows); since
+`ARCHITECTURE.md` §17.15 they plan like any other direction instead of being refused.
 
 ¹ TIFF input must go through `tiffload … --fail-on error` (V9), so the measured pair V5
 (`copy`) is the *encode* side only; the route is proven once `C2` re-runs it with the named
@@ -1519,6 +1528,8 @@ do not each decide differently. Each needs `warden` (security/licence) or the st
 | 17.12 | **GIF input stays `Planned`** even though the vips route works | `gifload` returns page 0: an animated source would silently lose frames. Offering it would be the silent data loss §6.0.4 forbids. `fixtures/sample_anim.gif` makes the day we handle animation testable | stakeholder (product call: animation in v1?) |
 | 17.13 | Audio tags are applied **after** the encode by `lofty`, never by ffmpeg's mapping | measured: `-map_metadata 0` re-stamps `encoder=Lavf…` and mangles the cover stream; lofty carries 5 items + the cover into wav/flac/m4a/ogg/opus/aac. The tag *family* is chosen from the target container (ffmpeg writes an Ogg with no tag block) | none — discharged |
 | 17.14 | Video is always re-encoded, never stream-copied, even for a same-container conversion | a stream copy preserves the display-matrix rotation but cannot force CFR or apply a trim/resize; the CFR measurement (§6.3.3) is the reason this is not optional | none (implementation) |
+| 17.15 | **Identity is a planned conversion, not a skip.** `plan()` no longer refuses `from == to`; the matrix only models identity where the re-encode does user-visible work (jpg autorot/compress `V6`, an audio bitrate change, a video trim/resize). `engine::plan::PlanError::SameFormat` is gone | the Q3 end-to-end suite (`e2e/q3`, `scripts/e2e.sh`) ran the advertised directions and found **twelve** of them (jpg→jpg, the 7 audio identities, the 4 video identities) refused by the planner while the wheel was offering them as `Proven`. Two independent claims, one of them wrong; the engine can do the work, so the planner changed and `identity_is_planned_as_a_real_re_encode` pins it | stakeholder (product): identity segments stay in the wheel — they are the "compress"/"resize"/"re-time" action. Hiding them when no option is set is a UI decision, not a matrix one |
+| 17.16 | **The end-to-end suite is the authority on "advertised".** `scripts/e2e.sh` enumerates its rows from `model::matrix` (Proven) and `engine::soffice::proven_routes()`, asserts the two document sets are equal, asserts each route's evidence file still contains its marker, runs a real conversion per direction through the worker's own entry points, and requires every planted control to be caught | a hand-maintained direction list drifts; a matrix claim without a conversion is a guess. First run: 154 advertised, 148 PASS, 6 SKIP (AVIF output: no AV1 encoder on the Linux test dist), 13/13 controls caught | none (process) |
 
 ---
 

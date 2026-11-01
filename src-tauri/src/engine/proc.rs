@@ -92,6 +92,18 @@ pub struct EnginePaths {
     /// on Windows the DLLs sit beside `vips.exe`, and on macOS the bundle's
     /// `@rpath` covers it. Documented in `ARCHITECTURE.md` §6.0.2.
     pub lib_dir: Option<PathBuf>,
+    /// Linux dev/test only, and the narrower sibling of `lib_dir`: the
+    /// directory that holds vips's loadable modules (`vips-modules-*`) and
+    /// `libheif/plugins`. An unpacked distribution (a `.deb` tree, a CI
+    /// tarball) puts both next to the shared libraries instead of the compiled-in
+    /// `/usr/lib/<multiarch>` path, and `env_clear` means the child would never
+    /// see `LIBHEIF_PLUGIN_PATH` otherwise — so HEIC/AVIF decode fails with
+    /// *"no decoding plugin installed"* even though the engine can do it.
+    ///
+    /// Set from `EZC_VIPS_PLUGIN_DIR` (absolute). Production installs never need
+    /// it: the engine pack ships its plugins beside the sidecar and the OS loader
+    /// finds them. Documented in `ARCHITECTURE.md` §6.0.2.
+    pub plugin_dir: Option<PathBuf>,
 }
 
 impl EnginePaths {
@@ -121,6 +133,7 @@ impl EnginePaths {
             soffice: exe(&soffice_dir, if cfg!(windows) { "soffice.com" } else { "soffice" }),
             soffice_dir,
             lib_dir: absolute_env_dir("EZC_ENGINE_LIB_DIR"),
+            plugin_dir: absolute_env_dir("EZC_VIPS_PLUGIN_DIR"),
         }
     }
 
@@ -195,6 +208,60 @@ fn absolute_env_dir(var: &str) -> Option<PathBuf> {
     } else {
         None
     }
+}
+
+/// `vips-modules-8.16` → `[8, 16]`, so ABI directories can be ordered by version
+/// instead of by text. An unparseable name sorts lowest.
+fn module_abi(path: &Path) -> Vec<u32> {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .and_then(|name| name.strip_prefix("vips-modules-"))
+        .map(|version| {
+            version
+                .split('.')
+                .filter_map(|part| part.parse::<u32>().ok())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The extra environment a vips child needs when its plugins were unpacked
+/// beside the shared libraries instead of into the compiled-in multiarch
+/// directory: `VIPS_PLUGINDIR` for vips's own modules (`vips-modules-<abi>`),
+/// `LIBHEIF_PLUGIN_PATH` for libheif's codec plugins (`libheif/plugins`).
+///
+/// Pure and existence-checked, so the suite can assert the mapping without
+/// spawning anything, and a tree that has neither directory yields nothing
+/// (no empty variables are exported).
+fn plugin_env(dir: &Path) -> Vec<(OsString, OsString)> {
+    let mut out: Vec<(OsString, OsString)> = Vec::new();
+    let mut modules: Vec<PathBuf> = std::fs::read_dir(dir)
+        .map(|entries| {
+            entries
+                .flatten()
+                .map(|entry| entry.path())
+                .filter(|path| {
+                    path.is_dir()
+                        && path
+                            .file_name()
+                            .and_then(|name| name.to_str())
+                            .map(|name| name.starts_with("vips-modules-"))
+                            .unwrap_or(false)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    modules.sort_by_key(|path| module_abi(path));
+    // Newest ABI wins when a tree holds more than one module directory
+    // (`vips-modules-8.16` beats `vips-modules-8.9`, which sorts backwards as text).
+    if let Some(newest) = modules.pop() {
+        out.push((OsString::from("VIPS_PLUGINDIR"), newest.into_os_string()));
+    }
+    let heif = dir.join("libheif").join("plugins");
+    if heif.is_dir() {
+        out.push((OsString::from("LIBHEIF_PLUGIN_PATH"), heif.into_os_string()));
+    }
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -497,6 +564,16 @@ pub fn run_with(
     if let Some(lib) = &paths.lib_dir {
         cmd.env("LD_LIBRARY_PATH", lib);
     }
+    // An unpacked vips finds its loadable modules (HEIF/AVIF, JXL, PDF) and
+    // libheif's codec plugins only if it is told where the tree put them. The
+    // parent environment was cleared above, so this cannot leak in by accident.
+    if matches!(inv.program, Program::Vips | Program::VipsHeader) {
+        if let Some(dir) = &paths.plugin_dir {
+            for (key, value) in plugin_env(dir) {
+                cmd.env(key, value);
+            }
+        }
+    }
     for (k, v) in extra_env {
         cmd.env(k, v);
     }
@@ -657,6 +734,37 @@ mod tests {
         assert!(Program::Ffprobe.timeout().as_secs() > 0);
         assert!(Program::Ffmpeg.stall_limit().is_some());
         assert!(Program::Vips.stall_limit().is_none());
+    }
+
+    /// An unpacked vips has to be told where its own modules and libheif's
+    /// codec plugins landed; a tree with neither must export nothing at all
+    /// (an empty `LIBHEIF_PLUGIN_PATH` disables the compiled-in default).
+    #[test]
+    fn plugin_env_maps_an_unpacked_tree_and_stays_empty_otherwise() {
+        let root = std::env::temp_dir().join(format!("ezc-plugins-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("vips-modules-8.9")).unwrap();
+        std::fs::create_dir_all(root.join("vips-modules-8.16")).unwrap();
+        std::fs::create_dir_all(root.join("libheif").join("plugins")).unwrap();
+        let got = plugin_env(&root);
+        let value = |key: &str| {
+            got.iter()
+                .find(|(k, _)| k == key)
+                .map(|(_, v)| v.clone())
+        };
+        assert_eq!(
+            value("VIPS_PLUGINDIR"),
+            Some(root.join("vips-modules-8.16").into_os_string()),
+            "the newest module ABI wins when a tree holds more than one"
+        );
+        assert_eq!(
+            value("LIBHEIF_PLUGIN_PATH"),
+            Some(root.join("libheif").join("plugins").into_os_string())
+        );
+        let bare = root.join("bare");
+        std::fs::create_dir_all(&bare).unwrap();
+        assert!(plugin_env(&bare).is_empty());
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// §2.2/§6.0: `proc.rs` is the only file allowed to construct a Command.

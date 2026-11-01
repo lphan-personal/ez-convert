@@ -41,6 +41,7 @@ is the machine-checked index of every `PROVEN` route.
 ```bash
 bash scripts/test-model.sh        # the detection core's tests, no cargo and no GTK needed
 bash scripts/test-engine.sh       # argv builders, planner, spawn contract, verifiers (C2)
+bash scripts/e2e.sh               # Q3: one real conversion per advertised direction
 bash scripts/check-model-purity.sh# model/ stays Tauri-free (ARCHITECTURE §2.2)
 python3 scripts/gen-fixtures.py   # regenerate fixtures/ + fixtures/PROVENANCE.md
 python3 scripts/gen-media-fixtures.py --vips … --ffmpeg … --icc …
@@ -66,7 +67,8 @@ spikes/c2/run-e2e.sh              # the media matrix against real engines (see s
 │   ├── tests/                # node --test ui/wheel/tests — layout, hit-test, springs
 │   └── checks/               # real-Chromium interaction check over CDP (no npm)
 ├── fixtures/                # detection + media corpus (46 files) + PROVENANCE.md, generated
-├── evidence/                # S2/S2b transcripts + ROUTES.md + u1-wheel.md
+├── evidence/                # S2/S2b transcripts + ROUTES.md + u1-wheel.md + q3-e2e/
+├── e2e/q3/                  # Q3: the end-to-end suite (one run per advertised direction)
 ├── docs/DETECTION.md        # detection rules + generated type → target matrix
 ├── src-tauri/
 │   ├── Cargo.toml           # tauri = "2", tauri-build = "2", tauri-plugin-dialog = "2"
