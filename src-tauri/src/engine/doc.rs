@@ -56,6 +56,9 @@ pub enum DocError {
     },
     /// A file appeared and does not hold up structurally.
     Verify(String),
+    /// The caller's output path already holds a file. Nothing was replaced:
+    /// `SPEC.md` §5 makes "never overwrite" a rule, so a collision is a refusal.
+    DestinationExists(PathBuf),
     /// More than one file for one input; naming is not ours to invent here.
     MultiOutput(Vec<PathBuf>),
     MissingEngine(&'static str),
@@ -78,6 +81,13 @@ impl DocError {
                 "The result didn't pass a check, so it wasn't saved. The original is unchanged."
                     .to_string()
             }
+            DocError::DestinationExists(path) => format!(
+                "A file named {} is already there, so nothing was overwritten. \
+                 Change the output name or folder and try again.",
+                path.file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| path.display().to_string())
+            ),
             DocError::NoOutput { .. } => "LibreOffice reported success but wrote no file — \
                  nothing was saved. This is a bug; the details are in the log."
                 .to_string(),
@@ -120,6 +130,11 @@ impl std::fmt::Display for DocError {
                 }
             ),
             DocError::Verify(s) => write!(f, "output failed verification: {s}"),
+            DocError::DestinationExists(path) => write!(
+                f,
+                "{} already exists; this build never overwrites",
+                path.display()
+            ),
             DocError::MultiOutput(paths) => write!(
                 f,
                 "one input produced {} outputs: {:?}",
@@ -395,17 +410,13 @@ pub fn convert(
     }
     let produced = files.pop().expect("checked len == 1");
 
-    // Publish: rename inside the same volume, copy+remove across volumes.
+    // Publish. `SPEC.md` §5 makes "never overwrite" a rule, not a preference,
+    // so this hop is the `job::publish::publish_exact` contract rather than a
+    // rename: an existing destination is a refusal, never a delete.
     if let Some(parent) = output.parent() {
         std::fs::create_dir_all(parent).map_err(|e| DocError::Io(e.to_string()))?;
     }
-    if output.exists() {
-        std::fs::remove_file(output).map_err(|e| DocError::Io(e.to_string()))?;
-    }
-    if std::fs::rename(&produced, output).is_err() {
-        std::fs::copy(&produced, output).map_err(|e| DocError::Io(e.to_string()))?;
-        let _ = std::fs::remove_file(&produced);
-    }
+    publish_document(&produced, output)?;
 
     let mut report = report;
     report.produced = vec![Produced {
@@ -413,6 +424,81 @@ pub fn convert(
         outputs: vec![output.to_path_buf()],
     }];
     Ok(report)
+}
+
+/// Place `produced` at `output` without ever replacing a file that is already
+/// there — the same contract as `job::publish::publish_exact`, replicated here
+/// because the engine layer is std-only (`ARCHITECTURE.md` §2.2) and that
+/// module needs `sha2`.
+///
+/// `hard_link` is the fast path and it *is* the no-clobber check: it fails with
+/// `AlreadyExists` on Windows and Unix alike. The `create_new` copy is the
+/// cross-volume / no-links fallback and it is `O_EXCL`, so it is equally
+/// atomic. There is deliberately no `fs::rename` on this hop — on Unix it
+/// silently replaces an existing file, which is exactly the data loss
+/// `SPEC.md` §5 forbids.
+fn publish_document(produced: &Path, output: &Path) -> Result<(), DocError> {
+    match std::fs::hard_link(produced, output) {
+        Ok(()) => {
+            let _ = std::fs::remove_file(produced);
+            sync_parent(output);
+            Ok(())
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            Err(DocError::DestinationExists(output.to_path_buf()))
+        }
+        Err(_) => copy_document(produced, output),
+    }
+}
+
+/// The cross-volume fallback for [`publish_document`]. `create_new` is
+/// `O_EXCL`: it either creates the destination or reports the collision, so a
+/// file that appeared mid-run is still never overwritten.
+fn copy_document(produced: &Path, output: &Path) -> Result<(), DocError> {
+    use std::io::Write;
+
+    let mut source = std::fs::File::open(produced)
+        .map_err(|e| DocError::Io(format!("{}: {e}", produced.display())))?;
+    let mut sink = match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(output)
+    {
+        Ok(file) => file,
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Err(DocError::DestinationExists(output.to_path_buf()))
+        }
+        Err(e) => return Err(DocError::Io(format!("{}: {e}", output.display()))),
+    };
+    let copied = std::io::copy(&mut source, &mut sink).and_then(|_| sink.flush());
+    if let Err(e) = copied.and_then(|_| sink.sync_all()) {
+        drop(sink);
+        // A half-written result is never left behind under the user's name.
+        let _ = std::fs::remove_file(output);
+        return Err(DocError::Io(format!("writing {}: {e}", output.display())));
+    }
+    drop(sink);
+    let _ = std::fs::remove_file(produced);
+    sync_parent(output);
+    Ok(())
+}
+
+/// Best-effort directory fsync so the publication survives a power cut on
+/// Unix. Windows has no `std` equivalent; `sync_all` on the file is what
+/// durability there relies on.
+fn sync_parent(path: &Path) {
+    #[cfg(unix)]
+    {
+        if let Some(dir) = path.parent() {
+            if let Ok(handle) = std::fs::File::open(dir) {
+                let _ = handle.sync_all();
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+    }
 }
 
 /// Scoped CSV/text legality check used by the job builder: a document job may
@@ -716,6 +802,128 @@ mod tests {
         for item in &report.produced {
             assert_eq!(item.outputs.len(), 1, "{item:?}");
         }
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    // -----------------------------------------------------------------
+    // Publishing is a no-clobber placement, not a rename (SPEC §5,
+    // Q1-F3). A user file at the destination survives byte for byte and the
+    // conversion reports a refusal.
+    // -----------------------------------------------------------------
+
+    /// The stub writes one valid PDF, so the only thing that can stop the
+    /// publish is the collision itself.
+    #[cfg(unix)]
+    const VALID_PDF_STUB: &str = "out=\"\"\nprev=\"\"\nfor a in \"$@\"; do\n  \
+        [ \"$prev\" = \"--outdir\" ] && out=\"$a\"\n  prev=\"$a\"\ndone\n\
+        printf '%%PDF-1.7\\n1 0 obj\\n<< /Type /Page >>\\nendobj\\n' > \"$out/sample.pdf\"\n\
+        exit 0";
+
+    #[cfg(unix)]
+    #[test]
+    fn an_existing_destination_is_refused_and_the_user_file_survives() {
+        let work = scratch("clobber");
+        let input = work.join("sample.docx");
+        std::fs::copy(crate::model::test_support::fixture("sample.docx"), &input).unwrap();
+        let paths = stub_engine(&work.join("engine"), VALID_PDF_STUB);
+
+        let dest = work.join("out.pdf");
+        std::fs::write(&dest, b"THE USER'S FILE").unwrap();
+
+        let err = convert(
+            &paths,
+            &DocJob {
+                from: CanonicalType::Docx,
+                to: TargetFormat::Pdf,
+            },
+            &input,
+            &dest,
+            &work.join("tmp"),
+        )
+        .unwrap_err();
+
+        match &err {
+            DocError::DestinationExists(path) => assert_eq!(path, &dest),
+            other => panic!("expected DestinationExists, got {other:?}"),
+        }
+        assert_eq!(
+            std::fs::read(&dest).unwrap(),
+            b"THE USER'S FILE",
+            "the destination must survive byte for byte"
+        );
+        // The refusal is user-facing and follows the §14 tone rules.
+        let message = err.user_message();
+        assert!(message.contains("nothing was overwritten"), "{message}");
+        assert!(!message.contains("rc="), "{message}");
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    /// The same conversion into a free path still lands, so the no-clobber
+    /// hop did not simply turn every publish into a refusal.
+    #[cfg(unix)]
+    #[test]
+    fn a_free_destination_is_still_published() {
+        let work = scratch("free");
+        let input = work.join("sample.docx");
+        std::fs::copy(crate::model::test_support::fixture("sample.docx"), &input).unwrap();
+        let paths = stub_engine(&work.join("engine"), VALID_PDF_STUB);
+        let dest = work.join("out.pdf");
+
+        let report = convert(
+            &paths,
+            &DocJob {
+                from: CanonicalType::Docx,
+                to: TargetFormat::Pdf,
+            },
+            &input,
+            &dest,
+            &work.join("tmp"),
+        )
+        .expect("a free destination must publish");
+
+        assert_eq!(report.produced[0].outputs, vec![dest.clone()]);
+        assert!(std::fs::read(&dest).unwrap().starts_with(b"%PDF-"));
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    /// The `create_new` copy is the cross-volume path; it is `O_EXCL`, so it
+    /// refuses an existing destination exactly like the hard link does.
+    #[cfg(unix)]
+    #[test]
+    fn the_copy_fallback_refuses_an_existing_destination() {
+        let work = scratch("copy-clobber");
+        let temp = work.join("temp.pdf");
+        std::fs::write(&temp, b"NEW RESULT").unwrap();
+        let dest = work.join("user.pdf");
+        std::fs::write(&dest, b"THE USER'S FILE").unwrap();
+
+        let err = copy_document(&temp, &dest).unwrap_err();
+        assert!(matches!(err, DocError::DestinationExists(_)), "got {err:?}");
+        assert_eq!(
+            std::fs::read(&dest).unwrap(),
+            b"THE USER'S FILE",
+            "the destination must survive byte for byte"
+        );
+        assert_eq!(
+            std::fs::read(&temp).unwrap(),
+            b"NEW RESULT",
+            "a refused publish leaves the result for the job temp cleanup"
+        );
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    /// The fallback still works on a free path, byte for byte.
+    #[cfg(unix)]
+    #[test]
+    fn the_copy_fallback_publishes_a_new_file_and_consumes_the_temp() {
+        let work = scratch("copy-free");
+        let temp = work.join("temp.pdf");
+        std::fs::write(&temp, b"NEW RESULT").unwrap();
+        let dest = work.join("out.pdf");
+
+        copy_document(&temp, &dest).expect("a free destination must publish");
+        assert_eq!(std::fs::read(&dest).unwrap(), b"NEW RESULT");
+        assert!(!temp.exists(), "the temp copy is consumed, not duplicated");
         let _ = std::fs::remove_dir_all(&work);
     }
 }

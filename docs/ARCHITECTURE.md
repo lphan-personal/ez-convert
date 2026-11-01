@@ -711,6 +711,14 @@ Operational contract:
    that calls `dirname`, `basename`, `ls`, `sed` before it reaches `soffice.bin`. §6.0.2's
    constructed environment therefore becomes `<engine dir>:/usr/bin:/bin` for this engine only.
    `SAL_USE_VCLPLUGIN=svp` on POSIX, `SAL_DISABLE_OPENCL=1` everywhere, no `svp` on Windows.
+7. **Publishing never overwrites.** `convert` places the verified file at the caller's path with
+   `hard_link` — the link *is* the no-clobber check, it fails `AlreadyExists` on Windows and Unix
+   alike — and a `create_new` copy (`O_EXCL`) as the cross-volume fallback. That is the
+   `job::publish::publish_exact` contract, replicated because the engine layer is std-only (§2.2)
+   and `job::publish` needs `sha2`. There is no `fs::rename` on this hop: on Unix it silently
+   replaces an existing file, which is the data loss `SPEC.md` §5 forbids. An occupied destination
+   is `DestinationExists` — the user's file is untouched, the result stays in the job temp dir,
+   and the message is "A file named `{name}` is already there, so nothing was overwritten."
 
 Known residual, unchanged: a ZIP with a valid central directory and a broken
 `word/document.xml` passes detection and can still produce a plausible PDF. Not claimed as
@@ -1378,6 +1386,7 @@ state whether the original file was touched.
 | `Cancelled` | "Cancelled. `{count}` file(s) weren't converted." |
 | `NoOutput` | "`{engine}` reported success but wrote no file — nothing was saved. This is a bug; the details are in the log." |
 | `OutputInvalid` | "The result didn't pass a check, so it wasn't saved. The original is unchanged." |
+| `DestinationExists` | "A file named `{name}` is already there, so nothing was overwritten. Change the output name or folder and try again." |
 | `DecodeFailed` | "`{name}` couldn't be decoded (`{detail}`). It may be damaged. Nothing was written." |
 | `JournalFailed` | "Converted, but we couldn't record it for Undo. The output is kept; Undo is unavailable for this file." |
 | `PartialBatch` | "`{ok}` of `{total}` files converted. `{failed}` failed — see the queue for details." |
