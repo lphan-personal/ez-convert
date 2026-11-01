@@ -10,10 +10,16 @@
 //     rustc --edition 2021 -o /tmp/model-tables scripts/model-tables.rs
 //     /tmp/model-tables --write
 //
-// It writes the three blocks in `docs/DETECTION.md` and the evidence table in
-// `evidence/ROUTES.md`, replacing whatever sits between the marker comments.
+// The generated-docs check in CI builds this driver with plain `rustc`, so it
+// must not see the serde-backed settings modules — it includes the std-only
+// detection core only. It writes the blocks in `docs/DETECTION.md` and the
+// evidence table in `evidence/ROUTES.md`.
 
-#[path = "../src-tauri/src/model/mod.rs"]
+// The generator only needs the std-only detection core. `model/mod.rs` also
+// declares the serde-backed settings/naming modules (`U2`), which plain `rustc`
+// cannot compile without the crates — so it points at `model-core-mod.rs`, the
+// std-only module root that `scripts/test-model.sh` also uses.
+#[path = "model-core-mod.rs"]
 mod model;
 
 use std::fs;

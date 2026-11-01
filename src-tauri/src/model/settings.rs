@@ -742,7 +742,7 @@ impl SettingsStore {
             let pointer = key_to_pointer(key);
             let target = document
                 .pointer_mut(&pointer)
-                .ok_or_else(|| SettingsError::UnknownKey(key.clone()))?;
+                .ok_or_else(|| SettingsError::UnknownKey(key.to_string()))?;
             *target = value.clone();
         }
         let mut candidate: Settings =
