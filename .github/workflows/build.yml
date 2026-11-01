@@ -146,6 +146,50 @@ jobs:
       - name: Assert every bundled ffmpeg reports enable-gpl=0
         run: bash scripts/license-assert.sh --scan
 
+  # ------------------------------------------- reference policy gate (docs/PRIOR_ART.md)
+  policy-check:
+    name: policy-check (R1-R3 deny-list, R6 licence drift)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # R3/R1: prior-art names are allowed ONLY inside the two policy files
+      # (docs/REFERENCE_POLICY.md §2). The pattern is written as [f]ilee /
+      # [k]nifelemon so this file does not itself contain a deny-list literal.
+      - name: Deny-list scan (prior-art names outside the policy files)
+        run: |
+          set -euo pipefail
+          hits=$(grep -rniE '[f]ilee|[k]nifelemon' . \
+            --exclude-dir=.git --exclude-dir=target \
+            | grep -vE '^\./docs/(PRIOR_ART|REFERENCE_POLICY)\.md:' || true)
+          if [ -n "$hits" ]; then
+            printf '%s\n' "$hits"
+            echo "::error::R3 violation - prior-art name outside docs/PRIOR_ART.md and docs/REFERENCE_POLICY.md"
+            exit 1
+          fi
+          echo "deny-list clean"
+
+      # R1/R2: no C#/.NET surface, no vendored tree, no submodule.
+      - name: No C#/.NET, no submodule
+        run: |
+          set -euo pipefail
+          bad=$(find . -path ./.git -prune -o \
+            \( -name '*.cs' -o -name '*.xaml' -o -name '*.csproj' -o -name '*.sln' \) -print | head -20)
+          if [ -n "$bad" ]; then
+            printf '%s\n' "$bad"
+            echo "::error::R2 violation - C#/.NET files present"
+            exit 1
+          fi
+          [ -f .gitmodules ] && { echo "::error::R1 violation - submodule present"; exit 1; }
+          echo "no C#/.NET, no submodule"
+
+      # R6: every dependency is recorded, generated from the locked graph.
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: docs/LICENSES.md matches the locked dependency graph
+        run: python3 scripts/gen-licenses.py --check
+
   # ------------------------------------------------------------- spike runner
   spike:
     name: spike (${{ inputs.spike_id }})
@@ -195,7 +239,7 @@ jobs:
   # --------------------------------------------------------- verdict publisher
   report:
     name: report (publish run verdict to ci-status)
-    needs: [build, license-assert, spike]
+    needs: [build, license-assert, policy-check, spike]
     if: always()
     runs-on: ubuntu-latest
     permissions:
@@ -203,6 +247,7 @@ jobs:
     env:
       BUILD_RESULT: ${{ needs.build.result }}
       LICENSE_RESULT: ${{ needs.license-assert.result }}
+      POLICY_RESULT: ${{ needs.policy-check.result }}
       SPIKE_RESULT: ${{ needs.spike.result }}
     steps:
       - uses: actions/checkout@v4
@@ -227,6 +272,7 @@ jobs:
             "results": {
               "build_matrix_3_os": "${BUILD_RESULT}",
               "license_assert": "${LICENSE_RESULT}",
+              "policy_check": "${POLICY_RESULT}",
               "spike": "${SPIKE_RESULT}"
             },
             "published_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"

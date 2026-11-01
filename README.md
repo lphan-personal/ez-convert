@@ -1,10 +1,14 @@
 # EZ Convert
 
-Local-first file conversion desktop app. Tauri 2 shell, Rust core, radial "wheel" UI.
+Local file conversion desktop app. Tauri 2 shell, Rust core, radial "wheel" UI.
 
 **Status: P0 skeleton.** This repo exists to unblock the OS-specific spike tasks (S1/S2/S3) by
 giving them a real GitHub Actions surface. Nothing converts files yet — the UI is a static
 placeholder and the Rust core is an empty contract.
+
+Prior art, reference-policy and licensing rules live in `docs/PRIOR_ART.md`,
+`docs/REFERENCE_POLICY.md` and `docs/LICENSES.md`. They are binding on every card: read
+`docs/REFERENCE_POLICY.md` before pushing.
 
 ---
 
@@ -98,6 +102,7 @@ requested spike, so a spike can never land on a broken trunk.
 | `build (windows-latest)` | windows-latest | same on MSVC toolchain |
 | `build (macos-latest)` | macos-latest | same on Apple silicon runner |
 | `license-assert` | ubuntu-latest | the ffmpeg licence gate works (`--selftest`) and no shipped ffmpeg is GPL (`--scan`) |
+| `policy-check` | ubuntu-latest | R1-R3 deny-list (prior-art names only in the policy docs), no C#/.NET or submodule, `docs/LICENSES.md` in sync with the locked graph (R6) |
 | `spike (<id>)` | ubuntu-latest | the dispatched spike script (only on `workflow_dispatch` with `spike_id != none`) |
 | `report` | ubuntu-latest | publishes the run's own verdict to the `ci-status` branch |
 
@@ -158,9 +163,24 @@ If no bundled ffmpeg exists yet (current skeleton state) `--scan` passes and say
 `--selftest` step is what keeps the gate honest meanwhile: it builds a fake GPL ffmpeg and a
 fake LGPL ffmpeg and asserts the gate rejects the first and accepts the second.
 
+Per policy R6 the engine stays a **separate-process sidecar** — no static link, no bundling into
+the app binary.
+
 **Open decision for P2:** if a conversion path genuinely requires a GPL component (e.g. `libx264`),
 the policy has to be re-decided explicitly — either ship the GPL binary plus its source
 obligations, or drop the codec. Do not flip the gate silently.
+
+## Dependency licenses
+
+`docs/LICENSES.md` is generated from the locked dependency graph, never hand-edited:
+
+```bash
+python3 scripts/gen-licenses.py          # regenerate after adding a dependency
+python3 scripts/gen-licenses.py --check  # CI drift check
+```
+
+Rust dependency graph today: 407 packages, no GPL-only crate. The app's own licence is still a
+stakeholder decision (recorded as TBD in that file).
 
 ---
 
