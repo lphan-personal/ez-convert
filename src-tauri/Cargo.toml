@@ -30,6 +30,11 @@ serde_json = "1"
 # card C2). Pure Rust, no native dependency; reads/writes ID3v2, Vorbis comments,
 # MP4 ilst and FLAC pictures. MIT — see docs/LICENSES.md.
 lofty = "0.22"
+# SHA-256 for the publication record and the undo journal's delete guard
+# (ARCHITECTURE.md §9.4, §13; card C4). RustCrypto, MIT OR Apache-2.0. Already in
+# the locked dependency graph transitively, so this is a direct-dependency pin,
+# not a new crate — docs/LICENSES.md lists it either way.
+sha2 = "0.10"
 
 [profile.release]
 codegen-units = 1

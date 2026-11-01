@@ -125,13 +125,75 @@ pub fn output_stem(input: &Path) -> String {
 /// same name (`ARCHITECTURE.md` §9.3).
 pub fn next_free_name(dir: &Path, stem: &str, ext: &str, reserved: &BTreeSet<PathBuf>) -> PathBuf {
     let ext = ext.trim_start_matches('.');
+    next_free_name_with(dir, stem, ext, &|candidate: &Path| {
+        candidate.exists() || reserved.contains(candidate)
+    })
+}
+
+/// [`next_free_name`] against an arbitrary "is this taken?" predicate.
+///
+/// The predicate form exists so the collision rule can be proven over a
+/// thousand simulated names without a thousand files on disk, and so the
+/// publisher can supply *its* notion of taken (disk + this run's claims + the
+/// OS refusing a name) without a second implementation of the suffix rule.
+pub fn next_free_name_with(
+    dir: &Path,
+    stem: &str,
+    ext: &str,
+    taken: &dyn Fn(&Path) -> bool,
+) -> PathBuf {
+    let ext = ext.trim_start_matches('.');
     let mut candidate = dir.join(format!("{stem}.{ext}"));
     let mut n = 0u32;
-    while candidate.exists() || reserved.contains(&candidate) {
+    while taken(&candidate) {
         n += 1;
         candidate = dir.join(format!("{stem}-{n}.{ext}"));
     }
     candidate
+}
+
+/// One planned output: which input it came from, where it lands, what it is
+/// called. Produced by [`plan_batch`] and turned into a published file by
+/// `job::outputs`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlannedName {
+    pub input: PathBuf,
+    pub out_dir: PathBuf,
+    pub out_path: PathBuf,
+    /// `true` when `<stem>.<ext>` was taken and a suffix was added.
+    pub renamed: bool,
+}
+
+/// Plan every output of a batch from `SPEC.md` §5's rules, in queue order.
+///
+/// This is the single implementation the preview and the publisher both use, so
+/// the name the window shows is the name the job writes (`ARCHITECTURE.md` §9).
+pub fn plan_batch(
+    inputs: &[PathBuf],
+    target: &str,
+    settings: &Settings,
+    batch_len: usize,
+) -> Vec<PlannedName> {
+    let mut reserved: BTreeSet<PathBuf> = BTreeSet::new();
+    let mut out = Vec::with_capacity(inputs.len());
+    let batch_len = batch_len.max(inputs.len());
+
+    for input in inputs {
+        let dir = resolve_out_dir(input, settings, batch_len);
+        let stem = output_stem(input);
+        let chosen = next_free_name(&dir, &stem, target, &reserved);
+        let plain = dir.join(format!("{stem}.{}", target.trim_start_matches('.')));
+        let renamed = chosen != plain;
+        reserved.insert(chosen.clone());
+        out.push(PlannedName {
+            input: input.clone(),
+            out_dir: dir,
+            out_path: chosen,
+            renamed,
+        });
+    }
+
+    out
 }
 
 /// One row of the window's output preview.
@@ -162,26 +224,16 @@ pub fn preview_batch(
     settings: &Settings,
     batch_len: usize,
 ) -> Vec<PreviewEntry> {
-    let mut reserved: BTreeSet<PathBuf> = BTreeSet::new();
-    let mut out = Vec::with_capacity(inputs.len());
-    let batch_len = batch_len.max(inputs.len());
-
-    for input in inputs {
-        let dir = resolve_out_dir(input, settings, batch_len);
-        let stem = output_stem(input);
-        let chosen = next_free_name(&dir, &stem, target, &reserved);
-        let plain = dir.join(format!("{stem}.{}", target.trim_start_matches('.')));
-        reserved.insert(chosen.clone());
-        out.push(PreviewEntry {
-            input: input.to_string_lossy().to_string(),
-            out_dir_exists: dir.is_dir(),
-            out_dir: dir.to_string_lossy().to_string(),
-            out_path: chosen.to_string_lossy().to_string(),
-            renamed: chosen != plain,
-        });
-    }
-
-    out
+    plan_batch(inputs, target, settings, batch_len)
+        .into_iter()
+        .map(|planned| PreviewEntry {
+            out_dir_exists: planned.out_dir.is_dir(),
+            input: planned.input.to_string_lossy().to_string(),
+            out_dir: planned.out_dir.to_string_lossy().to_string(),
+            out_path: planned.out_path.to_string_lossy().to_string(),
+            renamed: planned.renamed,
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -376,5 +428,112 @@ mod tests {
     fn output_stem_falls_back_when_there_is_no_name() {
         assert_eq!(output_stem(Path::new("/tmp/report.docx")), "report");
         assert_eq!(output_stem(Path::new("/tmp/.hidden")), "converted");
+    }
+
+    /// Acceptance (`C4`): collision suffixing across **1000 simulated names**.
+    ///
+    /// The scenario is the real one: a folder drop with `include_subfolders` on,
+    /// 1000 files all called `photo.png` in different subfolders, all landing in
+    /// one chosen output folder. Every name must be unique, the sequence must
+    /// start at the plain name and step through `-1`, `-2`, …, and nothing on
+    /// disk may be overwritten.
+    #[test]
+    fn a_thousand_colliding_names_are_all_distinct() {
+        let dir = TempDir::new("thousand");
+        let out = dir.path().join("out");
+        fs::create_dir_all(&out).unwrap();
+        let mut settings = Settings::default();
+        settings.output.location = "chosen_folder".into();
+        settings.output.chosen_folder = Some(out.to_string_lossy().into_owned());
+
+        let inputs: Vec<PathBuf> = (0..1000)
+            .map(|i| dir.path().join(format!("sub{i:04}")).join("photo.png"))
+            .collect();
+        let planned = plan_batch(&inputs, "webp", &settings, inputs.len());
+        assert_eq!(planned.len(), 1000);
+
+        let mut names: Vec<String> = planned
+            .iter()
+            .map(|p| {
+                p.out_path
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string()
+            })
+            .collect();
+        let unique: BTreeSet<&String> = names.iter().collect();
+        assert_eq!(unique.len(), 1000, "every simulated name must be unique");
+
+        // Order is the queue's: plain name first, then -1 .. -999.
+        assert_eq!(names[0], "photo.webp");
+        assert_eq!(names[1], "photo-1.webp");
+        assert_eq!(names[999], "photo-999.webp");
+        assert!(!planned[0].renamed);
+        assert!(planned.iter().skip(1).all(|p| p.renamed));
+
+        // And the plan matches what the filesystem accepts: write them all and
+        // check the directory really holds 1000 distinct names.
+        for (planned, input) in planned.iter().zip(&inputs) {
+            fs::write(&planned.out_path, input.to_string_lossy().as_bytes()).unwrap();
+        }
+        names.sort();
+        names.dedup();
+        assert_eq!(names.len(), 1000);
+        assert_eq!(fs::read_dir(&out).unwrap().count(), 1000);
+    }
+
+    /// The predicate form, with **holes** in the taken set: 1000 probes where
+    /// every other suffix is already occupied must fill the gaps in order and
+    /// never produce a taken name.
+    #[test]
+    fn a_thousand_probes_skip_taken_names_and_fill_the_gaps() {
+        let dir = TempDir::new("holes");
+        // Simulated occupancy: the plain name plus every even suffix is taken.
+        let taken: BTreeSet<PathBuf> = std::iter::once(dir.path().join("report.pdf"))
+            .chain(
+                (0..1000)
+                    .filter(|n| n % 2 == 0)
+                    .map(|n| dir.path().join(format!("report-{n}.pdf"))),
+            )
+            .collect();
+
+        let probe = |candidate: &Path| taken.contains(candidate);
+        let first = next_free_name_with(dir.path(), "report", "pdf", &probe);
+        assert_eq!(first, dir.path().join("report-1.pdf"));
+
+        let second = next_free_name_with(dir.path(), "report", "pdf", &probe);
+        assert_eq!(
+            second,
+            dir.path().join("report-1.pdf"),
+            "predicate is stateless"
+        );
+
+        // A run of 1000 sequential claims over the same occupied set: every
+        // result is free against the set, and none repeats.
+        let mut claimed: BTreeSet<PathBuf> = taken.clone();
+        let mut produced: BTreeSet<PathBuf> = BTreeSet::new();
+        for _ in 0..1000 {
+            let name = next_free_name_with(dir.path(), "report", "pdf", &|c| claimed.contains(c));
+            assert!(!claimed.contains(&name), "claimed a taken name: {name:?}");
+            claimed.insert(name.clone());
+            produced.insert(name);
+        }
+        assert_eq!(produced.len(), 1000);
+    }
+
+    /// 1000 real files on disk: the probe still finds the first free suffix and
+    /// reports it as renamed. (Slow-ish by design; this is the disk-truth leg of
+    /// the simulated one above.)
+    #[test]
+    fn a_thousand_real_files_are_stepped_over() {
+        let dir = TempDir::new("real1000");
+        fs::write(dir.path().join("photo.png"), b"original").unwrap();
+        for n in 1..1000 {
+            fs::write(dir.path().join(format!("photo-{n}.png")), b"x").unwrap();
+        }
+        let name = next_free_name(dir.path(), "photo", "png", &BTreeSet::new());
+        assert_eq!(name, dir.path().join("photo-1000.png"));
+        assert_eq!(fs::read(dir.path().join("photo.png")).unwrap(), b"original");
     }
 }

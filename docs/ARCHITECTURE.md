@@ -1045,6 +1045,30 @@ Deterministic and collision-free by construction:
    toggle ships only once the strip path is measured for each engine (`§6.1` for vips,
    `C2` for audio where "strip" means skipping the tag merge). `SPEC.md` §5.
 
+*Update 2026-11-01 (card `C4`, implementation):* `job/outputs.rs` is the execution half of
+this section, `job/publish.rs` the placement half. What the code settles:
+
+- `model::naming::plan_batch` is the single implementation of rules 1–3; the window's
+  preview (`preview_batch`) and the publisher both call it, so the displayed name is the
+  written name by construction rather than by convention.
+- Rule 3's "probe and rename are one operation" is a **per-directory lock** plus a
+  no-clobber placement. `std::fs::rename` is not used on the final hop: on Unix it replaces
+  an existing file, which is the data loss `SPEC.md` §5 forbids. The hop is `hard_link`
+  (fails with `AlreadyExists` on both platforms) with a `create_new` copy as the
+  cross-volume fallback — `O_EXCL`, so equally atomic. A name taken by another program
+  between probe and placement is caught by the placement itself and the probe re-runs
+  (bounded at 10 000 attempts).
+- The lock is **in-process** (one app instance per user session); out-of-process writers are
+  handled by the no-clobber placement, not by the lock. Stated explicitly because "under a
+  per-directory lock" could otherwise imply an OS-level lock file.
+- Rule 6's strip toggle is resolved per file (`settings.metadata.strip` as the default, a
+  per-row override when the window sets one) in `outputs::plan`, and handed to the engine
+  as `engine::plan::Options::strip_metadata`. Proven on real audio in
+  `spikes/c4/e2e.rs` E2E-1c vs E2E-2a: keeping merges the source's 5 ID3 tags, stripping
+  skips the merge and produces different bytes.
+- Directories a job creates (the `converted/` folder, or a chosen folder's missing parents)
+  are recorded in the journal and removed by undo **only while empty**.
+
 ---
 
 ## 10. Wheel state machine (implementation in `U1`, `U3`)
@@ -1238,6 +1262,38 @@ Lifecycle:
 The hash check is what makes "deletes only files this job created" true (C4's acceptance):
 it cannot delete a user's replacement file, cannot delete an input, and cannot delete through
 a path that was re-pointed by a symlink or junction after conversion.
+
+*Update 2026-11-01 (card `C4`, implementation — `job/journal.rs`):* the implemented record
+adds four fields to the shape above and tightens the check:
+
+```json
+{
+  "schema": 1,
+  "job_id": "j_000042",
+  "created_at_unix_ms": 1793512000123,
+  "state": "pending | committed | undone | expired | abandoned",
+  "inputs":  [{ "path": "…", "sha256": "…", "size": 37058 }],
+  "intended": ["…/report.pdf"],
+  "outputs": [{ "path": "…/report.pdf", "dir_canon": "…", "sha256": "…", "size": 26460,
+                "mtime_unix_ms": 1793512001020 }],
+  "created_dirs": ["…/converted"],
+  "engine": "ffmpeg 7.1", "route": "mp3-wav", "failures": 0
+}
+```
+
+- `intended` is the pending-state trail (what the job meant to write). It is **never** a
+  delete list; recovery from a `pending` journal deletes nothing.
+- `dir_canon` is the canonical parent directory at publish time, re-checked at undo: a
+  folder re-pointed by a junction/symlink after the conversion fails the check and undo
+  refuses. The file itself is also rejected if it is a symlink.
+- `created_dirs` makes undo remove an empty `converted/` (or chosen-folder parents) without
+  ever removing a folder the user has since put something in.
+- `mtime_unix_ms` is recorded but is **not** a gate: a backup tool touching a file must not
+  block undo. The SHA-256 is the gate, and a size mismatch fails fast before hashing.
+- Undo is all-or-nothing on the verification pass: every output is checked before the first
+  `remove_file`, so a mixed job deletes nothing and reports which paths changed.
+- A journal that cannot be parsed is renamed `.corrupt` by the startup sweep and never acted
+  on; the sweep never deletes an output in any state.
 
 ---
 

@@ -8,15 +8,17 @@ python3 scripts/gen-licenses.py          # regenerate
 python3 scripts/gen-licenses.py --check  # CI drift check
 ```
 
-Total packages in the locked graph: **416** (6 direct/workspace, 410 transitive).
+Total packages in the locked graph: **416** (8 direct/workspace, 408 transitive).
 
 ## Direct dependencies
 
 | Crate | Version | License |
 |---|---|---|
 | `ez-convert` | 0.0.1 | own code - licence TBD (stakeholder decision) |
+| `lofty` | 0.22.4 | MIT OR Apache-2.0 |
 | `serde` | 1.0.229 | MIT OR Apache-2.0 |
 | `serde_json` | 1.0.154 | MIT OR Apache-2.0 |
+| `sha2` | 0.10.9 | MIT OR Apache-2.0 |
 | `tauri` | 2.12.5 | Apache-2.0 OR MIT |
 | `tauri-build` | 2.7.4 | Apache-2.0 OR MIT |
 | `tauri-plugin-dialog` | 2.8.4 | Apache-2.0 OR MIT |
@@ -196,7 +198,6 @@ Total packages in the locked graph: **416** (6 direct/workspace, 410 transitive)
 | `libredox` | 0.1.25 | MIT |
 | `litemap` | 0.8.3 | Unicode-3.0 |
 | `lock_api` | 0.4.14 | MIT OR Apache-2.0 |
-| `lofty` | 0.22.4 | MIT OR Apache-2.0 |
 | `lofty_attr` | 0.11.1 | MIT OR Apache-2.0 |
 | `log` | 0.4.35 | MIT OR Apache-2.0 |
 | `markup5ever` | 0.39.0 | MIT OR Apache-2.0 |
@@ -298,7 +299,6 @@ Total packages in the locked graph: **416** (6 direct/workspace, 410 transitive)
 | `serialize-to-javascript` | 0.1.2 | MIT OR Apache-2.0 |
 | `serialize-to-javascript-impl` | 0.1.2 | MIT OR Apache-2.0 |
 | `servo_arc` | 0.4.3 | MIT OR Apache-2.0 |
-| `sha2` | 0.10.9 | MIT OR Apache-2.0 |
 | `shlex` | 2.0.1 | MIT OR Apache-2.0 |
 | `simd-adler32` | 0.3.10 | MIT |
 | `siphasher` | 1.0.4 | MIT OR Apache-2.0 |

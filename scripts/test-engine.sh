@@ -9,6 +9,11 @@
 # `spikes/c2/harness` (real lofty, real files) instead.
 #
 # Usage: scripts/test-engine.sh [--test-threads=1]
+#
+# Scope note (card C4): this harness deliberately does not include `job/` —
+# those modules depend on serde/sha2 (the undo journal), which plain `rustc`
+# cannot link here. `scripts/c4-tests.sh` is the harness that covers `job/`
+# (and the C4 end-to-end matrix) by generating a cargo package instead.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

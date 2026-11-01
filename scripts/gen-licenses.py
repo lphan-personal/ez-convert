@@ -22,7 +22,8 @@ MANIFEST = os.path.join(ROOT, "src-tauri", "Cargo.toml")
 OUT = os.path.join(ROOT, "docs", "LICENSES.md")
 
 # Direct dependencies of ours (the ones a human actually chose).
-DIRECT = {"ez-convert", "tauri", "tauri-build", "tauri-plugin-dialog", "serde", "serde_json"}
+DIRECT = {"ez-convert", "tauri", "tauri-build", "tauri-plugin-dialog", "serde", "serde_json",
+          "lofty", "sha2"}
 
 
 def metadata():

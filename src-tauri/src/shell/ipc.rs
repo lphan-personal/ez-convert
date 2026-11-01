@@ -200,18 +200,42 @@ pub fn queue_clear(state: State<'_, AppState>) -> QueueSnapshot {
     queue.snapshot(store.get())
 }
 
-/// Undo is delivered by the journal in `C4` (`ARCHITECTURE.md` §13).
+/// Undo the last conversion (`SPEC.md` §5: a 10-second Undo that deletes the
+/// outputs it created).
 ///
-/// The toast's Undo control calls this; until the journal lands the answer is
-/// an explicit, structured "not yet" rather than a silent no-op or a fake
-/// success. `SPEC.md` §5's deletion guarantee is only true once that journal
-/// can hash-verify the outputs.
+/// The decision — *which* files may be deleted — is made by the journal
+/// (`job::journal`, `ARCHITECTURE.md` §13), never here: this command only
+/// translates the journal's verdict into the toast's answer. A refusal is a
+/// normal outcome (window closed, file changed, file is an input), so it comes
+/// back as `performed: false` with the reason, not as an error the UI would
+/// show as a crash.
 #[tauri::command]
-pub fn undo_last() -> UndoOutcome {
-    UndoOutcome {
-        performed: false,
-        undone: 0,
-        message: "Undo needs the job journal (card C4). Nothing was deleted.".into(),
+pub fn undo_last(state: State<'_, AppState>) -> UndoOutcome {
+    let journals = {
+        let store = settings_lock(&state);
+        crate::job::journal::JournalStore::from_settings(store.get())
+    };
+    undo_with(&journals, crate::job::journal::now_unix_ms())
+}
+
+/// The command's whole decision, without the Tauri `State` wrapper, so it can be
+/// tested on a runner with no window (the journal's own tests cover the deletes).
+fn undo_with(journals: &crate::job::journal::JournalStore, now_unix_ms: u64) -> UndoOutcome {
+    match crate::job::outputs::undo_latest(journals, now_unix_ms) {
+        Ok(report) => UndoOutcome {
+            performed: true,
+            undone: report.deleted.len(),
+            message: if report.deleted.is_empty() {
+                "Nothing to remove.".into()
+            } else {
+                format!("Removed {} converted file(s).", report.deleted.len())
+            },
+        },
+        Err(e) => UndoOutcome {
+            performed: false,
+            undone: 0,
+            message: e.to_string(),
+        },
     }
 }
 
@@ -274,9 +298,20 @@ mod tests {
     }
 
     #[test]
-    fn undo_is_explicit_about_not_being_available_yet() {
-        let outcome = undo_last();
+    fn undo_without_a_journal_says_so_and_deletes_nothing() {
+        // `undo_last` used to answer "not implemented"; C4 replaced that with the
+        // journal. With an empty journal directory the honest answer is "nothing
+        // to undo", and it must be a refusal rather than a fake success.
+        let dir = std::env::temp_dir().join(format!("ezc-undo-{}", std::process::id()));
+        let journals = crate::job::journal::JournalStore::new(dir.join("journal"), 10);
+        let outcome = undo_with(&journals, crate::job::journal::now_unix_ms());
         assert!(!outcome.performed);
-        assert!(outcome.message.contains("Nothing was deleted"));
+        assert_eq!(outcome.undone, 0);
+        assert!(
+            outcome.message.contains("nothing to undo"),
+            "message should explain there is nothing to undo, got {:?}",
+            outcome.message
+        );
+        let _ = std::fs::remove_dir_all(dir);
     }
 }
