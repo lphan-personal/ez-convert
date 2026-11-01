@@ -18,6 +18,14 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+# Folder/file pickers for "Add files" and the chosen-output-folder control.
+# A native dialog, not a shell-out: engine/ keeps exclusive ownership of
+# std::process::Command (ARCHITECTURE.md §2.2).
+tauri-plugin-dialog = "2"
+# Settings are a JSON document we own (ARCHITECTURE.md §15). serde parses our
+# own format; it is not a third-party file parser.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [profile.release]
 codegen-units = 1

@@ -7,13 +7,14 @@
     "frontendDist": "../ui"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "label": "main",
         "title": "EZ Convert",
-        "width": 1024,
-        "height": 720,
-        "minWidth": 720,
+        "width": 1180,
+        "height": 780,
+        "minWidth": 820,
         "minHeight": 560,
         "resizable": true,
         "fullscreen": false,
@@ -21,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost"
     }
   },
   "bundle": {

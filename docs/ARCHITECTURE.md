@@ -1155,8 +1155,10 @@ Store: `<config>/settings.json` (Windows `%APPDATA%\app.ezconvert\`, macOS
   "schema_version": 1,
   "output": {
     "location": "same_folder",
+    "chosen_folder": null,
     "batch_subfolder": "converted",
     "batch_threshold": 3,
+    "use_batch_subfolder": true,
     "never_overwrite": true
   },
   "metadata": { "strip": false },
@@ -1189,6 +1191,19 @@ Rules:
   launch failure.
 - `never_overwrite` is exposed in the schema but not user-toggleable in v1: `SPEC.md` §5 makes
   "never overwrite" a rule, not a preference. It exists so the invariant has a name in code.
+
+*Update 2026-11-01 (card `U2`, implementation):* two keys were added to make the `SPEC.md` §5
+rules actually toggleable, which §15 did not provide for:
+
+- `output.chosen_folder` (default `null`) — `output.location` could already be set to a chosen
+  folder, but the schema had nowhere to record *which* folder. `location` switches the rule,
+  `chosen_folder` carries the destination; a `chosen_folder` location with no absolute path is
+  repaired back to `same_folder`.
+- `output.use_batch_subfolder` (default `true`) — `SPEC.md` §5 requires the batch rule to be
+  user-toggleable, and a threshold alone cannot turn the rule off.
+
+Both are in `model/settings_schema.rs` with the rest, and the schema/field bijection is a test,
+so this section and the code cannot drift silently.
 
 ---
 

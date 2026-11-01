@@ -8,15 +8,18 @@ python3 scripts/gen-licenses.py          # regenerate
 python3 scripts/gen-licenses.py --check  # CI drift check
 ```
 
-Total packages in the locked graph: **407** (3 direct/workspace, 404 transitive).
+Total packages in the locked graph: **411** (6 direct/workspace, 405 transitive).
 
 ## Direct dependencies
 
 | Crate | Version | License |
 |---|---|---|
 | `ez-convert` | 0.0.1 | own code - licence TBD (stakeholder decision) |
+| `serde` | 1.0.229 | MIT OR Apache-2.0 |
+| `serde_json` | 1.0.154 | MIT OR Apache-2.0 |
 | `tauri` | 2.12.5 | Apache-2.0 OR MIT |
 | `tauri-build` | 2.7.4 | Apache-2.0 OR MIT |
+| `tauri-plugin-dialog` | 2.8.4 | Apache-2.0 OR MIT |
 
 ## Transitive dependencies
 
@@ -266,6 +269,7 @@ Total packages in the locked graph: **407** (3 direct/workspace, 404 transitive)
 | `regex-automata` | 0.4.18 | MIT OR Apache-2.0 |
 | `regex-syntax` | 0.8.11 | MIT OR Apache-2.0 |
 | `reqwest` | 0.13.5 | MIT OR Apache-2.0 |
+| `rfd` | 0.17.2 | MIT |
 | `rustc-hash` | 2.1.3 | Apache-2.0 OR MIT |
 | `rustc_version` | 0.4.1 | MIT OR Apache-2.0 |
 | `rustversion` | 1.0.23 | MIT OR Apache-2.0 |
@@ -277,12 +281,10 @@ Total packages in the locked graph: **407** (3 direct/workspace, 404 transitive)
 | `scopeguard` | 1.2.0 | MIT OR Apache-2.0 |
 | `selectors` | 0.38.0 | MPL-2.0 |
 | `semver` | 1.0.28 | MIT OR Apache-2.0 |
-| `serde` | 1.0.229 | MIT OR Apache-2.0 |
 | `serde-untagged` | 0.1.9 | MIT OR Apache-2.0 |
 | `serde_core` | 1.0.229 | MIT OR Apache-2.0 |
 | `serde_derive` | 1.0.229 | MIT OR Apache-2.0 |
 | `serde_derive_internals` | 0.29.1 | MIT OR Apache-2.0 |
-| `serde_json` | 1.0.154 | MIT OR Apache-2.0 |
 | `serde_repr` | 0.1.21 | MIT OR Apache-2.0 |
 | `serde_spanned` | 0.6.9 | MIT OR Apache-2.0 |
 | `serde_spanned` | 1.1.2 | MIT OR Apache-2.0 |
@@ -318,6 +320,8 @@ Total packages in the locked graph: **407** (3 direct/workspace, 404 transitive)
 | `target-lexicon` | 0.12.16 | Apache-2.0 WITH LLVM-exception |
 | `tauri-codegen` | 2.7.4 | Apache-2.0 OR MIT |
 | `tauri-macros` | 2.7.4 | Apache-2.0 OR MIT |
+| `tauri-plugin` | 2.7.2 | Apache-2.0 OR MIT |
+| `tauri-plugin-fs` | 2.7.1 | Apache-2.0 OR MIT |
 | `tauri-runtime` | 2.12.2 | Apache-2.0 OR MIT |
 | `tauri-runtime-wry` | 2.12.3 | Apache-2.0 OR MIT |
 | `tauri-utils` | 2.10.2 | Apache-2.0 OR MIT |

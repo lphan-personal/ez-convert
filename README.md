@@ -2,9 +2,11 @@
 
 Local file conversion desktop app. Tauri 2 shell, Rust core, radial "wheel" UI.
 
-**Status: P0 skeleton.** This repo exists to unblock the OS-specific spike tasks (S1/S2/S3) by
-giving them a real GitHub Actions surface. Nothing converts files yet — the UI is a static
-placeholder and the Rust core is an empty contract.
+**Status: window surface + settings implemented (card U2).** The app has its main window:
+queue with per-file state, multi-file / folder drag-and-drop, batch controls, a settings panel
+generated from the Rust schema, and a completion toast. Nothing converts files yet — the
+detection matrix, the engines and the output writer land in `C1`–`C4`, so queue rows show
+"checking type…" and no conversion is started.
 
 Prior art, reference-policy and licensing rules live in `docs/PRIOR_ART.md`,
 `docs/REFERENCE_POLICY.md` and `docs/LICENSES.md`. They are binding on every card: read
@@ -22,19 +24,28 @@ schema and the undo journal. It is a byte-identical mirror of the canonical copy
 
 ```
 .
-├── ui/index.html            # the wheel placeholder (static, no build step)
+├── ui/                       # main window, no build step
+│   ├── index.html            # window shell (no inline script: CSP default-src 'self')
+│   ├── style.css             # Apple design language, reduced-motion/transparency fallbacks
+│   ├── logic.js              # pure window logic — unit-tested under node
+│   ├── app.js                # DOM wiring + IPC bridge (Tauri commands in shell/ipc.rs)
+│   └── tests/logic.test.js   # node --test ui/tests (no dependencies)
 ├── src-tauri/
-│   ├── Cargo.toml           # tauri = "2", tauri-build = "2"
+│   ├── Cargo.toml           # tauri = "2", tauri-build = "2", tauri-plugin-dialog = "2"
 │   ├── Cargo.lock           # committed — CI builds with --locked
 │   ├── build.rs             # tauri_build::build()
-│   ├── tauri.conf.json      # frontendDist = ../ui, bundle.active = false (P2 owns bundling)
+│   ├── tauri.conf.json      # frontendDist = ../ui, withGlobalTauri, bundle.active = false (P2)
 │   ├── icons/               # generated icon set (icon.png + sizes + icon.ico)
 │   └── src/
 │       ├── main.rs          # thin binary entry
-│       ├── lib.rs           # ez_convert_lib::run() + command registry
-│       └── engine.rs        # placeholder engine contract + unit tests
+│       ├── lib.rs           # ez_convert_lib::run() + command registry + boundary test
+│       ├── engine.rs        # placeholder engine contract + unit tests
+│       ├── model/           # pure rules: settings, settings_schema, naming, types
+│       ├── job/queue.rs     # admission, folder expansion, per-file state, batch progress
+│       └── shell/ipc.rs     # the only Tauri-aware layer (window commands)
 ├── scripts/license-assert.sh# ffmpeg LGPL gate (CI-enforced)
 ├── scripts/make-icons.py    # regenerates src-tauri/icons (stdlib + ffmpeg only)
+├── scripts/gen-licenses.py  # docs/LICENSES.md from the locked graph (CI-enforced)
 ├── spikes/                  # one directory per spike, each with its own run.sh
 └── .github/workflows/build.yml
 ```
