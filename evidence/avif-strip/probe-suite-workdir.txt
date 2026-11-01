@@ -1,0 +1,54 @@
+== vips ==
+vips-8.18.7
+
+== A. engine behaviour, re-measured (the defect is in vips, not in our fix) ==
+/c/ezc/avifprobe/engine-bracket.avif[strip]: unable to open for write
+system error: No such file or directory
+/c/ezc/avifprobe/engine-bracket.avif[strip]: write error
+system error: No such file or directory
+exit=1
+-- the literal bracket name exists, the requested path does not:
+engine-bracket.avif        ABSENT
+engine-bracket.avif[strip] ABSENT
+exit=0 (flags-only form)
+engine-flags.avif          PRESENT 760 B
+exit=0 (--keep all --strip form: the flag conflict)
+
+== B. what the FIXED app actually produced in the suite work dir ==
+-rw-r--r-- 1 ryo None   2454 Nov  1 18:13 avif-to-gif.gif
+-rw-r--r-- 1 ryo None   2594 Nov  1 18:13 avif-to-jpg.jpg
+-rw-r--r-- 1 ryo None   2350 Nov  1 18:13 avif-to-png.png
+-rw-r--r-- 1 ryo None   2412 Nov  1 18:13 avif-to-tiff.tiff
+-rw-r--r-- 1 ryo None   1162 Nov  1 18:13 avif-to-webp.webp
+-rw-r--r-- 1 ryo None    964 Nov  1 18:13 gif-to-avif.avif
+-rw-r--r-- 1 ryo None    990 Nov  1 18:13 heic-to-avif.avif
+-rw-r--r-- 1 ryo None    899 Nov  1 18:13 jpeg-to-avif.avif
+-rw-r--r-- 1 ryo None   1740 Nov  1 18:13 meta-jpeg-to-avif-keep.avif
+-rw-r--r-- 1 ryo None    760 Nov  1 18:13 meta-jpeg-to-avif-strip.avif
+-rw-r--r-- 1 ryo None   1715 Nov  1 18:13 meta-png-to-avif-keep.avif
+-rw-r--r-- 1 ryo None    735 Nov  1 18:13 meta-png-to-avif-strip.avif
+-rw-r--r-- 1 ryo None   1739 Nov  1 18:13 meta-tiff-to-avif-keep.avif
+-rw-r--r-- 1 ryo None    735 Nov  1 18:13 meta-tiff-to-avif-strip.avif
+-rw-r--r-- 1 ryo None   1566 Nov  1 18:13 meta-webp-to-avif-keep.avif
+-rw-r--r-- 1 ryo None    586 Nov  1 18:13 meta-webp-to-avif-strip.avif
+-rw-r--r-- 1 ryo None    875 Nov  1 18:13 png-to-avif.avif
+-rw-r--r-- 1 ryo None    875 Nov  1 18:13 tiff-to-avif.avif
+-rw-r--r-- 1 ryo None    971 Nov  1 18:13 webp-to-avif.avif
+
+-- any bracketed residue in the whole work dir (must be none):
+   (end of residue list)
+
+== C. vipsheader -a: the four strip outputs vs their keep outputs ==
+  jpeg-to-avif-keep: 1740 B  exif-data=1 icc-profile-data=1 orientation=''
+  jpeg-to-avif-strip: 760 B  exif-data=0 icc-profile-data=0 orientation=''
+  png-to-avif-keep: 1715 B  exif-data=1 icc-profile-data=1 orientation=''
+  png-to-avif-strip: 735 B  exif-data=0 icc-profile-data=0 orientation=''
+  webp-to-avif-keep: 1566 B  exif-data=1 icc-profile-data=1 orientation=''
+  webp-to-avif-strip: 586 B  exif-data=0 icc-profile-data=0 orientation=''
+  tiff-to-avif-keep: 1739 B  exif-data=1 icc-profile-data=1 orientation=''
+  tiff-to-avif-strip: 735 B  exif-data=0 icc-profile-data=0 orientation=''
+
+== D. fixture provenance for the above ==
+/c/msys64/ezc/repo3/fixtures/exif_icc.jpg 7051 B
+exif-data: 162 bytes of binary data
+icc-profile-data: 736 bytes of binary da

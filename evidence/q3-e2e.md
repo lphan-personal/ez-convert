@@ -283,10 +283,14 @@ Windows leg* above). The media matrix measured by hand on that dist is
 ## Gaps, stated
 
 - **AVIF output** (6 directions): this box has no AV1 encoder, so the Linux leg is
-  all SKIP. The Windows leg (`windows.txt`) runs all six — 2 PASS, and 4 red on the
-  `strip` half of the metadata policy because of a real engine defect (bracket
-  filename + `--keep all` vs `--strip`, card `t_ade3f5a7`). The AVIF encode itself
-  is measured and passes there; the strip path is not green on any dist yet.
+  all SKIP. The Windows leg (`windows.txt`) runs all six. On the `t_4b6ee179` head four
+  of them were red on the `strip` half of the metadata policy — a real engine defect
+  (saver bracket taken as a literal file name, plus `--keep all` over `--strip`), filed
+  as card `t_ade3f5a7`. **That card fixed it**: the saver slot is bare and the plan sends
+  `--strip` without `--keep all`, and the `t_ade3f5a7` leg re-ran this suite on the same
+  dist — `advertised=154 pass=154 fail=0 skip=0 controls=13/13 caught`, all four rows
+  `meta=icc=kept strip=clean`. Transcript, reports and the raw engine probe:
+  `evidence/avif-strip.md` and `evidence/avif-strip/`.
 - **macOS** is unmeasured for every direction: nothing here ran on a Mac.
 - The **CI verdict for this head** is not observable from this container (Contents
   scope only; Actions API 403). The suite is wired into `.github/workflows/build.yml`

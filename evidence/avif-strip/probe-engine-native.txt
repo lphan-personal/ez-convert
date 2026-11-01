@@ -1,0 +1,18 @@
+== engine behaviour with native paths (vips 8.18.7, shipping dist) ==
+
+-- 1. bracket on the saver path, as the pre-fix builder emitted it:
+exit=0
+-rw-r--r-- 1 ryo None 1740 Nov  1 18:15 bracket.avif[strip]
+REQUESTED PATH bracket.avif: ABSENT
+LITERAL NAME 'bracket.avif[strip]': present 1740 B
+
+-- 2. the fixed form (bare saver path + --strip, no --keep all):
+exit=0
+flags.avif: present 760 B
+exif-data=0 icc-profile-data=0
+
+-- 3. the two conflicting flags together (why the fix drops --keep all):
+exit=0 size=1740 B exif-data=1 icc=1
+
+-- 4. the keep form (unchanged path: --keep all, no --strip):
+exit=0 size=1740 B exif-data=1 icc=1

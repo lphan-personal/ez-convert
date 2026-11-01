@@ -481,6 +481,7 @@ Measured invocations (Windows 11 Pro 26200, MSYS2/UCRT64 build; evidence: `S2 §
 | V8 | `vips.exe heifsave <in.png> <out.avif> --compression av1 --Q 60 --effort 6 --bitdepth 8 --keep all` | **avif save works** on the `spec-aom` dist: 400×200 → 3,863 B, container brand `ftypavif`; the 2 MP jpg variant → 302,068 B |
 | V8b | `vips.exe jpegsave <in.avif> <out.jpg> --Q 95` | avif → jpg via dav1d: geometry kept, EXIF IFD0 kept, 3,144 B sRGB ICC kept |
 | V8c | `vips.exe copy <in.heic> <out.avif>` (pre-`libaom` dist) | **failed** with `heifsave: Unsupported compression` — the reason capability must be probed by doing, not by reading `--vips-config` |
+| V8d | `vips.exe heifsave <in.jpg> <out.avif[strip]> … --keep all --strip` | **the bracket is a literal file name and the two flags conflict.** exit **0**, no stderr, nothing at `<out.avif>`, a 1740 B file named `out.avif[strip]` (card `t_ade3f5a7`, re-measured on this dist). Bare path: `--keep all --strip` → 1740 B, EXIF **and** ICC present; `--strip` alone → 760 B, both absent; `--keep all` alone → 1740 B, both present. `heifsave`'s output argument is a plain filename, so bracket options are not parsed — strip must be the flag, and `--keep all` must not be sent with it |
 | V9 | `vips.exe tiffload <in.tif> <out.png> --fail-on error` | on JBIG-tagged TIFF: exit 1, **no output**, stderr `tiff2vips: ISO JBIG compression support is not configured` |
 | V10 | `vips.exe copy <in-jbig.tif> <out.png>` | exit 0, 400×200 PNG written, mean pixel 0.000000 — **silent black frame**. Never use bare `copy` for TIFF input |
 | V11 | `vipsheader.exe -f compression <in.tif>` | prints the tag value; JBIG TIFF emits the `tiff2vips:` warning above |
@@ -520,15 +521,23 @@ env  = scrubbed (§6.0.2), CWD = <install>/resources/engines/vips
   50 %). `thumbnail` shrink-on-load is not used: the UI's resize control is a percentage and
   `resize` is what was measured (`spikes/c2/EVIDENCE.md` §1 D12).
 - **AVIF output names its saver and passes the measured option set**:
-  `heifsave` + `--compression av1 --Q 60 --effort 6 --bitdepth 8 --keep all` (`§6.1` V8).
-  Four corrections from the measurement, each of which costs a bug if ignored:
+  `heifsave` + `--compression av1 --Q 60 --effort 6 --bitdepth 8` (`§6.1` V8), plus
+  `--keep all` **only** when metadata is kept and `--strip` **only** when it is removed —
+  never both (`V8d`). Four corrections from the measurement, each of which costs a bug if
+  ignored:
   1. the option is **`effort`** (0-9), not `speed` — `SPEC.md` §9.3 says `speed` and is wrong;
-  2. `--keep all` is the default, so metadata survival does **not** depend on passing it;
+  2. `--keep all` is the default, so metadata survival does **not** depend on passing it —
+     but it is **not** inert either: it overrides `--strip` (`V8d`), so the strip plan must
+     drop it;
   3. `bitdepth` defaults to 12 but an 8-bit source stays 8-bit; pass `--bitdepth 8` for
      determinism;
   4. **never use `--encoder` for capability detection** — `--encoder rav1e` on a build
      without rav1e prints a WARNING and returns **rc=0** with a valid fallback file. Same class
      of trap as the JBIG TIFF: exit 0 must never be the capability signal.
+  `heifsave` is also the one op in this set whose output argument is a **plain filename, not a
+  `VipsImage`**: the bracket syntax is read only for arguments that become an image, so the
+  saver path is bare and strip is the `--strip` **flag**. The bracket form used by
+  `copy`/`autorot`/`resize` is inert here and turns into part of the file name (`V8d`).
 - **Capability is probed by doing, not by config.** `--vips-config` reported
   `HEIC/AVIF load/save: true` on the very build where avif save failed (V8c). The startup
   engine check therefore performs one tiny real conversion (a 1×1 PNG → the target format in

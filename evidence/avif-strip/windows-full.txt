@@ -1,0 +1,196 @@
+=== EZ Convert Q3 end-to-end suite ===
+fixtures: C:/msys64/ezc/repo3/fixtures
+work:     C:/ezc/q3work3
+engines:  vips=vips.exe ffmpeg=ffmpeg.exe soffice=soffice.com
+          vips vips-8.18.7
+          ffmpeg ffmpeg version N-128273-g836436cfb9-20261101 Copyright (c) 2000-2026 the FFmpeg developers
+PASS  policy    precondition                meta=keep=default                   0 B      0 ms  Options::default().strip_metadata == false (SPEC §5 keep-by-default)
+PASS  preflight  no duplicate directions     meta=                               0 B      0 ms  106 advertised media directions are unique
+PASS  preflight  fixture per input type      meta=                               0 B      0 ms  28 input types resolve to a fixture file
+PASS  preflight  every advertised direction is routed  meta=                               0 B      0 ms  0 unrouted of 106 advertised
+PASS  preflight  document sets agree         meta=                               0 B      0 ms  42 directions in both matrix and engine::soffice::proven_routes
+PASS  preflight  evidence still says so      meta=                               0 B      0 ms  every advertised route's evidence file contains its marker literal
+
+--- still images ---
+PASS  image     jpeg->jpg                   meta=icc=kept strip=clean        2725 B    220 ms  64x48 mean=124.8 2725B
+PASS  image     jpeg->png                   meta=icc=kept strip=clean        3537 B    204 ms  64x48 mean=124.8 3537B
+PASS  image     jpeg->webp                  meta=icc=kept strip=clean        1188 B    222 ms  64x48 mean=125.0 1188B
+PASS  image     jpeg->tiff                  meta=icc=kept strip=clean        3508 B    207 ms  64x48 mean=124.8 3508B
+PASS  image     jpeg->avif                  meta=icc=kept strip=clean         899 B    249 ms  64x48 mean=124.9 899B
+PASS  image     jpeg->gif                   meta=icc=n/a strip=clean         2904 B    271 ms  64x48 mean=124.8 2904B
+PASS  image     png->jpg                    meta=icc=kept strip=clean        2781 B    234 ms  64x48 mean=124.9 2781B
+PASS  image     png->webp                   meta=icc=kept strip=clean        1130 B    219 ms  64x48 mean=125.2 1130B
+PASS  image     png->tiff                   meta=icc=kept strip=clean         522 B    220 ms  64x48 mean=124.9 522B
+PASS  image     png->avif                   meta=icc=kept strip=clean         875 B    234 ms  64x48 mean=125.0 875B
+PASS  image     png->gif                    meta=icc=n/a strip=clean         1680 B    321 ms  64x48 mean=125.1 1680B
+PASS  image     heic->jpg                   meta=n/a: no heic fixture carrying EXIF/ICC can be produced on this dist      5747 B    267 ms  200x400 mean=111.7 5747B
+PASS  image     heic->png                   meta=n/a: no heic fixture carrying EXIF/ICC can be produced on this dist      1940 B    251 ms  200x400 mean=111.8 1940B
+PASS  image     heic->webp                  meta=n/a: no heic fixture carrying EXIF/ICC can be produced on this dist       740 B    236 ms  200x400 mean=111.9 740B
+PASS  image     heic->tiff                  meta=n/a: no heic fixture carrying EXIF/ICC can be produced on this dist      2788 B    234 ms  200x400 mean=111.8 2788B
+PASS  image     heic->avif                  meta=n/a: no heic fixture carrying EXIF/ICC can be produced on this dist       990 B    281 ms  200x400 mean=111.8 990B
+PASS  image     heic->gif                   meta=n/a: no heic fixture carrying EXIF/ICC can be produced on this dist      7756 B    270 ms  200x400 mean=111.4 7756B
+PASS  image     avif->jpg                   meta=n/a: no avif fixture carrying EXIF/ICC can be produced on this dist      2594 B    218 ms  64x48 mean=125.1 2594B
+PASS  image     avif->png                   meta=n/a: no avif fixture carrying EXIF/ICC can be produced on this dist      2350 B    218 ms  64x48 mean=125.1 2350B
+PASS  image     avif->webp                  meta=n/a: no avif fixture carrying EXIF/ICC can be produced on this dist      1162 B    220 ms  64x48 mean=125.3 1162B
+PASS  image     avif->tiff                  meta=n/a: no avif fixture carrying EXIF/ICC can be produced on this dist      2412 B    219 ms  64x48 mean=125.1 2412B
+PASS  image     avif->gif                   meta=n/a: no avif fixture carrying EXIF/ICC can be produced on this dist      2454 B    270 ms  64x48 mean=125.3 2454B
+PASS  image     webp->jpg                   meta=icc=kept strip=clean        2904 B    220 ms  64x48 mean=125.2 2904B
+PASS  image     webp->png                   meta=icc=kept strip=clean        4346 B    205 ms  64x48 mean=125.2 4346B
+PASS  image     webp->tiff                  meta=icc=kept strip=clean        4268 B    218 ms  64x48 mean=125.2 4268B
+PASS  image     webp->avif                  meta=icc=kept strip=clean         971 B    250 ms  64x48 mean=125.4 971B
+PASS  image     webp->gif                   meta=icc=n/a strip=clean         2812 B    257 ms  64x48 mean=125.6 2812B
+PASS  image     gif->jpg                    meta=n/a: no gif fixture carrying EXIF/ICC can be produced on this dist      3010 B    236 ms  64x48 mean=124.4 3010B
+PASS  image     gif->png                    meta=n/a: no gif fixture carrying EXIF/ICC can be produced on this dist       770 B    220 ms  64x48 mean=124.3 770B
+PASS  image     gif->webp                   meta=n/a: no gif fixture carrying EXIF/ICC can be produced on this dist      1332 B    220 ms  64x48 mean=124.6 1332B
+PASS  image     gif->tiff                   meta=n/a: no gif fixture carrying EXIF/ICC can be produced on this dist       774 B    220 ms  64x48 mean=124.3 774B
+PASS  image     gif->avif                   meta=n/a: no gif fixture carrying EXIF/ICC can be produced on this dist       964 B    250 ms  64x48 mean=124.4 964B
+PASS  image     tiff->jpg                   meta=icc=kept strip=clean        2781 B    219 ms  64x48 mean=124.9 2781B
+PASS  image     tiff->png                   meta=icc=kept strip=clean         626 B    219 ms  64x48 mean=124.9 626B
+PASS  image     tiff->webp                  meta=icc=kept strip=clean        1130 B    236 ms  64x48 mean=125.2 1130B
+PASS  image     tiff->avif                  meta=icc=kept strip=clean         875 B    297 ms  64x48 mean=125.0 875B
+PASS  image     tiff->gif                   meta=icc=n/a strip=clean         1680 B    288 ms  64x48 mean=125.1 1680B
+
+--- audio ---
+PASS  audio     mp3->mp3                    meta=tags=carried strip=clean      7567 B    160 ms  mp3 44100 Hz 1 ch 250 ms
+PASS  audio     mp3->wav                    meta=tags=carried strip=clean     22128 B    141 ms  pcm_s16le 44100 Hz 1 ch 250 ms
+PASS  audio     mp3->flac                   meta=tags=carried strip=clean     29993 B    157 ms  flac 44100 Hz 1 ch 250 ms
+PASS  audio     mp3->m4a                    meta=tags=carried strip=clean      6140 B    158 ms  aac 44100 Hz 1 ch 250 ms
+PASS  audio     mp3->aac                    meta=tags=carried strip=clean      5377 B    157 ms  aac 44100 Hz 1 ch 279 ms
+PASS  audio     mp3->ogg                    meta=tags=carried strip=clean      4926 B    157 ms  vorbis 44100 Hz 1 ch 250 ms
+PASS  audio     mp3->opus                   meta=tags=carried strip=clean      5115 B    157 ms  opus 48000 Hz 1 ch 257 ms
+PASS  audio     wav->mp3                    meta=tags=carried strip=clean      7567 B    157 ms  mp3 44100 Hz 1 ch 250 ms
+PASS  audio     wav->wav                    meta=tags=carried strip=clean     22128 B    141 ms  pcm_s16le 44100 Hz 1 ch 250 ms
+PASS  audio     wav->flac                   meta=tags=carried strip=clean     12560 B    157 ms  flac 44100 Hz 1 ch 250 ms
+PASS  audio     wav->m4a                    meta=tags=carried strip=clean      6517 B    157 ms  aac 44100 Hz 1 ch 250 ms
+PASS  audio     wav->aac                    meta=tags=carried strip=clean      5754 B    157 ms  aac 44100 Hz 1 ch 279 ms
+PASS  audio     wav->ogg                    meta=tags=carried strip=clean      4742 B    156 ms  vorbis 44100 Hz 1 ch 250 ms
+PASS  audio     wav->opus                   meta=tags=carried strip=clean      5423 B    157 ms  opus 48000 Hz 1 ch 257 ms
+PASS  audio     flac->mp3                   meta=tags=carried strip=clean      7567 B    157 ms  mp3 44100 Hz 1 ch 250 ms
+PASS  audio     flac->wav                   meta=tags=carried strip=clean     22128 B    157 ms  pcm_s16le 44100 Hz 1 ch 250 ms
+PASS  audio     flac->flac                  meta=tags=carried strip=clean     12491 B    156 ms  flac 44100 Hz 1 ch 250 ms
+PASS  audio     flac->m4a                   meta=tags=carried strip=clean      6517 B    157 ms  aac 44100 Hz 1 ch 250 ms
+PASS  audio     flac->aac                   meta=tags=carried strip=clean      5754 B    158 ms  aac 44100 Hz 1 ch 279 ms
+PASS  audio     flac->ogg                   meta=tags=carried strip=clean      4742 B    157 ms  vorbis 44100 Hz 1 ch 250 ms
+PASS  audio     flac->opus                  meta=tags=carried strip=clean      5423 B    157 ms  opus 48000 Hz 1 ch 257 ms
+PASS  audio     m4a->mp3                    meta=tags=carried strip=clean      7567 B    158 ms  mp3 44100 Hz 1 ch 250 ms
+PASS  audio     m4a->wav                    meta=tags=carried strip=clean     22128 B    156 ms  pcm_s16le 44100 Hz 1 ch 250 ms
+PASS  audio     m4a->flac                   meta=tags=carried strip=clean     12911 B    171 ms  flac 44100 Hz 1 ch 250 ms
+PASS  audio     m4a->m4a                    meta=tags=carried strip=clean      5735 B    188 ms  aac 44100 Hz 1 ch 250 ms
+PASS  audio     m4a->aac                    meta=tags=carried strip=clean      4972 B    204 ms  aac 44100 Hz 1 ch 279 ms
+PASS  audio     m4a->ogg                    meta=tags=carried strip=clean      5144 B    423 ms  vorbis 44100 Hz 1 ch 250 ms
+PASS  audio     m4a->opus                   meta=tags=carried strip=clean      5162 B    253 ms  opus 48000 Hz 1 ch 257 ms
+PASS  audio     aac->mp3                    meta=tags=carried strip=clean      8194 B    221 ms  mp3 44100 Hz 1 ch 279 ms
+PASS  audio     aac->wav                    meta=tags=carried strip=clean     24654 B    339 ms  pcm_s16le 44100 Hz 1 ch 279 ms
+PASS  audio     aac->flac                   meta=tags=carried strip=clean     13233 B    361 ms  flac 44100 Hz 1 ch 279 ms
+PASS  audio     aac->m4a                    meta=tags=carried strip=clean      7461 B    220 ms  aac 44100 Hz 1 ch 279 ms
+PASS  audio     aac->aac                    meta=tags=carried strip=clean      6701 B    297 ms  aac 44100 Hz 1 ch 302 ms
+PASS  audio     aac->ogg                    meta=tags=carried strip=clean      5608 B    426 ms  vorbis 44100 Hz 1 ch 279 ms
+PASS  audio     aac->opus                   meta=tags=carried strip=clean      5959 B    318 ms  opus 48000 Hz 1 ch 285 ms
+PASS  audio     ogg->mp3                    meta=tags=carried strip=clean      7567 B    205 ms  mp3 44100 Hz 1 ch 247 ms
+PASS  audio     ogg->wav                    meta=tags=carried strip=clean     21872 B    268 ms  pcm_s16le 44100 Hz 1 ch 247 ms
+PASS  audio     ogg->flac                   meta=tags=carried strip=clean     13120 B   1805 ms  flac 44100 Hz 1 ch 247 ms
+PASS  audio     ogg->m4a                    meta=tags=carried strip=clean      5510 B    256 ms  aac 44100 Hz 1 ch 247 ms
+PASS  audio     ogg->aac                    meta=tags=carried strip=clean      4747 B    204 ms  aac 44100 Hz 1 ch 279 ms
+PASS  audio     ogg->ogg                    meta=tags=carried strip=clean      4671 B    439 ms  vorbis 44100 Hz 1 ch 247 ms
+PASS  audio     ogg->opus                   meta=tags=carried strip=clean      5359 B    202 ms  opus 48000 Hz 1 ch 254 ms
+PASS  audio     opus->mp3                   meta=tags=carried strip=clean      7533 B    172 ms  mp3 48000 Hz 1 ch 250 ms
+PASS  audio     opus->wav                   meta=tags=carried strip=clean     24078 B    157 ms  pcm_s16le 48000 Hz 1 ch 250 ms
+PASS  audio     opus->flac                  meta=tags=carried strip=clean     13656 B    157 ms  flac 48000 Hz 1 ch 250 ms
+PASS  audio     opus->m4a                   meta=tags=carried strip=clean      6426 B    157 ms  aac 48000 Hz 1 ch 250 ms
+PASS  audio     opus->aac                   meta=tags=carried strip=clean      5666 B    159 ms  aac 48000 Hz 1 ch 277 ms
+PASS  audio     opus->ogg                   meta=tags=carried strip=clean      4970 B    158 ms  vorbis 48000 Hz 1 ch 250 ms
+PASS  audio     opus->opus                  meta=tags=carried strip=clean      5275 B    158 ms  opus 48000 Hz 1 ch 257 ms
+
+--- video ---
+PASS  video     mp4->mp4                    meta=n/a: SPEC §5 names no video metadata field      4017 B    193 ms  h264 64x48 1000 ms
+PASS  video     mp4->mkv                    meta=n/a: SPEC §5 names no video metadata field      3860 B    191 ms  h264 64x48 1000 ms
+PASS  video     mp4->mov                    meta=n/a: SPEC §5 names no video metadata field      3964 B    193 ms  h264 64x48 1000 ms
+PASS  video     mp4->webm                   meta=n/a: SPEC §5 names no video metadata field      2206 B    206 ms  vp9 64x48 1000 ms
+PASS  video     mp4->gif                    meta=n/a: SPEC §5 names no video metadata field     10048 B    238 ms  gif 64x48 1000 ms
+PASS  video     mkv->mp4                    meta=n/a: SPEC §5 names no video metadata field      4017 B    193 ms  h264 64x48 1000 ms
+PASS  video     mkv->mkv                    meta=n/a: SPEC §5 names no video metadata field      3830 B    191 ms  h264 64x48 1000 ms
+PASS  video     mkv->mov                    meta=n/a: SPEC §5 names no video metadata field      3964 B    191 ms  h264 64x48 1000 ms
+PASS  video     mkv->webm                   meta=n/a: SPEC §5 names no video metadata field      2176 B    209 ms  vp9 64x48 1000 ms
+PASS  video     mkv->gif                    meta=n/a: SPEC §5 names no video metadata field     10048 B    224 ms  gif 64x48 1000 ms
+PASS  video     mov->mp4                    meta=n/a: SPEC §5 names no video metadata field      4017 B    195 ms  h264 64x48 1000 ms
+PASS  video     mov->mkv                    meta=n/a: SPEC §5 names no video metadata field      3860 B    207 ms  h264 64x48 1000 ms
+PASS  video     mov->mov                    meta=n/a: SPEC §5 names no video metadata field      3964 B    191 ms  h264 64x48 1000 ms
+PASS  video     mov->webm                   meta=n/a: SPEC §5 names no video metadata field      2206 B    206 ms  vp9 64x48 1000 ms
+PASS  video     mov->gif                    meta=n/a: SPEC §5 names no video metadata field     10048 B    224 ms  gif 64x48 1000 ms
+PASS  video     webm->mp4                   meta=n/a: SPEC §5 names no video metadata field      3468 B    224 ms  h264 64x48 1000 ms
+PASS  video     webm->mkv                   meta=n/a: SPEC §5 names no video metadata field      3273 B    240 ms  h264 64x48 1000 ms
+PASS  video     webm->mov                   meta=n/a: SPEC §5 names no video metadata field      3415 B    208 ms  h264 64x48 1000 ms
+PASS  video     webm->webm                  meta=n/a: SPEC §5 names no video metadata field      2114 B    256 ms  vp9 64x48 1000 ms
+PASS  video     webm->gif                   meta=n/a: SPEC §5 names no video metadata field      6585 B    241 ms  gif 64x48 1000 ms
+
+--- documents (LibreOffice) ---
+      soffice warm-up: bootstrapped=true
+PASS  document  csv->pdf                    meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags     19352 B   2881 ms  1 page(s)
+PASS  document  csv->txt                    meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags       109 B   1830 ms  109 B of text
+PASS  document  csv->xlsx                   meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags      5796 B   1725 ms  xlsx container with xl/workbook.xml
+PASS  document  doc->docx                   meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags      8791 B   1951 ms  docx container with word/document.xml
+PASS  document  doc->html                   meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags      4427 B   1665 ms  4427 B of html
+PASS  document  doc->md                     meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags       400 B   1621 ms  400 B of markdown (heading present)
+PASS  document  doc->pdf                    meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags     46489 B   1820 ms  1 page(s)
+PASS  document  doc->rtf                    meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags     23338 B   1708 ms  23338 B of text
+PASS  document  doc->txt                    meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags       349 B   1603 ms  349 B of text
+PASS  document  docx->html                  meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags      4134 B   1971 ms  4134 B of html
+PASS  document  docx->md                    meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags       404 B   1955 ms  404 B of markdown (heading present)
+PASS  document  docx->pdf                   meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags     46489 B   1996 ms  1 page(s)
+PASS  document  docx->rtf                   meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags     22622 B   2029 ms  22622 B of text
+PASS  document  docx->txt                   meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags       349 B   1984 ms  349 B of text
+PASS  document  html->docx                  meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags      5380 B   1573 ms  docx container with word/document.xml
+PASS  document  html->md                    meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags        30 B   1604 ms  30 B of markdown (heading present)
+PASS  document  html->pdf                   meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags     18442 B   1679 ms  1 page(s)
+PASS  document  html->rtf                   meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags      3427 B   1816 ms  3427 B of text
+PASS  document  md->docx                    meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags      6384 B   1848 ms  docx container with word/document.xml
+PASS  document  md->html                    meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags      1541 B   1845 ms  1541 B of html
+PASS  document  md->pdf                     meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags     40507 B   1833 ms  1 page(s)
+PASS  document  md->rtf                     meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags      5715 B   1832 ms  5715 B of text
+PASS  document  md->txt                     meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags       130 B   1938 ms  130 B of text
+PASS  document  ppt->html                   meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags       943 B   2145 ms  943 B of html
+PASS  document  ppt->pdf                    meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags     79102 B   2243 ms  2 page(s)
+PASS  document  ppt->pptx                   meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags     10257 B   2175 ms  pptx container with ppt/presentation.xml
+PASS  document  pptx->html                  meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags       928 B   2380 ms  928 B of html
+PASS  document  pptx->pdf                   meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags     79145 B   2580 ms  2 page(s)
+PASS  document  rtf->docx                   meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags      5041 B   2194 ms  docx container with word/document.xml
+PASS  document  rtf->html                   meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags       687 B   2285 ms  687 B of html
+PASS  document  rtf->md                     meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags        31 B   2331 ms  31 B of markdown (text extracted)
+PASS  document  rtf->pdf                    meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags     13335 B   2656 ms  1 page(s)
+PASS  document  rtf->txt                    meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags        34 B   2441 ms  34 B of text
+PASS  document  xls->csv                    meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags       151 B   2135 ms  151 B of csv as xls-to-csv.csv, source cell present
+PASS  document  xls->html                   meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags      5330 B   2030 ms  5330 B of html
+PASS  document  xls->pdf                    meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags     41142 B   3023 ms  2 page(s)
+PASS  document  xls->txt                    meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags       149 B   1909 ms  149 B of text
+PASS  document  xls->xlsx                   meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags      7330 B   1996 ms  xlsx container with xl/workbook.xml
+PASS  document  xlsx->csv                   meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags       151 B   1892 ms  151 B of csv as xlsx-to-csv.csv, source cell present
+PASS  document  xlsx->html                  meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags      5750 B   1936 ms  5750 B of html
+PASS  document  xlsx->pdf                   meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags     41077 B   2469 ms  2 page(s)
+PASS  document  xlsx->txt                   meta=n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags       149 B   1878 ms  149 B of text
+
+--- harness controls (a green suite must also prove it can go red) ---
+PASS(control)  missing output                     caught by existence: output missing or empty: C:/ezc/q3work3\controls\absent.png is missing: The system cannot find the file specified. (os error 2)
+PASS(control)  zero-byte output                   caught by existence: output missing or empty: C:/ezc/q3work3\controls\empty.png is zero bytes
+PASS(control)  wrong container                    caught by magic: container is not png: C:/ezc/q3work3\controls\wrong-family.png detected as Jpeg, expected Png
+PASS(control)  wrong geometry                     caught by geometry: geometry 64x48 but the source says 200x400
+PASS(control)  text file named .docx              caught by document part: structural validator: C:/ezc/q3work3\controls\fake.docx is not a docx container (zip + word/document.xml)
+PASS(control)  pdf with no pages                  caught by pdf pages: structural validator: C:/ezc/q3work3\controls\no-pages.pdf has no page objects
+PASS(control)  metadata dropped by a keep run     caught by metadata keep: keep mode ICC is false but this container should carry it = true
+PASS(control)  metadata surviving a strip run     caught by metadata strip: strip mode left metadata behind (icc=true exif-orientation=Some(1))
+PASS(control)  wrong audio codec                  caught by audio codec: codec "pcm_s16le", expected "mp3"
+PASS(control)  duration drift                     caught by audio duration: duration 250 ms vs source 8250 ms (tolerance 825)
+PASS(control)  no video stream                    caught by video stream: no video stream in the output
+PASS(control)  advertised direction with no fixture caught by fixture resolution: no fixture
+PASS(control)  one-sided document advertisement   caught by document set equality: sets differ
+
+report: C:/ezc/q3report3/report.tsv, report.json, matrix.md
+
+--- per-family summary ---
+family     advertised   pass   fail   skip
+image              37     37      0      0
+audio              49     49      0      0
+video              20     20      0      0
+document           42     42      0      0
+
+advertised=154 pass=154 fail=0 skip=0 controls=13/13 caught
+SUMMARY GREEN  every advertised direction passed on this dist

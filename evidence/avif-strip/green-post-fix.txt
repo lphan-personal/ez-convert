@@ -1,0 +1,17 @@
+# GREEN — card t_ade3f5a7: the same two tests against the fixed builder
+# command: bash scripts/test-engine.sh avif_strip   (then the whole harness)
+# host: Linux 7.0.14-26-pve x86_64, rustc 1.99.1 (58cf8f9c3 2026-10-13)
+
+
+running 2 tests
+test engine::vips::tests::avif_strip_is_flags_only_and_never_brackets_the_saver_path ... ok
+test engine::plan::tests::avif_strip_renders_a_bare_saver_path_and_no_keep_all ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 193 filtered out; finished in 0.00s
+
+EXIT=0
+
+# the whole engine harness, same tree:
+
+test result: ok. 195 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

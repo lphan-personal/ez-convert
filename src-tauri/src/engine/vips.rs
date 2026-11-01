@@ -15,7 +15,10 @@
 //!   200x400). Plain `copy` does not rotate, which is why a conversion that
 //!   drops the EXIF block (PNG) must use `autorot` instead.
 //! - AVIF output keeps the exact argv measured on the shipping dist
-//!   (`heifsave --compression av1 --Q 60 --effort 6 --bitdepth 8 --keep all`).
+//!   (`heifsave --compression av1 --Q 60 --effort 6 --bitdepth 8`) plus one
+//!   correction measured there afterwards: `heifsave` takes **flags**, not a
+//!   bracket, and `--keep all` overrides `--strip`, so the saver slot is a bare
+//!   path and strip is `--strip` alone (keep is `--keep all` alone).
 
 use super::plan::{Arg, Compression, PathOpts, PathRef};
 use crate::model::types::{CanonicalType, TargetFormat};
@@ -99,12 +102,19 @@ pub fn build_still(
 ) -> (&'static str, Vec<Arg>) {
     if to == TargetFormat::Avif {
         // The argv measured on the shipping dist (S2b/S4: 34 assertions, 0
-        // failures). `--keep all` is the default but is passed for determinism,
-        // and `--bitdepth 8` stops libheif from writing 12-bit output.
+        // failures), with one correction measured on that same dist (card
+        // t_ade3f5a7): `heifsave` takes its options as **flags**. The CLI's
+        // bracket syntax is parsed only on arguments that become a
+        // `VipsImage`, so a `[strip]` suffix on this filename is a literal
+        // filename — `heifsave in.jpg "out.avif[strip]"` exits 0 and the
+        // requested path never appears. The saver slot is therefore bare.
+        // `--bitdepth 8` stops libheif from writing 12-bit output.
+        let strip = saver_opts.strip;
         let mut args = vec![
             Arg::Word(Op::HeifSave.as_str()),
             Arg::Path(PathRef::Input, input_opts),
-            Arg::Path(out, saver_opts),
+            // No bracket: heifsave would take it as part of the file name.
+            Arg::Path(out, PathOpts::default()),
             Arg::Word("--compression"),
             Arg::Word("av1"),
             Arg::Word("--Q"),
@@ -113,11 +123,16 @@ pub fn build_still(
             Arg::Number(6),
             Arg::Word("--bitdepth"),
             Arg::Number(8),
-            Arg::Word("--keep"),
-            Arg::Word("all"),
         ];
-        if saver_opts.strip {
+        if strip {
+            // `--keep all` is the default, but it also **overrides** `--strip`
+            // (measured on `fixtures/exif_icc.jpg`: `--keep all --strip` = 1740 B
+            // with EXIF present, `--strip` alone = 760 B with none), so the two
+            // flags are mutually exclusive. Strip is `--strip` alone.
             args.push(Arg::Word("--strip"));
+        } else {
+            args.push(Arg::Word("--keep"));
+            args.push(Arg::Word("all"));
         }
         return ("vips heifsave (av1)".into(), args);
     }
@@ -269,6 +284,63 @@ mod tests {
         // No bracket saver options: heifsave takes flags, and an empty bracket
         // would render as "[]".
         assert!(matches!(args[2], Arg::Path(PathRef::Output, o) if !o.fail_on));
+    }
+
+    /// Card t_ade3f5a7 — AVIF + strip, pinned at the argv level.
+    ///
+    /// Two measured defects, one test:
+    /// - the CLI parses a `[...]` group only on arguments that become a
+    ///   `VipsImage`. `heifsave`'s filename is a plain string, so a `[strip]`
+    ///   suffix is a **literal filename** — the run exits 0 and the requested
+    ///   path never appears;
+    /// - `--keep all` (the default, passed for determinism) **overrides**
+    ///   `--strip`, so even a correctly-named file keeps the source EXIF.
+    #[test]
+    fn avif_strip_is_flags_only_and_never_brackets_the_saver_path() {
+        let (_, strip_args) = build_still(
+            CanonicalType::Jpeg,
+            TargetFormat::Avif,
+            PathRef::Output,
+            guard(),
+            PathOpts {
+                strip: true,
+                ..PathOpts::default()
+            },
+            None,
+        );
+        assert!(
+            strip_args.contains(&Arg::Word("--strip")),
+            "strip must be the `--strip` flag: {strip_args:?}"
+        );
+        assert!(
+            !strip_args
+                .windows(2)
+                .any(|w| w == [Arg::Word("--keep"), Arg::Word("all")]),
+            "`--keep all` cancels `--strip` (measured): {strip_args:?}"
+        );
+        match &strip_args[2] {
+            Arg::Path(PathRef::Output, o) => assert_eq!(
+                *o,
+                PathOpts::default(),
+                "the heifsave output slot must carry no bracket options"
+            ),
+            other => panic!("args[2] is not the output path: {other:?}"),
+        }
+
+        // The keep path is unchanged: still the measured `--keep all`, no strip.
+        let (_, keep_args) = build_still(
+            CanonicalType::Jpeg,
+            TargetFormat::Avif,
+            PathRef::Output,
+            guard(),
+            PathOpts::default(),
+            None,
+        );
+        assert!(keep_args
+            .windows(2)
+            .any(|w| w == [Arg::Word("--keep"), Arg::Word("all")]));
+        assert!(!keep_args.contains(&Arg::Word("--strip")));
+        assert!(matches!(keep_args[2], Arg::Path(PathRef::Output, o) if o == PathOpts::default()));
     }
 
     #[test]

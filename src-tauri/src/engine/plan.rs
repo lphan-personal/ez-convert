@@ -1311,6 +1311,60 @@ mod tests {
         }
     }
 
+    // -- t_ade3f5a7: AVIF + strip reaches the OS argv as flags only ---------
+
+    /// The rendered, real-path argv for `jpeg -> avif` with `strip_metadata`.
+    /// The saver slot must be the bare output path: `heifsave` does not parse a
+    /// bracket, so `out.avif[strip]` is a literal filename (measured on the
+    /// shipping dist: exit 0, nothing at the requested path). Strip is carried
+    /// by `--strip` alone, and never alongside `--keep all`, which overrides it.
+    #[test]
+    fn avif_strip_renders_a_bare_saver_path_and_no_keep_all() {
+        let dir = std::env::temp_dir().join(format!("ezc-avif-strip-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let input = dir.join("in.jpg");
+        std::fs::write(&input, b"not a real jpeg").expect("fixture");
+        let out = dir.join("out.avif");
+
+        let p = plan(&Request {
+            from: CanonicalType::Jpeg,
+            to: TargetFormat::Avif,
+            options: Options {
+                strip_metadata: true,
+                ..Options::default()
+            },
+            facts: SourceFacts::Stills,
+            temp_dir: &dir,
+        })
+        .expect("jpeg -> avif is routed");
+
+        let rendered: Vec<String> = p
+            .resolve(&input, &out, &dir)
+            .expect("resolve")
+            .remove(0)
+            .args
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+
+        assert!(
+            rendered.iter().any(|a| a == "--strip"),
+            "strip must ride the flag: {rendered:?}"
+        );
+        assert!(
+            !rendered.windows(2).any(|w| w == ["--keep", "all"]),
+            "`--keep all` cancels `--strip` (measured): {rendered:?}"
+        );
+        let saver = rendered
+            .iter()
+            .find(|a| a.ends_with("out.avif"))
+            .unwrap_or_else(|| panic!("no saver slot in {rendered:?}"));
+        assert!(
+            !saver.contains('[') && !saver.contains(']'),
+            "the saver path must be bare, never `out.avif[strip]`: {saver}"
+        );
+    }
+
     // -- F1: bracket filenames never reach a vips argv ----------------------
 
     /// The pinned rule from Q1 finding F1: a vips step appends `[fail-on=error]`

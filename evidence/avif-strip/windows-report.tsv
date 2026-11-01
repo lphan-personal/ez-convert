@@ -1,0 +1,155 @@
+family	direction	verdict	metadata	bytes	ms	detail
+policy	precondition	PASS	keep=default	0	0	Options::default().strip_metadata == false (SPEC §5 keep-by-default)
+preflight	no duplicate directions	PASS		0	0	106 advertised media directions are unique
+preflight	fixture per input type	PASS		0	0	28 input types resolve to a fixture file
+preflight	every advertised direction is routed	PASS		0	0	0 unrouted of 106 advertised
+preflight	document sets agree	PASS		0	0	42 directions in both matrix and engine::soffice::proven_routes
+preflight	evidence still says so	PASS		0	0	every advertised route's evidence file contains its marker literal
+image	jpeg->jpg	PASS	icc=kept strip=clean	2725	220	64x48 mean=124.8 2725B
+image	jpeg->png	PASS	icc=kept strip=clean	3537	204	64x48 mean=124.8 3537B
+image	jpeg->webp	PASS	icc=kept strip=clean	1188	222	64x48 mean=125.0 1188B
+image	jpeg->tiff	PASS	icc=kept strip=clean	3508	207	64x48 mean=124.8 3508B
+image	jpeg->avif	PASS	icc=kept strip=clean	899	249	64x48 mean=124.9 899B
+image	jpeg->gif	PASS	icc=n/a strip=clean	2904	271	64x48 mean=124.8 2904B
+image	png->jpg	PASS	icc=kept strip=clean	2781	234	64x48 mean=124.9 2781B
+image	png->webp	PASS	icc=kept strip=clean	1130	219	64x48 mean=125.2 1130B
+image	png->tiff	PASS	icc=kept strip=clean	522	220	64x48 mean=124.9 522B
+image	png->avif	PASS	icc=kept strip=clean	875	234	64x48 mean=125.0 875B
+image	png->gif	PASS	icc=n/a strip=clean	1680	321	64x48 mean=125.1 1680B
+image	heic->jpg	PASS	n/a: no heic fixture carrying EXIF/ICC can be produced on this dist	5747	267	200x400 mean=111.7 5747B
+image	heic->png	PASS	n/a: no heic fixture carrying EXIF/ICC can be produced on this dist	1940	251	200x400 mean=111.8 1940B
+image	heic->webp	PASS	n/a: no heic fixture carrying EXIF/ICC can be produced on this dist	740	236	200x400 mean=111.9 740B
+image	heic->tiff	PASS	n/a: no heic fixture carrying EXIF/ICC can be produced on this dist	2788	234	200x400 mean=111.8 2788B
+image	heic->avif	PASS	n/a: no heic fixture carrying EXIF/ICC can be produced on this dist	990	281	200x400 mean=111.8 990B
+image	heic->gif	PASS	n/a: no heic fixture carrying EXIF/ICC can be produced on this dist	7756	270	200x400 mean=111.4 7756B
+image	avif->jpg	PASS	n/a: no avif fixture carrying EXIF/ICC can be produced on this dist	2594	218	64x48 mean=125.1 2594B
+image	avif->png	PASS	n/a: no avif fixture carrying EXIF/ICC can be produced on this dist	2350	218	64x48 mean=125.1 2350B
+image	avif->webp	PASS	n/a: no avif fixture carrying EXIF/ICC can be produced on this dist	1162	220	64x48 mean=125.3 1162B
+image	avif->tiff	PASS	n/a: no avif fixture carrying EXIF/ICC can be produced on this dist	2412	219	64x48 mean=125.1 2412B
+image	avif->gif	PASS	n/a: no avif fixture carrying EXIF/ICC can be produced on this dist	2454	270	64x48 mean=125.3 2454B
+image	webp->jpg	PASS	icc=kept strip=clean	2904	220	64x48 mean=125.2 2904B
+image	webp->png	PASS	icc=kept strip=clean	4346	205	64x48 mean=125.2 4346B
+image	webp->tiff	PASS	icc=kept strip=clean	4268	218	64x48 mean=125.2 4268B
+image	webp->avif	PASS	icc=kept strip=clean	971	250	64x48 mean=125.4 971B
+image	webp->gif	PASS	icc=n/a strip=clean	2812	257	64x48 mean=125.6 2812B
+image	gif->jpg	PASS	n/a: no gif fixture carrying EXIF/ICC can be produced on this dist	3010	236	64x48 mean=124.4 3010B
+image	gif->png	PASS	n/a: no gif fixture carrying EXIF/ICC can be produced on this dist	770	220	64x48 mean=124.3 770B
+image	gif->webp	PASS	n/a: no gif fixture carrying EXIF/ICC can be produced on this dist	1332	220	64x48 mean=124.6 1332B
+image	gif->tiff	PASS	n/a: no gif fixture carrying EXIF/ICC can be produced on this dist	774	220	64x48 mean=124.3 774B
+image	gif->avif	PASS	n/a: no gif fixture carrying EXIF/ICC can be produced on this dist	964	250	64x48 mean=124.4 964B
+image	tiff->jpg	PASS	icc=kept strip=clean	2781	219	64x48 mean=124.9 2781B
+image	tiff->png	PASS	icc=kept strip=clean	626	219	64x48 mean=124.9 626B
+image	tiff->webp	PASS	icc=kept strip=clean	1130	236	64x48 mean=125.2 1130B
+image	tiff->avif	PASS	icc=kept strip=clean	875	297	64x48 mean=125.0 875B
+image	tiff->gif	PASS	icc=n/a strip=clean	1680	288	64x48 mean=125.1 1680B
+audio	mp3->mp3	PASS	tags=carried strip=clean	7567	160	mp3 44100 Hz 1 ch 250 ms
+audio	mp3->wav	PASS	tags=carried strip=clean	22128	141	pcm_s16le 44100 Hz 1 ch 250 ms
+audio	mp3->flac	PASS	tags=carried strip=clean	29993	157	flac 44100 Hz 1 ch 250 ms
+audio	mp3->m4a	PASS	tags=carried strip=clean	6140	158	aac 44100 Hz 1 ch 250 ms
+audio	mp3->aac	PASS	tags=carried strip=clean	5377	157	aac 44100 Hz 1 ch 279 ms
+audio	mp3->ogg	PASS	tags=carried strip=clean	4926	157	vorbis 44100 Hz 1 ch 250 ms
+audio	mp3->opus	PASS	tags=carried strip=clean	5115	157	opus 48000 Hz 1 ch 257 ms
+audio	wav->mp3	PASS	tags=carried strip=clean	7567	157	mp3 44100 Hz 1 ch 250 ms
+audio	wav->wav	PASS	tags=carried strip=clean	22128	141	pcm_s16le 44100 Hz 1 ch 250 ms
+audio	wav->flac	PASS	tags=carried strip=clean	12560	157	flac 44100 Hz 1 ch 250 ms
+audio	wav->m4a	PASS	tags=carried strip=clean	6517	157	aac 44100 Hz 1 ch 250 ms
+audio	wav->aac	PASS	tags=carried strip=clean	5754	157	aac 44100 Hz 1 ch 279 ms
+audio	wav->ogg	PASS	tags=carried strip=clean	4742	156	vorbis 44100 Hz 1 ch 250 ms
+audio	wav->opus	PASS	tags=carried strip=clean	5423	157	opus 48000 Hz 1 ch 257 ms
+audio	flac->mp3	PASS	tags=carried strip=clean	7567	157	mp3 44100 Hz 1 ch 250 ms
+audio	flac->wav	PASS	tags=carried strip=clean	22128	157	pcm_s16le 44100 Hz 1 ch 250 ms
+audio	flac->flac	PASS	tags=carried strip=clean	12491	156	flac 44100 Hz 1 ch 250 ms
+audio	flac->m4a	PASS	tags=carried strip=clean	6517	157	aac 44100 Hz 1 ch 250 ms
+audio	flac->aac	PASS	tags=carried strip=clean	5754	158	aac 44100 Hz 1 ch 279 ms
+audio	flac->ogg	PASS	tags=carried strip=clean	4742	157	vorbis 44100 Hz 1 ch 250 ms
+audio	flac->opus	PASS	tags=carried strip=clean	5423	157	opus 48000 Hz 1 ch 257 ms
+audio	m4a->mp3	PASS	tags=carried strip=clean	7567	158	mp3 44100 Hz 1 ch 250 ms
+audio	m4a->wav	PASS	tags=carried strip=clean	22128	156	pcm_s16le 44100 Hz 1 ch 250 ms
+audio	m4a->flac	PASS	tags=carried strip=clean	12911	171	flac 44100 Hz 1 ch 250 ms
+audio	m4a->m4a	PASS	tags=carried strip=clean	5735	188	aac 44100 Hz 1 ch 250 ms
+audio	m4a->aac	PASS	tags=carried strip=clean	4972	204	aac 44100 Hz 1 ch 279 ms
+audio	m4a->ogg	PASS	tags=carried strip=clean	5144	423	vorbis 44100 Hz 1 ch 250 ms
+audio	m4a->opus	PASS	tags=carried strip=clean	5162	253	opus 48000 Hz 1 ch 257 ms
+audio	aac->mp3	PASS	tags=carried strip=clean	8194	221	mp3 44100 Hz 1 ch 279 ms
+audio	aac->wav	PASS	tags=carried strip=clean	24654	339	pcm_s16le 44100 Hz 1 ch 279 ms
+audio	aac->flac	PASS	tags=carried strip=clean	13233	361	flac 44100 Hz 1 ch 279 ms
+audio	aac->m4a	PASS	tags=carried strip=clean	7461	220	aac 44100 Hz 1 ch 279 ms
+audio	aac->aac	PASS	tags=carried strip=clean	6701	297	aac 44100 Hz 1 ch 302 ms
+audio	aac->ogg	PASS	tags=carried strip=clean	5608	426	vorbis 44100 Hz 1 ch 279 ms
+audio	aac->opus	PASS	tags=carried strip=clean	5959	318	opus 48000 Hz 1 ch 285 ms
+audio	ogg->mp3	PASS	tags=carried strip=clean	7567	205	mp3 44100 Hz 1 ch 247 ms
+audio	ogg->wav	PASS	tags=carried strip=clean	21872	268	pcm_s16le 44100 Hz 1 ch 247 ms
+audio	ogg->flac	PASS	tags=carried strip=clean	13120	1805	flac 44100 Hz 1 ch 247 ms
+audio	ogg->m4a	PASS	tags=carried strip=clean	5510	256	aac 44100 Hz 1 ch 247 ms
+audio	ogg->aac	PASS	tags=carried strip=clean	4747	204	aac 44100 Hz 1 ch 279 ms
+audio	ogg->ogg	PASS	tags=carried strip=clean	4671	439	vorbis 44100 Hz 1 ch 247 ms
+audio	ogg->opus	PASS	tags=carried strip=clean	5359	202	opus 48000 Hz 1 ch 254 ms
+audio	opus->mp3	PASS	tags=carried strip=clean	7533	172	mp3 48000 Hz 1 ch 250 ms
+audio	opus->wav	PASS	tags=carried strip=clean	24078	157	pcm_s16le 48000 Hz 1 ch 250 ms
+audio	opus->flac	PASS	tags=carried strip=clean	13656	157	flac 48000 Hz 1 ch 250 ms
+audio	opus->m4a	PASS	tags=carried strip=clean	6426	157	aac 48000 Hz 1 ch 250 ms
+audio	opus->aac	PASS	tags=carried strip=clean	5666	159	aac 48000 Hz 1 ch 277 ms
+audio	opus->ogg	PASS	tags=carried strip=clean	4970	158	vorbis 48000 Hz 1 ch 250 ms
+audio	opus->opus	PASS	tags=carried strip=clean	5275	158	opus 48000 Hz 1 ch 257 ms
+video	mp4->mp4	PASS	n/a: SPEC §5 names no video metadata field	4017	193	h264 64x48 1000 ms
+video	mp4->mkv	PASS	n/a: SPEC §5 names no video metadata field	3860	191	h264 64x48 1000 ms
+video	mp4->mov	PASS	n/a: SPEC §5 names no video metadata field	3964	193	h264 64x48 1000 ms
+video	mp4->webm	PASS	n/a: SPEC §5 names no video metadata field	2206	206	vp9 64x48 1000 ms
+video	mp4->gif	PASS	n/a: SPEC §5 names no video metadata field	10048	238	gif 64x48 1000 ms
+video	mkv->mp4	PASS	n/a: SPEC §5 names no video metadata field	4017	193	h264 64x48 1000 ms
+video	mkv->mkv	PASS	n/a: SPEC §5 names no video metadata field	3830	191	h264 64x48 1000 ms
+video	mkv->mov	PASS	n/a: SPEC §5 names no video metadata field	3964	191	h264 64x48 1000 ms
+video	mkv->webm	PASS	n/a: SPEC §5 names no video metadata field	2176	209	vp9 64x48 1000 ms
+video	mkv->gif	PASS	n/a: SPEC §5 names no video metadata field	10048	224	gif 64x48 1000 ms
+video	mov->mp4	PASS	n/a: SPEC §5 names no video metadata field	4017	195	h264 64x48 1000 ms
+video	mov->mkv	PASS	n/a: SPEC §5 names no video metadata field	3860	207	h264 64x48 1000 ms
+video	mov->mov	PASS	n/a: SPEC §5 names no video metadata field	3964	191	h264 64x48 1000 ms
+video	mov->webm	PASS	n/a: SPEC §5 names no video metadata field	2206	206	vp9 64x48 1000 ms
+video	mov->gif	PASS	n/a: SPEC §5 names no video metadata field	10048	224	gif 64x48 1000 ms
+video	webm->mp4	PASS	n/a: SPEC §5 names no video metadata field	3468	224	h264 64x48 1000 ms
+video	webm->mkv	PASS	n/a: SPEC §5 names no video metadata field	3273	240	h264 64x48 1000 ms
+video	webm->mov	PASS	n/a: SPEC §5 names no video metadata field	3415	208	h264 64x48 1000 ms
+video	webm->webm	PASS	n/a: SPEC §5 names no video metadata field	2114	256	vp9 64x48 1000 ms
+video	webm->gif	PASS	n/a: SPEC §5 names no video metadata field	6585	241	gif 64x48 1000 ms
+document	csv->pdf	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	19352	2881	1 page(s)
+document	csv->txt	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	109	1830	109 B of text
+document	csv->xlsx	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	5796	1725	xlsx container with xl/workbook.xml
+document	doc->docx	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	8791	1951	docx container with word/document.xml
+document	doc->html	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	4427	1665	4427 B of html
+document	doc->md	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	400	1621	400 B of markdown (heading present)
+document	doc->pdf	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	46489	1820	1 page(s)
+document	doc->rtf	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	23338	1708	23338 B of text
+document	doc->txt	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	349	1603	349 B of text
+document	docx->html	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	4134	1971	4134 B of html
+document	docx->md	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	404	1955	404 B of markdown (heading present)
+document	docx->pdf	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	46489	1996	1 page(s)
+document	docx->rtf	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	22622	2029	22622 B of text
+document	docx->txt	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	349	1984	349 B of text
+document	html->docx	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	5380	1573	docx container with word/document.xml
+document	html->md	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	30	1604	30 B of markdown (heading present)
+document	html->pdf	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	18442	1679	1 page(s)
+document	html->rtf	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	3427	1816	3427 B of text
+document	md->docx	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	6384	1848	docx container with word/document.xml
+document	md->html	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	1541	1845	1541 B of html
+document	md->pdf	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	40507	1833	1 page(s)
+document	md->rtf	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	5715	1832	5715 B of text
+document	md->txt	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	130	1938	130 B of text
+document	ppt->html	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	943	2145	943 B of html
+document	ppt->pdf	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	79102	2243	2 page(s)
+document	ppt->pptx	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	10257	2175	pptx container with ppt/presentation.xml
+document	pptx->html	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	928	2380	928 B of html
+document	pptx->pdf	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	79145	2580	2 page(s)
+document	rtf->docx	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	5041	2194	docx container with word/document.xml
+document	rtf->html	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	687	2285	687 B of html
+document	rtf->md	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	31	2331	31 B of markdown (text extracted)
+document	rtf->pdf	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	13335	2656	1 page(s)
+document	rtf->txt	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	34	2441	34 B of text
+document	xls->csv	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	151	2135	151 B of csv as xls-to-csv.csv, source cell present
+document	xls->html	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	5330	2030	5330 B of html
+document	xls->pdf	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	41142	3023	2 page(s)
+document	xls->txt	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	149	1909	149 B of text
+document	xls->xlsx	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	7330	1996	xlsx container with xl/workbook.xml
+document	xlsx->csv	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	151	1892	151 B of csv as xlsx-to-csv.csv, source cell present
+document	xlsx->html	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	5750	1936	5750 B of html
+document	xlsx->pdf	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	41077	2469	2 page(s)
+document	xlsx->txt	PASS	n/a: SPEC §5 policy fields are image EXIF/ICC and audio tags	149	1878	149 B of text

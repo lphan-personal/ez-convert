@@ -1,0 +1,33 @@
+# RED — card t_ade3f5a7: the two new tests against the PRE-FIX `build_still`
+# how:   the Avif arm of build_still temporarily restored to the pre-fix shape
+#        (bracket on the saver slot + unconditional `--keep all`); the two tests
+#        themselves are the committed ones.
+# then:  bash scripts/test-engine.sh avif_strip
+# host:  Linux 7.0.14-26-pve x86_64, rustc 1.99.1 (58cf8f9c3 2026-10-13)
+
+
+running 2 tests
+test engine::vips::tests::avif_strip_is_flags_only_and_never_brackets_the_saver_path ... FAILED
+test engine::plan::tests::avif_strip_renders_a_bare_saver_path_and_no_keep_all ... FAILED
+
+failures:
+
+---- engine::vips::tests::avif_strip_is_flags_only_and_never_brackets_the_saver_path stdout ----
+
+thread 'engine::vips::tests::avif_strip_is_flags_only_and_never_brackets_the_saver_path' (3340590) panicked at /opt/data/kanban/boards/ezconvert/workspaces/t_ade3f5a7/repo/src-tauri/src/engine/vips.rs:309:9:
+`--keep all` cancels `--strip` (measured): [Word("heifsave"), Path(Input, PathOpts { fail_on: true, quality: None, compression: None, strip: false }), Path(Output, PathOpts { fail_on: false, quality: None, compression: None, strip: true }), Word("--compression"), Word("av1"), Word("--Q"), Number(60), Word("--effort"), Number(6), Word("--bitdepth"), Number(8), Word("--keep"), Word("all"), Word("--strip")]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- engine::plan::tests::avif_strip_renders_a_bare_saver_path_and_no_keep_all stdout ----
+
+thread 'engine::plan::tests::avif_strip_renders_a_bare_saver_path_and_no_keep_all' (3340589) panicked at /opt/data/kanban/boards/ezconvert/workspaces/t_ade3f5a7/repo/src-tauri/src/engine/plan.rs:1354:9:
+`--keep all` cancels `--strip` (measured): ["heifsave", "/opt/data/profiles/wright/cache/scratch/ezc-avif-strip-3340588/in.jpg[fail-on=error,strip]", "/opt/data/profiles/wright/cache/scratch/ezc-avif-strip-3340588/out.avif[strip]", "--compression", "av1", "--Q", "60", "--effort", "6", "--bitdepth", "8", "--keep", "all", "--strip"]
+
+
+failures:
+    engine::plan::tests::avif_strip_renders_a_bare_saver_path_and_no_keep_all
+    engine::vips::tests::avif_strip_is_flags_only_and_never_brackets_the_saver_path
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 193 filtered out; finished in 0.00s
+
+EXIT=101
