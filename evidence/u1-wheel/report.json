@@ -1,0 +1,97 @@
+{
+  "when": "2026-11-01T21:57:07.810Z",
+  "chrome": "/opt/hermes/tools/chromium-1208/chrome-linux64/chrome",
+  "page": "/opt/data/converter/ci-check/ui/wheel/index.html",
+  "pass": 16,
+  "fail": 0,
+  "checks": [
+    {
+      "name": "image type: six segments at most, overflow behind one more segment",
+      "ok": true,
+      "detail": "ring0 png,jpg,webp,avif,heic,more / ring1 tiff,gif"
+    },
+    {
+      "name": "only valid targets for the detected type appear",
+      "ok": true,
+      "detail": "image 7, video 6, unknown 0"
+    },
+    {
+      "name": "nothing rendered smaller than the 11 pt legibility floor",
+      "ok": true,
+      "detail": "6 labels, smallest 22.0px (floor 14.67px), tracking -0.44px"
+    },
+    {
+      "name": "hit-testing is correct at every angle (DOM raster vs arithmetic)",
+      "ok": true,
+      "detail": "2160 points over 3 radii (18 on an exact boundary), rotation 0.0°"
+    },
+    {
+      "name": "labels sit inside their ring band and never overlap each other",
+      "ok": true,
+      "detail": "6 labels inside r=144..240, closest pair 114px apart"
+    },
+    {
+      "name": "material is backdrop-filter glass, and no surface stacks translucency",
+      "ok": true,
+      "detail": "surface blur(30px) saturate(1.8) over rgba(28, 28, 30, 0.55)"
+    },
+    {
+      "name": "feedback starts on pointer-down, not on release",
+      "ok": true,
+      "detail": "scale 0.979, highlight 0.71, phase after release confirming"
+    },
+    {
+      "name": "a tap commits without moving the ring (no momentum without a drag)",
+      "ok": true,
+      "detail": "commit → webp, converted 1×"
+    },
+    {
+      "name": "a flick projects momentum and the ring overshoots (damping 0.8)",
+      "ok": true,
+      "detail": "release 341°/s, projected 205°, target 180.0°, overshoot 1.48°, settled 179.99° in 28 frames"
+    },
+    {
+      "name": "catching the ring mid-flight stops it exactly where it is",
+      "ok": true,
+      "detail": "caught at 18.0° while heading for 60.0°"
+    },
+    {
+      "name": "keyboard move uses a critical spring: no overshoot, monotone approach",
+      "ok": true,
+      "detail": "0° → 60.0° in 24 frames, overshoot 0"
+    },
+    {
+      "name": "the more segment opens a sub-ring, and the nested surface turns opaque",
+      "ok": true,
+      "detail": "openLevel 1, hub rgba(28, 28, 30, 0.92) / none, 2 children"
+    },
+    {
+      "name": "typography: system-ui with size-dependent tracking",
+      "ok": true,
+      "detail": "22px/-0.44px vs 10px/0.1px, system-ui"
+    },
+    {
+      "name": "prefers-reduced-motion: the spring is removed, not shortened",
+      "ok": true,
+      "detail": "snapped to 60.0° with no intermediate frames, transition \"opacity\""
+    },
+    {
+      "name": "prefers-reduced-transparency: surfaces become solid",
+      "ok": true,
+      "detail": "backdrop none, background rgb(22, 22, 24)"
+    },
+    {
+      "name": "Escape dismisses the wheel",
+      "ok": true,
+      "detail": "phase dismissed, .dismissed applied"
+    }
+  ],
+  "screenshots": [
+    "/opt/data/profiles/wright/cache/scratch/u1-shots/03-subring.png",
+    "/opt/data/profiles/wright/cache/scratch/u1-shots/04-reduced-motion.png",
+    "/opt/data/profiles/wright/cache/scratch/u1-shots/05-reduced-transparency.png",
+    "/opt/data/profiles/wright/cache/scratch/u1-shots/01-idle.png",
+    "/opt/data/profiles/wright/cache/scratch/u1-shots/02-pressed.png",
+    "/opt/data/profiles/wright/cache/scratch/u1-shots/06-subring.png"
+  ]
+}

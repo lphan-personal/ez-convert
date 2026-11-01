@@ -67,9 +67,13 @@ SUMMARY pass=16 fail=0 checks=16
 | reduced transparency | `backdrop-filter: none`, `rgb(22,22,24)` (alpha 1) |
 | Escape | phase `dismissed`, `.dismissed` applied |
 
-Screenshots (written next to `report.json` in `$SHOT_DIR`, attached to the card):
-`01-idle.png`, `02-pressed.png`, `03-subring.png`, `04-reduced-motion.png`,
-`05-reduced-transparency.png`, `06-subring.png`.
+Screenshots committed with this run under `evidence/u1-wheel/`:
+`01-idle.png` (six segments), `02-pressed.png` (press state before release),
+`03-subring.png` (the `more` ring open, hub opaque), `05-reduced-transparency.png`
+(surfaces solid). The machine-readable record from the same run is
+`evidence/u1-wheel/report.json`; the verbatim console transcript is
+`evidence/u1-wheel-transcript.txt`. Re-running the check rewrites all of these into
+`$SHOT_DIR` (default `/tmp/u1-wheel-shots`).
 
 ## 3. What the checks are actually asserting
 
