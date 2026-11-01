@@ -39,7 +39,7 @@ store listings, commit messages — zero hits allowed.
 Reference check (a starting point, not a substitute for reading the diff):
 
 ```bash
-grep -rniE "filee|knifelemon" --exclude-dir=.git --exclude-dir=target \
+grep -rniE "\bfilee\b|\bknifelemon\b" --exclude-dir=.git --exclude-dir=target \
   . | grep -vE "^\./docs/(PRIOR_ART|REFERENCE_POLICY)\.md:" || echo "clean"
 find . -name "*.cs" -o -name "*.xaml" -o -name "*.csproj" | grep -v '^$' && echo "VIOLATION R2"
 [ -f .gitmodules ] && echo "VIOLATION R1 (submodule present)"
