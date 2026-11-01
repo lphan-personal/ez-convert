@@ -412,10 +412,15 @@ imports, so:
 ### 6.1 libvips — image conversions (`PROVEN`)
 
 Dist: self-built 8.18.7, `VARIANT=spec-aom`, 43 files / 35 binaries / 35,731,757 B, no GPL
-components (`image quantisation … false`, `PDF load … false`, `modules: false`), `libaom`
-linked for AVIF encode. Layout: `vips.exe` + `vipsheader.exe` + `vipsthumbnail.exe` + 32 DLLs
-+ `licenses/`. **Ship the whole directory**, not the exe: `vips.exe` is a 62 KB launcher over
-`libvips-42.dll` (S2 F4).
+components in the link graph (`image quantisation … false`, `PDF load … false`, `modules:
+false`), `libaom` linked for AVIF encode. Layout: `vips.exe` + `vipsheader.exe` +
+`vipsthumbnail.exe` + 32 DLLs + `licenses/`. **Ship the whole directory**, not the exe:
+`vips.exe` is a 62 KB launcher over `libvips-42.dll` (S2 F4).
+
+⚠ The AVIF round-trip was proven on the **S2b** dist (37 files / 35,649,889 B). The current
+dist (43 files, +licence texts, after the libtiff/JBIG rebuild) carries relinked binaries
+(`libvips-42.dll` sha changed) and **has not re-run that suite**. Re-running it is part of the
+CI vips contract test (`§19`) and a precondition for advertising avif output.
 
 Measured invocations (Windows 11 Pro 26200, MSYS2/UCRT64 build; evidence: `S2 §1`-`§3`,
 `build/windows/EVIDENCE-S2-libvips.md`, `t_65624d81`):
@@ -429,7 +434,9 @@ Measured invocations (Windows 11 Pro 26200, MSYS2/UCRT64 build; evidence: `S2 §
 | V5 | `vips.exe copy <in.tif> <out.png>` | exit 0 (tiff → png) |
 | V6 | `vips.exe autorot <in-orient6.jpg> <out.jpg>` | 400×200 → 200×400, `exif-ifd0-Orientation: 1`, corner pixels prove 90° CW |
 | V7 | `vips.exe autorot <in-orient6.heic> <out.jpg>` | 200×400 → 200×400, orientation 1 — libheif already applied `irot`; autorot is a safe no-op on HEIC |
-| V8 | `vips.exe copy <in.heic> <out.avif>` | **failed** on the pre-`libaom` dist: `heifsave: Unsupported compression`. Re-test required on spec-aom (`§8.2`) |
+| V8 | `vips.exe heifsave <in.png> <out.avif> --compression av1 --Q 60 --effort 6 --bitdepth 8 --keep all` | **avif save works** on the `spec-aom` dist: 400×200 → 3,863 B, container brand `ftypavif`; the 2 MP jpg variant → 302,068 B |
+| V8b | `vips.exe jpegsave <in.avif> <out.jpg> --Q 95` | avif → jpg via dav1d: geometry kept, EXIF IFD0 kept, 3,144 B sRGB ICC kept |
+| V8c | `vips.exe copy <in.heic> <out.avif>` (pre-`libaom` dist) | **failed** with `heifsave: Unsupported compression` — the reason capability must be probed by doing, not by reading `--vips-config` |
 | V9 | `vips.exe tiffload <in.tif> <out.png> --fail-on error` | on JBIG-tagged TIFF: exit 1, **no output**, stderr `tiff2vips: ISO JBIG compression support is not configured` |
 | V10 | `vips.exe copy <in-jbig.tif> <out.png>` | exit 0, 400×200 PNG written, mean pixel 0.000000 — **silent black frame**. Never use bare `copy` for TIFF input |
 | V11 | `vipsheader.exe -f compression <in.tif>` | prints the tag value; JBIG TIFF emits the `tiff2vips:` warning above |
@@ -463,6 +470,21 @@ env  = scrubbed (§6.0.2), CWD = <install>/resources/engines/vips
 - Resize/compression flags (`--Q`, `thumbnail` shrink-on-load, size limits) are **not** in
   this contract yet: none has been measured on this dist. `C2` proves them before the
   resize/compress UI appears (§8.2).
+- **AVIF output names its saver and passes the measured option set**:
+  `heifsave` + `--compression av1 --Q 60 --effort 6 --bitdepth 8 --keep all` (`§6.1` V8).
+  Four corrections from the measurement, each of which costs a bug if ignored:
+  1. the option is **`effort`** (0-9), not `speed` — `SPEC.md` §9.3 says `speed` and is wrong;
+  2. `--keep all` is the default, so metadata survival does **not** depend on passing it;
+  3. `bitdepth` defaults to 12 but an 8-bit source stays 8-bit; pass `--bitdepth 8` for
+     determinism;
+  4. **never use `--encoder` for capability detection** — `--encoder rav1e` on a build
+     without rav1e prints a WARNING and returns **rc=0** with a valid fallback file. Same class
+     of trap as the JBIG TIFF: exit 0 must never be the capability signal.
+- **Capability is probed by doing, not by config.** `--vips-config` reported
+  `HEIC/AVIF load/save: true` on the very build where avif save failed (V8c). The startup
+  engine check therefore performs one tiny real conversion (a 1×1 PNG → the target format in
+  the job temp dir) for each advertised saver and caches the verdict against the engine hash.
+  `§6.7` treats a probe failure as `Unavailable`.
 - `vipsheader.exe` / `vipsthumbnail.exe` are shipped but not used by the app in v1. If a
   card starts using them, rules A2/A3 apply identically (`vipsthumbnail` takes an operation
   name too).
@@ -678,7 +700,7 @@ At startup, resolve each engine from the install layout (`§18`), then verify id
 
 | engine | check | action on mismatch |
 |---|---|---|
-| vips | `vips.exe --version` ⇒ `vips-8.18.7`; `--vips-config` parsed for `image quantisation … false` and `PDF load … false` | engine marked `Unavailable(VersionMismatch)`; vips routes hidden from the wheel |
+| vips | `vips.exe --version` ⇒ `vips-8.18.7`; `--vips-config` parsed for `image quantisation … false` and `PDF load … false`; **plus a real 1×1 convert per advertised saver** (§6.1 — config cannot be trusted for avif) | engine marked `Unavailable(VersionMismatch)` / `Unavailable(CapabilityProbeFailed)`; that route is hidden from the wheel |
 | soffice | the §6.2.1 launcher (`soffice`, `soffice.com`) `--version` ⇒ `LibreOffice 26.8.2` | same |
 | ffmpeg | `ffmpeg -version` contains no `--enable-gpl` | **refuse to run it**, surface a licence fault in diagnostics (a GPL binary must never execute as our engine, not even accidentally) |
 | pdfium, resvg | version string matches the pin | same |
@@ -761,18 +783,18 @@ fn routes_for(ty: CanonicalType) -> &'static [Route];
 
 ### 8.2 Image types
 
-Only pairs that were actually measured are PROVEN. The four `copy` hops and two `autorot`
-hops in `§6.1` are the whole of it; every other cell is `planned` and invisible in the wheel
-until `C2` runs that pair against a fixture.
+Only pairs that were actually measured are PROVEN. The four `copy` hops, two `autorot` hops
+and the avif save/decode pair in `§6.1` are the whole of it; every other cell is `planned` and
+invisible in the wheel until `C2` runs that pair against a fixture.
 
 | input | → jpg | → png | → webp | → tiff | → avif | → gif | → bmp | → heic | → svg | → pdf |
 |---|---|---|---|---|---|---|---|---|---|---|
-| jpg | **PROVEN** (V6) | **PROVEN** (V2) | planned | planned | planned (avif round-trip) | planned (ffmpeg) | planned (`image`) | cut (D4) | cut | cut (no writer) |
-| png | planned | — | **PROVEN** (V3) | planned | planned | planned | planned | cut | cut | cut |
+| jpg | **PROVEN** (V6) | **PROVEN** (V2) | planned | planned | **PROVEN** (V8) | planned (ffmpeg) | planned (`image`) | cut (D4) | cut | cut (no writer) |
+| png | planned | — | **PROVEN** (V3) | planned | **PROVEN** (V8) | planned | planned | cut | cut | cut |
 | webp | planned | planned | — | **PROVEN** (V4) | planned | planned | planned | cut | cut | cut |
 | tiff | planned | **PROVEN** (V5)¹ | planned | — | planned | planned | planned | cut | cut | cut |
 | heic | **PROVEN** (V7) | planned | planned | planned | planned | planned | planned | cut | cut | cut |
-| avif | planned | planned | planned | planned | planned | planned | planned | cut | cut | cut |
+| avif | **PROVEN** (V8b) | planned | planned | planned | — | planned | planned | cut | cut | cut |
 | gif | planned | planned | planned | planned | planned | planned | planned | cut | cut | cut |
 | bmp | planned | planned | planned | planned | planned | planned | planned | cut | cut | cut |
 | svg | planned | planned | planned | planned | planned | planned | planned | cut | cut | cut |
@@ -1199,7 +1221,7 @@ do not each decide differently. Each needs `warden` (security/licence) or the st
 | 17.7 | **No idle auto-dismiss** in v1 | an unmeasured dismissal path can only lose work | none |
 | 17.8 | Undo is **same-session only**; a crash abandons the journal without deleting | deleting files after a restart is unrecoverable; keeping them is not | none |
 | 17.9 | PDF raster input is **page 1** in v1 (`pdf.page` exists in settings) | `SPEC.md` is silent; page 1 is the predictable default and multi-page output is a product decision | stakeholder (minor) |
-| 17.10 | AVIF output stays **planned** until a write→read round-trip with EXIF+ICC is measured | `libaom` is now linked (import proven) but no save has ever been measured; `SPEC.md` §9.3 D1 names this as the prerequisite | none (measurement) |
+| 17.10 | AVIF output is **proven** (`heifsave` + `--compression av1 --Q 60 --effort 6 --bitdepth 8`, EXIF+ICC survive, 33/33 assertions on the S2b dist) — but it must be re-proven on the final dist before it is advertised (`§6.1`), and `SPEC.md` §9.3 needs its `speed`→`effort` correction | the parameter name in the spec is wrong; the round-trip is measured | stakeholder (spec correction), CI re-run |
 
 ---
 
@@ -1243,7 +1265,7 @@ do not each decide differently. Each needs `warden` (security/licence) or the st
 | unit — naming | 1,000 simulated collisions produce 1,000 distinct names; reserved names rejected; path length limit | `cargo test` |
 | unit — journal | undo removes only recorded outputs; refuses on hash mismatch; refuses to delete an input; startup never deletes | `cargo test` with a temp dir |
 | unit — argv builders | property tests for A1-A7: no user string in argv[0]/argv[1], no leading `-` argument, absolute canonical paths only | `cargo test` |
-| contract — vips | on a Windows CI job: fetch the pinned dist, run V1/V2/V6/V9/V10 and assert exit codes, output magic, and that V10's silent-black output is *rejected* by the wrapper | CI (Windows) |
+| contract — vips | on a Windows CI job: fetch the pinned dist, run V1/V2/V6/V8/V9/V10 and assert exit codes, output magic, the avif EXIF+ICC round-trip, and that V10's silent-black output is *rejected* by the wrapper | CI (Windows) |
 | contract — soffice | on Linux **and** Windows (`soffice` / `soffice.com`, §6.2.1): D1-D7 with content checks (the S3 drivers are the template), plus N2/N3 negative controls asserting `DecodeFailed` / `NoOutput` classification | CI |
 | e2e — one per family | drop → detect → matrix → convert → verify → journal → undo, driven through the real `job` API | CI on Windows first |
 | fuzz | detection parser, ZIP/CFB directory reader, and engine inputs (JBIG TIFF, malformed HEIC, truncated DOCX) | `cargo-fuzz` + `warden` review |
@@ -1260,7 +1282,10 @@ fixture (a known input with known output properties) and a test that consumes it
    owns the measurement; nothing in this document should be read as an ffmpeg design.
 2. **PDFium and resvg argv are unspecified** — the binaries were never built or run in this
    project (`§6.4`, `§6.5`).
-3. **AVIF encode is unmeasured** even though `libaom` is now linked in the dist (`§17.10`).
+3. **AVIF is proven on the S2b dist, not on the final one.** The round-trip suite (33
+   assertions) ran against 37 files / 35,649,889 B; the shipped dist was relinked afterwards by
+   the libtiff/JBIG rebuild. Re-running that suite on the final dist is a release gate (`§19`),
+   not a formality.
 4. **macOS is unmeasured for every contract in this document**, including the wheel
    (`§10.5`). S1-S3 ran on Windows (S1, S2) and Linux (S3).
 5. **Windows LibreOffice is measured for the seven document directions** (`spikes/s3/EVIDENCE.md`
@@ -1282,6 +1307,7 @@ fixture (a known input with known output properties) and a test that consumes it
 |---|---|
 | vips build, dist contents, import audit, HEIC decode, orientation, the four copy directions | `build/windows/EVIDENCE-S2-libvips.md`; card `t_7d0ad299` |
 | JBIG TIFF silent black frame vs `tiffload --fail-on error` | `t_65624d81` (`jbig-c34661-probe.txt`, `S2C-FIX-REPORT.md` §5) |
+| avif save/decode, `effort`-not-`speed`, EXIF+ICC survival, `--encoder` rc=0 trap, config-lying trap | `build/windows/EVIDENCE-S2b-avif-encode.md`; card `t_803b8add` (warden-approved) |
 | vips argv hardening (system op, leading `--`, UNC, traversal, env) | `warden` audit `t_cccf4bf3`, condition C-3 |
 | 7 document directions, argv, timings, failure modes, fidelity (Linux leg) | `spikes/s3/EVIDENCE.md` §1-§8, `spikes/s3/run_s3.py`, `result.json`; card `t_d910a4c8` |
 | the same 7 directions on **Windows**, `soffice.com` vs `soffice.exe` vs `soffice.bin`, file-URL profile rule, real Calibri/Cambria, text-layer degradation, install-cold 5,111 ms | `spikes/s3/EVIDENCE.md` §9, `spikes/s3/run.ps1`; card `t_20ced994` |
