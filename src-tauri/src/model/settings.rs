@@ -783,6 +783,21 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// An absolute path, written the way this platform spells one.
+    ///
+    /// `Path::new("/tmp/out")` is *rooted but not absolute* on Windows — no drive
+    /// or UNC prefix, so `is_absolute()` is `false` there and `repair()` would
+    /// (correctly) demote `chosen_folder`. Test data that hard-codes POSIX paths
+    /// therefore tested the fallback, not the survival rule. `cfg!` keeps both
+    /// arms type-checked on every platform.
+    fn abs(p: &str) -> PathBuf {
+        if cfg!(windows) {
+            PathBuf::from(format!("C:\\{}", p.replace('/', "\\")))
+        } else {
+            PathBuf::from(format!("/{p}"))
+        }
+    }
+
     struct TempDir(PathBuf);
 
     impl TempDir {
@@ -931,10 +946,15 @@ mod tests {
 
         let mut s = Settings::default();
         s.output.location = "chosen_folder".into();
-        s.output.chosen_folder = Some("/tmp/out".into());
+        let chosen = abs("tmp").join("out");
+        let chosen_text = chosen.to_string_lossy().into_owned();
+        s.output.chosen_folder = Some(chosen_text.clone());
         s.repair();
         assert_eq!(s.output.location, "chosen_folder");
-        assert_eq!(s.output.chosen_folder.as_deref(), Some("/tmp/out"));
+        assert_eq!(
+            s.output.chosen_folder.as_deref(),
+            Some(chosen_text.as_str())
+        );
     }
 
     #[test]

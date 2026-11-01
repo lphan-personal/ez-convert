@@ -189,6 +189,21 @@ mod tests {
     use super::*;
     use std::fs;
 
+    /// An absolute path, written the way this platform spells one.
+    ///
+    /// `Path::new("/out")` is *rooted but not absolute* on Windows — no drive or
+    /// UNC prefix, so `is_absolute()` is `false` there. Test data that hard-codes
+    /// POSIX paths therefore exercised the "not absolute" fallback instead of the
+    /// rule under test. Both arms are type-checked on every platform because
+    /// `cfg!` is a runtime constant, so neither can rot.
+    fn abs(p: &str) -> PathBuf {
+        if cfg!(windows) {
+            PathBuf::from(format!("C:\\{}", p.replace('/', "\\")))
+        } else {
+            PathBuf::from(format!("/{p}"))
+        }
+    }
+
     struct TempDir(PathBuf);
 
     impl TempDir {
@@ -274,10 +289,12 @@ mod tests {
     fn chosen_folder_wins_and_skips_the_batch_folder() {
         let mut s = Settings::default();
         s.output.location = "chosen_folder".into();
-        s.output.chosen_folder = Some("/out".into());
+        let chosen = abs("out");
+        s.output.chosen_folder = Some(chosen.to_string_lossy().into_owned());
         assert_eq!(
-            resolve_out_dir(Path::new("/x/a.png"), &s, 5),
-            PathBuf::from("/out")
+            resolve_out_dir(&abs("x").join("a.png"), &s, 5),
+            chosen,
+            "a batch of 5 still goes to the chosen folder, not the batch subfolder"
         );
     }
 
@@ -336,23 +353,23 @@ mod tests {
     #[test]
     fn reserved_names_and_trailing_dots_are_refused() {
         assert_eq!(
-            validate_input_path(Path::new("/tmp/CON")),
+            validate_input_path(&abs("tmp").join("CON")),
             Err(PathProblem::ReservedName("CON".into()))
         );
         assert_eq!(
-            validate_input_path(Path::new("/tmp/report.")),
+            validate_input_path(&abs("tmp").join("report.")),
             Err(PathProblem::TrailingDotOrSpace("report.".into()))
         );
         assert_eq!(
             validate_input_path(Path::new("relative/file.png")),
             Err(PathProblem::NotAbsolute)
         );
-        let long = "/tmp/".to_string() + &"a".repeat(300);
+        let long = abs("tmp").join("a".repeat(300));
         assert!(matches!(
-            validate_input_path(Path::new(&long)),
+            validate_input_path(&long),
             Err(PathProblem::TooLong(_))
         ));
-        assert_eq!(validate_input_path(Path::new("/tmp/fine.png")), Ok(()));
+        assert_eq!(validate_input_path(&abs("tmp").join("fine.png")), Ok(()));
     }
 
     #[test]
