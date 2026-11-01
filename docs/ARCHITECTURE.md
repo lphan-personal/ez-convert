@@ -892,7 +892,7 @@ decision is testable. Offering the route now would be the silent data loss `§6.
 The measured image rules (`spikes/c2/EVIDENCE.md` §1):
 
 - one `vips` process per conversion, `vips <op> '<in>[fail-on=error]' '<out>[Q=…,strip]'` —
-  the bracket form is the only spelling that carries a loader guard **and** saver options at
+  the bracket form is the one spelling measured to carry a loader guard **and** saver options at
   once (the flag forms are rejected: `Unknown option --Q`, `Unknown option --strip`);
 - `autorot` for sources that can carry an EXIF orientation tag, `copy` otherwise;
 - saver options per target: `Q` for jpg/webp, `compression=9` for png,
@@ -1353,7 +1353,7 @@ do not each decide differently. Each needs `warden` (security/licence) or the st
 | 17.8 | Undo is **same-session only**; a crash abandons the journal without deleting | deleting files after a restart is unrecoverable; keeping them is not | none |
 | 17.9 | PDF raster input is **page 1** in v1 (`pdf.page` exists in settings) | `SPEC.md` is silent; page 1 is the predictable default and multi-page output is a product decision | stakeholder (minor) |
 | 17.10 | AVIF output is **proven on the dist that ships**: `heifsave` + `--compression av1 --Q 60 --effort 6 --bitdepth 8`, EXIF+ICC survive, and the unchanged suite now reports **34/34 on the final 43-file dist** (`spikes/s4/EVIDENCE.md` §1, 2026-11-01). `SPEC.md` §9.3's `speed`→`effort` correction already landed in `t_803b8add` | the parameter name in the spec was wrong; the round-trip is now measured twice, on both dists | none — discharged |
-| 17.11 | Still images are converted by **one vips process** using bracket filename options (`'in.jpg[fail-on=error]' 'out.jpg[Q=90,strip]'`), not by two processes and not by the flag forms | measured: the flag forms are rejected (`Unknown option --Q/--strip/--fail-on`), and the bracket form is the only spelling that carries the loader guard and the saver options together (`spikes/c2/EVIDENCE.md` §1) | warden (argv surface) |
+| 17.11 | Still images are converted by **one vips process** using bracket filename options (`'in.jpg[fail-on=error]' 'out.jpg[Q=90,strip]'`), not by two processes and not by the flag forms | measured: the flag forms are rejected (`Unknown option --Q/--strip/--fail-on`), and the bracket form is the one spelling measured to carry the loader guard and the saver options together (`spikes/c2/EVIDENCE.md` §1) | warden (argv surface) |
 | 17.12 | **GIF input stays `Planned`** even though the vips route works | `gifload` returns page 0: an animated source would silently lose frames. Offering it would be the silent data loss §6.0.4 forbids. `fixtures/sample_anim.gif` makes the day we handle animation testable | stakeholder (product call: animation in v1?) |
 | 17.13 | Audio tags are applied **after** the encode by `lofty`, never by ffmpeg's mapping | measured: `-map_metadata 0` re-stamps `encoder=Lavf…` and mangles the cover stream; lofty carries 5 items + the cover into wav/flac/m4a/ogg/opus/aac. The tag *family* is chosen from the target container (ffmpeg writes an Ogg with no tag block) | none — discharged |
 | 17.14 | Video is always re-encoded, never stream-copied, even for a same-container conversion | a stream copy preserves the display-matrix rotation but cannot force CFR or apply a trim/resize; the CFR measurement (§6.3.3) is the reason this is not optional | none (implementation) |
