@@ -1,0 +1,151 @@
+name: build
+
+# Everything OS-specific happens here, not in the Linux agent container:
+#   - push / PR        : build matrix (3 OS) + ffmpeg licence gate
+#   - workflow_dispatch: same, plus the requested spike script
+# See README "Running a spike on a runner".
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      spike_id:
+        description: "Spike to execute on this runner"
+        required: true
+        default: none
+        type: choice
+        options:
+          - none
+          - s0-runner-smoke
+          - s1
+          - s2
+          - s3
+      spike_args:
+        description: "Optional free-form args passed to the spike via SPIKE_ARGS"
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: build-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ---------------------------------------------------------------- build x3
+  build:
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Tauri 2 Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config curl wget file \
+            libssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev libsoup-3.0-dev \
+            libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: cargo build
+        working-directory: src-tauri
+        run: cargo build --all-targets
+
+      - name: cargo test (placeholder suite)
+        working-directory: src-tauri
+        run: cargo test
+
+      # The skeleton was authored without a local Rust toolchain, so the lock
+      # file is born in CI. P2/U1 commit it, then builds can use --locked.
+      - name: Export Cargo.lock for commit
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cargo.lock
+          path: src-tauri/Cargo.lock
+          if-no-files-found: warn
+          retention-days: 30
+
+  # ------------------------------------------------------- ffmpeg licence gate
+  license-assert:
+    name: license-assert (bundled ffmpeg must be LGPL-only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Proves the gate is not a no-op: a fake GPL build must be rejected and
+      # a fake LGPL build must pass before we trust the real scan.
+      - name: Gate self-test (GPL fixture must fail, LGPL fixture must pass)
+        run: bash scripts/license-assert.sh --selftest
+
+      - name: Assert every bundled ffmpeg reports enable-gpl=0
+        run: bash scripts/license-assert.sh --scan
+
+  # ------------------------------------------------------------- spike runner
+  spike:
+    name: spike (${{ inputs.spike_id }})
+    if: github.event_name == 'workflow_dispatch' && inputs.spike_id != 'none'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Tauri 2 Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config curl wget file \
+            libssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev libsoup-3.0-dev \
+            libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install ffmpeg (spike baseline)
+        run: sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Run spike ${{ inputs.spike_id }}
+        env:
+          SPIKE_ID: ${{ inputs.spike_id }}
+          SPIKE_ARGS: ${{ inputs.spike_args }}
+        run: |
+          set -euo pipefail
+          script="spikes/${SPIKE_ID}/run.sh"
+          if [ ! -f "$script" ]; then
+            echo "::error file=${script}::spike '${SPIKE_ID}' has no run.sh yet"
+            exit 1
+          fi
+          mkdir -p "spikes/${SPIKE_ID}/out"
+          bash "$script"
+
+      - name: Upload spike artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spike-${{ inputs.spike_id }}
+          path: spikes/${{ inputs.spike_id }}/out
+          if-no-files-found: warn
+          retention-days: 30

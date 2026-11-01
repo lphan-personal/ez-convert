@@ -1,0 +1,27 @@
+[package]
+name = "ez-convert"
+version = "0.0.1"
+description = "EZ Convert - local media conversion with a radial wheel UI"
+authors = ["lphan-personal"]
+edition = "2021"
+rust-version = "1.77"
+publish = false
+
+[lib]
+# Tauri 2 convention: the app logic lives in a lib so mobile targets and
+# integration tests can reuse it; main.rs stays a thin shim.
+name = "ez_convert_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

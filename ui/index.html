@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EZ Convert</title>
+  <!-- Placeholder wheel. The real radial UI (and the apple-design motion layer, U1) replaces this. -->
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --glass: rgba(255, 255, 255, 0.08);
+      --stroke: rgba(255, 255, 255, 0.16);
+      --ink: #eef1f7;
+      --muted: rgba(238, 241, 247, 0.55);
+      --accent: #6ea8ff;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      display: grid;
+      place-items: center;
+      gap: 24px;
+      background: radial-gradient(120% 120% at 50% 0%, #161b26 0%, var(--bg) 62%);
+      color: var(--ink);
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+    }
+    .wheel {
+      position: relative;
+      width: 320px;
+      height: 320px;
+      border-radius: 50%;
+      background: var(--glass);
+      border: 1px solid var(--stroke);
+      backdrop-filter: blur(24px) saturate(140%);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+    .wheel::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: conic-gradient(
+        from 0deg,
+        rgba(110, 168, 255, 0.55), rgba(110, 168, 255, 0.06) 22%,
+        rgba(110, 168, 255, 0.55) 25%, rgba(110, 168, 255, 0.06) 47%,
+        rgba(110, 168, 255, 0.55) 50%, rgba(110, 168, 255, 0.06) 72%,
+        rgba(110, 168, 255, 0.55) 75%, rgba(110, 168, 255, 0.06) 97%,
+        rgba(110, 168, 255, 0.55) 100%
+      );
+      -webkit-mask: radial-gradient(circle, transparent 58%, #000 59%);
+      mask: radial-gradient(circle, transparent 58%, #000 59%);
+      opacity: 0.75;
+      animation: spin 18s linear infinite;
+    }
+    .hub {
+      position: absolute;
+      inset: 30%;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      border-radius: 50%;
+      background: rgba(12, 15, 22, 0.72);
+      border: 1px solid var(--stroke);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+    .hub strong { font-size: 15px; letter-spacing: 0.02em; }
+    .hub span { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .legend { text-align: center; }
+    .legend h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.01em; }
+    .legend p { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) {
+      .wheel::after { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wheel" role="img" aria-label="Conversion wheel placeholder">
+    <div class="hub">
+      <div>
+        <strong>DROP</strong>
+        <span>placeholder</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <h1>EZ Convert</h1>
+    <p>P0 skeleton — wheel UI lands in U1, conversion engine in the S-series spikes.</p>
+  </div>
+
+  <script>
+    // No framework, no bundler. P2/U1 replace this file wholesale.
+    // Kept dependency-free so CI never needs a node/webview build step.
+    if (window.__TAURI__) {
+      console.info('[ez-convert] tauri IPC detected; placeholder wheel ready');
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+# Rust
+/src-tauri/target/
+**/*.rs.bk
+*.pdb
+
+# Tauri generated
+/src-tauri/gen/
+/src-tauri/.tauri/
+
+# Node (future frontend tooling)
+node_modules/
+dist/
+*.log
+
+# Spike output artifacts (kept out of git; uploaded by CI instead)
+spikes/*/out/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Never commit credentials
+.env
+.env.*
+!.env.example
