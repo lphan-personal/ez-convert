@@ -4,6 +4,11 @@ name: build
 #   - push / PR        : build matrix (3 OS) + ffmpeg licence gate
 #   - workflow_dispatch: same, plus the requested spike script
 # See README "Running a spike on a runner".
+#
+# Every run publishes its own verdict to the `ci-status` branch
+# (ci-status/latest.json + ci-status/<run_id>.json). That branch is written by
+# the `report` job and exists so build results can be verified without holding
+# Actions API scope on whatever credential is doing the verifying.
 
 on:
   push:
@@ -149,3 +154,58 @@ jobs:
           path: spikes/${{ inputs.spike_id }}/out
           if-no-files-found: warn
           retention-days: 30
+
+  # --------------------------------------------------------- verdict publisher
+  report:
+    name: report (publish run verdict to ci-status)
+    needs: [build, license-assert, spike]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      BUILD_RESULT: ${{ needs.build.result }}
+      LICENSE_RESULT: ${{ needs.license-assert.result }}
+      SPIKE_RESULT: ${{ needs.spike.result }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compose verdict JSON
+        run: |
+          set -euo pipefail
+          mkdir -p ci-status
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          cat > "ci-status/${GITHUB_RUN_ID}.json" <<JSON
+          {
+            "run_id": ${GITHUB_RUN_ID},
+            "run_number": ${GITHUB_RUN_NUMBER},
+            "run_attempt": ${GITHUB_RUN_ATTEMPT},
+            "run_url": "${run_url}",
+            "event": "${GITHUB_EVENT_NAME}",
+            "ref": "${GITHUB_REF_NAME}",
+            "sha": "${GITHUB_SHA}",
+            "trigger_inputs": {"spike_id": "${SPIKE_ID_INPUT:-}"},
+            "results": {
+              "build_matrix_3_os": "${BUILD_RESULT}",
+              "license_assert": "${LICENSE_RESULT}",
+              "spike": "${SPIKE_RESULT}"
+            },
+            "published_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          JSON
+          cp "ci-status/${GITHUB_RUN_ID}.json" ci-status/latest.json
+          cat ci-status/latest.json
+        env:
+          SPIKE_ID_INPUT: ${{ inputs.spike_id }}
+
+      - name: Publish ci-status branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B ci-status
+          git add -f ci-status
+          git commit -m "ci-status: run ${GITHUB_RUN_ID} build=${BUILD_RESULT} license=${LICENSE_RESULT} spike=${SPIKE_RESULT}"
+          git push --force origin ci-status

@@ -88,9 +88,34 @@ requested spike, so a spike can never land on a broken trunk.
 | `build (macos-latest)` | macos-latest | same on Apple silicon runner |
 | `license-assert` | ubuntu-latest | the ffmpeg licence gate works (`--selftest`) and no shipped ffmpeg is GPL (`--scan`) |
 | `spike (<id>)` | ubuntu-latest | the dispatched spike script (only on `workflow_dispatch` with `spike_id != none`) |
+| `report` | ubuntu-latest | publishes the run's own verdict to the `ci-status` branch |
 
-Corresponding run URLs: **Actions → build → <run>**. Each run page exposes the per-job logs that
-the spike cards quote as evidence.
+### Reading a run's verdict without Actions API access
+
+Every run ends with the `report` job, which commits `ci-status/latest.json` and
+`ci-status/<run_id>.json` to the `ci-status` branch:
+
+```json
+{
+  "run_id": 1234567890,
+  "run_url": "https://github.com/lphan-personal/ez-convert/actions/runs/1234567890",
+  "event": "push",
+  "ref": "main",
+  "sha": "…",
+  "results": {
+    "build_matrix_3_os": "success",
+    "license_assert": "success",
+    "spike": "skipped"
+  }
+}
+```
+
+That's the machine-readable twin of the Actions UI: a credential with only
+Contents access can verify a run by reading
+`GET /repos/lphan-personal/ez-convert/contents/ci-status/latest.json?ref=ci-status`.
+`build_matrix_3_os` is the aggregate of the three-OS matrix, so `success` means
+all three jobs passed.
+
 
 ### Cargo.lock
 
