@@ -164,6 +164,14 @@ text filter, same finding as §6.
 ```bash
 spikes/c3/run-e2e.sh                    # linux leg
 spikes/c3/run-e2e.sh --windows          # cross-compiled, run on win11-dev over ssh
-spikes/c3/run-e2e.sh --measure-legacy   # add §6
+spikes/c3/run-e2e.sh --measure-legacy   # add the still-Planned probes
+spikes/c3/run-win-unit-tests.sh         # the unit tests themselves, compiled for
+                                        # x86_64-pc-windows-gnu and run on the guest
 scripts/test-engine.sh                  # unit tests, no LibreOffice needed (stub engines)
 ```
+
+Unit-test result on the guest (same code, `--target x86_64-pc-windows-gnu`):
+**159 passed, 0 failed** — 4 fewer than Linux because the stub-engine tests are `cfg(unix)`.
+That run also caught a genuine test-portability bug: `traversal_is_refused` asserted on a
+hard-coded `/tmp/../etc/passwd`, which is not absolute on Windows, so the test was asserting
+`NotAbsolute` instead of `Traversal`. Fixed to build the path from `temp_dir()`.

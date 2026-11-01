@@ -565,8 +565,11 @@ mod tests {
 
     #[test]
     fn traversal_is_refused() {
-        let p = Path::new("/tmp/../etc/passwd");
-        assert_eq!(admit(p, true), Err(PathError::Traversal(p.to_path_buf())));
+        // Built from the host's own temp dir so the path is absolute on every
+        // platform (a hard-coded `/tmp/...` is not absolute on Windows, which
+        // would make this assert `NotAbsolute` and hide the rule under test).
+        let p = std::env::temp_dir().join("..").join("etc").join("passwd");
+        assert_eq!(admit(&p, true), Err(PathError::Traversal(p.clone())));
     }
 
     #[test]
