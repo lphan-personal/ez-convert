@@ -146,7 +146,7 @@ jobs:
 
   # ------------------------------------------------------- ffmpeg licence gate
   license-assert:
-    name: license-assert (bundled ffmpeg must be LGPL-only)
+    name: license-assert (bundled binaries must be GPL/AGPL-clean)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -156,8 +156,18 @@ jobs:
       - name: Gate self-test (GPL fixture must fail, LGPL fixture must pass)
         run: bash scripts/license-assert.sh --selftest
 
-      - name: Assert every bundled ffmpeg reports enable-gpl=0
+      - name: Assert every bundled ffmpeg/ffprobe reports enable-gpl=0
         run: bash scripts/license-assert.sh --scan
+
+      # Q2 gate: the shipped-artifact inventory must contain no GPL-contaminated
+      # binary and no AGPL term anywhere, and the gate itself must fail the build
+      # on deliberately contaminated fixtures (unattributed binary = the jbigkit
+      # shape, GPL/AGPL rows, GPL-configured ffmpeg).
+      - name: Shipped-inventory licence gate (docs/shipped-inventory.tsv)
+        run: bash scripts/dist-license-gate.sh --check-inventory
+
+      - name: Dist licence gate self-test (contamination must fail the build)
+        run: bash scripts/dist-license-gate.sh --selftest
 
   # ------------------------------------------- reference policy gate (docs/PRIOR_ART.md)
   policy-check:

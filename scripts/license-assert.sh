@@ -25,13 +25,14 @@ SEARCH_DIRS=(vendor/ffmpeg src-tauri/binaries binaries resources/ffmpeg)
 
 log() { printf '%s\n' "$*"; }
 
-# Every candidate ffmpeg binary under the search dirs, deduped, sorted.
+# Every candidate ffmpeg/ffprobe binary under the search dirs, deduped, sorted.
 candidates() {
   local d
   for d in "${SEARCH_DIRS[@]}"; do
     [ -d "${REPO_ROOT}/${d}" ] || continue
     find "${REPO_ROOT}/${d}" -maxdepth 3 -type f \
-      \( -name 'ffmpeg' -o -name 'ffmpeg.exe' -o -name 'ffmpeg-*' \) -print 2>/dev/null
+      \( -name 'ffmpeg' -o -name 'ffmpeg.exe' -o -name 'ffmpeg-*' \
+         -o -name 'ffprobe' -o -name 'ffprobe.exe' -o -name 'ffprobe-*' \) -print 2>/dev/null
   done | sort -u
 }
 
