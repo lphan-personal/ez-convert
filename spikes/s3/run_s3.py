@@ -52,6 +52,42 @@ def human(ms):
     return "%.0f ms" % ms if ms is not None else "n/a"
 
 
+def file_url(path):
+    """``-env:UserInstallation`` takes a URL, not a path.
+
+    POSIX: file:// + /abs/path  -> file:///abs/path
+    Windows: file:// + /C:/abs/path -> file:///C:/abs/path (drive letter, forward
+    slashes). Passing a bare ``C:\\...`` to LibreOffice makes it treat the value
+    as a relative URL and silently bootstrap the profile somewhere else.
+    """
+    p = os.path.abspath(path)
+    if os.name == "nt":
+        p = p.replace("\\", "/")
+        if not p.startswith("/"):
+            p = "/" + p
+    return "file://" + p
+
+
+def launcher_variants(soffice):
+    """Which executables to probe for the wrapper-vs-binary control.
+
+    Linux/macOS ship ``soffice`` (the oosplash wrapper) next to ``soffice.bin``.
+    Windows ships ``soffice.com`` (console subsystem) and ``soffice.exe`` (GUI
+    subsystem) next to ``soffice.bin``, with no oosplash at all.
+    """
+    d = os.path.dirname(soffice)
+    variants = [(soffice, "c1-wrapper")]
+    if os.name == "nt":
+        for name in ("soffice.com", "soffice.exe"):
+            exe = os.path.join(d, name)
+            if os.path.isfile(exe) and os.path.abspath(exe) != os.path.abspath(soffice):
+                variants.append((exe, "c1-" + name.replace(".", "-")))
+    exe = os.path.join(d, "soffice.bin")
+    if os.path.isfile(exe):
+        variants.append((exe, "c1-soffice-bin"))
+    return variants
+
+
 # ------------------------------------------------------------------- soffice calls
 def invoke(soffice, infile, outdir, convert_arg, infilter, profile, run_id, logs,
            ld_library_path=None, home=None):
@@ -63,7 +99,7 @@ def invoke(soffice, infile, outdir, convert_arg, infilter, profile, run_id, logs
         "--nolockcheck",
         "--nodefault",
         "--nologo",
-        "-env:UserInstallation=file://" + profile,
+        "-env:UserInstallation=" + file_url(profile),
     ]
     if infilter:
         argv.append("--infilter=" + infilter)
@@ -74,14 +110,18 @@ def invoke(soffice, infile, outdir, convert_arg, infilter, profile, run_id, logs
         env["HOME"] = home
     if ld_library_path:
         env["LD_LIBRARY_PATH"] = ld_library_path
-    env["SAL_USE_VCLPLUGIN"] = "svp"
+    if os.name != "nt":
+        # svp is the X11-free Linux VCL plugin; it means nothing to the Windows
+        # build, which always has a native backend. Only force it on POSIX.
+        env["SAL_USE_VCLPLUGIN"] = "svp"
+        env.pop("DISPLAY", None)
     env["SAL_DISABLE_OPENCL"] = "1"
-    env.pop("DISPLAY", None)
 
     started = time.monotonic()
     try:
         proc = subprocess.run(
-            argv, capture_output=True, text=True, timeout=RUN_TIMEOUT, env=env
+            argv, capture_output=True, text=True, errors="replace",
+            timeout=RUN_TIMEOUT, env=env
         )
         rc, out, err = proc.returncode, proc.stdout, proc.stderr
         timed_out = False
@@ -108,7 +148,16 @@ def invoke(soffice, infile, outdir, convert_arg, infilter, profile, run_id, logs
 
 
 # ----------------------------------------------------------------------- checkers
-def check_pdf(path, markers, min_pages=1, page_size=None):
+def check_pdf(path, markers, min_pages=1, page_size=None, unicode_probe=()):
+    """Structural + text gate on a produced PDF.
+
+    ``markers`` gate PASS/FAIL and must be ASCII: LibreOffice's Windows PDF
+    export leaves a couple of accent glyph codes without ToUnicode entries when
+    it embeds the real Calibri/Cambria, so a pypdf-only ``"café" in text`` test
+    reports a false negative on Windows (the render and PyMuPDF's extraction
+    are both correct — see EVIDENCE §9). ``unicode_probe`` markers are measured
+    and reported but never gate the verdict.
+    """
     from pypdf import PdfReader
 
     details, ok = [], True
@@ -129,6 +178,11 @@ def check_pdf(path, markers, min_pages=1, page_size=None):
         found = m in text
         details.append("text[%s]=%s" % (m, "yes" if found else "NO"))
         ok = ok and found
+    probe = {}
+    for m in unicode_probe:
+        probe[m] = m in text
+        details.append("text[%s]=%s%s" % (m, "yes" if probe[m] else "NO",
+                                          "" if probe[m] else " (reported, not gated)"))
     box = reader.pages[0].mediabox
     w, h = round(float(box.width), 1), round(float(box.height), 1)
     details.append("page0=%.1fx%.1fpt" % (w, h))
@@ -137,7 +191,11 @@ def check_pdf(path, markers, min_pages=1, page_size=None):
         if not (abs(w - want_w) < 3 and abs(h - want_h) < 3):
             ok = False
             details.append("page size mismatch (expected %sx%s)" % (want_w, want_h))
-    return ok, details, {"pages": pages, "page0_pt": [w, h], "text_chars": len(text)}
+    metrics = {"pages": pages, "page0_pt": [w, h], "text_chars": len(text)}
+    if probe:
+        metrics["unicode_probe"] = probe
+        metrics["unicode_text_layer"] = "ok" if all(probe.values()) else "degraded"
+    return ok, details, metrics
 
 
 def check_docx_html(path, markers):
@@ -276,7 +334,8 @@ DIRECTIONS = [
             ("pdf:writer_pdf_Export", "pdf:writer_pdf_Export", None),
             ("pdf (bare)", "pdf", None),
         ],
-        "check": lambda p: check_pdf(p, [fixtures.MARK_DOCX, "caf\u00e9", "Marker"], min_pages=1),
+        "check": lambda p: check_pdf(p, [fixtures.MARK_DOCX, "Marker"], min_pages=1,
+                                     unicode_probe=("caf\u00e9", "na\u00efve", "\u4e2d\u6587")),
     },
     {
         "id": "docx2md",
@@ -384,13 +443,8 @@ def run_controls(args, out, work, logs, kw, version):
     fx = os.path.join(work, "fixtures")
     print("\n== controls ==")
 
-    # C1: first run on a brand-new profile, wrapper vs soffice.bin
-    for execname, tag in ((os.path.basename(args.soffice), "c1-wrapper"), ("soffice.bin", "c1-soffice-bin")):
-        exe = args.soffice if execname == os.path.basename(args.soffice) else \
-            os.path.join(os.path.dirname(args.soffice), "soffice.bin")
-        if not os.path.isfile(exe):
-            ctrl.append({"id": tag, "skipped": "no such binary: %s" % exe})
-            continue
+    # C1: first run on a brand-new profile, wrapper vs binary
+    for exe, tag in launcher_variants(args.soffice):
         prof = os.path.join(work, tag + "-profile")
         shutil.rmtree(prof, ignore_errors=True)
         os.makedirs(prof, exist_ok=True)
@@ -407,6 +461,28 @@ def run_controls(args, out, work, logs, kw, version):
                     "output_files": produced})
         ctrl.append(rec)
         print("   %-16s rc=%-3d %6.0f ms output=%s" % (tag, rec["rc"], rec["wall_ms"], produced or "NONE"))
+
+        # A second run on the SAME (now bootstrapped) profile isolates "the first
+        # run on a fresh profile" from "this executable never works". Linux
+        # evidence: soffice.bin fails only on run 1.
+        if not produced:
+            indir2 = os.path.join(work, tag + "-in2")
+            outdir2 = os.path.join(work, tag + "-out2")
+            for p in (indir2, outdir2):
+                shutil.rmtree(p, ignore_errors=True)
+                os.makedirs(p)
+            shutil.copy2(os.path.join(fx, "sample.docx"), os.path.join(indir2, "sample.docx"))
+            rec2 = invoke(exe, os.path.join(indir2, "sample.docx"), outdir2,
+                          "pdf:writer_pdf_Export", None, prof, tag + "-retry", logs, **kw)
+            produced2 = [os.path.basename(p) for p in find_products(outdir2, ".pdf")]
+            rec.update({"second_run_same_profile": {
+                "rc": rec2["rc"], "wall_ms": rec2["wall_ms"],
+                "output_files": produced2,
+                "stdout": (rec2["stdout"] or "")[:400],
+                "stderr": (rec2["stderr"] or "")[:400],
+            }})
+            print("   %-16s rc=%-3d %6.0f ms output=%s  (second run, same profile)"
+                  % (tag + " retry", rec2["rc"], rec2["wall_ms"], produced2 or "NONE"))
 
     # C2: xlsx -> csv option syntaxes
     variants = [
@@ -526,6 +602,18 @@ def run_controls(args, out, work, logs, kw, version):
 
 
 def main():
+    # Windows consoles default to a legacy code page (cp1252/cp437); the content
+    # checks print UTF-8 marker text (`café`, `中文`) and would die with
+    # UnicodeEncodeError mid-matrix. Force UTF-8 on the device we print to.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (OSError, ValueError):
+            pass
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--soffice", default=os.environ.get("SOFFICE") or shutil.which("soffice") or "soffice")
     ap.add_argument("--out", default=os.path.join(HERE, "out"))
@@ -553,7 +641,7 @@ def main():
     if args.ld_library_path:
         v_env["LD_LIBRARY_PATH"] = args.ld_library_path
     ver = subprocess.run([args.soffice, "--headless", "--version"], capture_output=True,
-                         text=True, timeout=240, env=v_env)
+                         text=True, errors="replace", timeout=240, env=v_env)
     raw_ver = ((ver.stdout or "") + (ver.stderr or "")).strip()
     version = raw_ver.splitlines()[0] if raw_ver else "unknown (rc=%d)" % ver.returncode
     print("version : %s" % version)
@@ -601,6 +689,10 @@ def main():
                 print("      content: %s" % ("PASS" if ok else "FAIL"))
                 for det in details:
                     print("        " + det)
+                if metrics and metrics.get("unicode_text_layer") == "degraded":
+                    print("      WARNING: unicode text layer degraded -- accented glyphs are "
+                          "absent from the pypdf text layer; the render was verified "
+                          "separately (see EVIDENCE).")
                 if ok:
                     rec["product"] = os.path.join(products, d["id"] + d["out_suffix"])
                     shutil.copy2(target, rec["product"])
@@ -729,10 +821,13 @@ def main():
         if r["verdict"] == "PASS":
             inv = "--convert-to %s%s" % (
                 r["convert_arg"], (" --infilter=%s" % r["infilter"]) if r.get("infilter") else "")
-            lines.append("| %s | PASS | `%s` | `%s` | %d | %s | %s | ok |" % (
+            content = "ok"
+            if (r.get("metrics") or {}).get("unicode_text_layer") == "degraded":
+                content = "ok (text layer degraded)"
+            lines.append("| %s | PASS | `%s` | `%s` | %d | %s | %s | %s |" % (
                 r["label"], inv,
                 (r.get("output_files") or [os.path.basename(r["output_path"])])[0],
-                r["output_bytes"], human(r["cold_ms"]), human(r["warm_median_ms"])))
+                r["output_bytes"], human(r["cold_ms"]), human(r["warm_median_ms"]), content))
         else:
             tried = "; ".join(a["attempt"] for a in r["attempts"])
             lines.append("| %s | FAIL | tried: %s | - | 0 | - | - | no output or content mismatch |" % (

@@ -7,7 +7,13 @@ Each spike is one directory with an executable `run.sh`; CI executes it on
 ```
 spikes/<spike_id>/run.sh    required — exit non-zero on failure
 spikes/<spike_id>/out/      optional — uploaded as artifact spike-<spike_id>
+spikes/<spike_id>/run.ps1   optional — the Windows leg of a spike, run by hand
+                            on a Windows host (CI has no Windows runner)
 ```
+
+`run.ps1` writes to `out-win/` rather than `out/`, so a Windows evidence bundle
+can never be confused with the Linux one. `out-win/` is git-ignored for the same
+reason as `out/`.
 
 ## Contract
 
@@ -51,6 +57,11 @@ generated graph (which covers the Rust build only):
 | `openpyxl` | 3.1.5 | MIT | build the xlsx fixture, read back `csv -> xlsx` |
 | `python-pptx` | 1.0.2 | MIT | build the pptx fixture |
 | `pypdf` | 6.21.4 | BSD-3-Clause | page count / text / font extraction from PDFs |
+
+`PyMuPDF` was used **once, as a diagnostic only**, to arbitrate a `pypdf`
+text-extraction difference on Windows (see `spikes/s3/EVIDENCE.md` §9.5). It is
+installed by hand on the spike host, is **not** in the list above, and must not
+become a harness dependency without adding a row here.
 
 `warden` sees this list in the S3 hand-off; adding a harness dependency means
 adding a row here in the same commit.
