@@ -109,7 +109,8 @@ requested spike, so a spike can never land on a broken trunk.
 ### Reading a run's verdict without Actions API access
 
 Every run ends with the `report` job, which commits `ci-status/latest.json` and
-`ci-status/<run_id>.json` to the `ci-status` branch:
+`ci-status/<run_id>.json` to the `ci-status` branch, and every matrix leg commits its own
+`ci-evidence/latest.json` to a `ci-evidence-<os>` branch:
 
 ```json
 {
@@ -121,16 +122,27 @@ Every run ends with the `report` job, which commits `ci-status/latest.json` and
   "results": {
     "build_matrix_3_os": "success",
     "license_assert": "success",
+    "policy_check": "success",
     "spike": "skipped"
   }
 }
 ```
 
-That's the machine-readable twin of the Actions UI: a credential with only
-Contents access can verify a run by reading
-`GET /repos/lphan-personal/ez-convert/contents/ci-status/latest.json?ref=ci-status`.
-`build_matrix_3_os` is the aggregate of the three-OS matrix, so `success` means
-all three jobs passed.
+```json
+{
+  "os": "windows-latest",
+  "run_id": 1234567890,
+  "job_status": "success",
+  "cargo_build_ok": true,
+  "test_summary": "test result: ok. 8 passed; 0 failed; …",
+  "rustc": "rustc 1.99.1 …"
+}
+```
+
+That's the machine-readable twin of the Actions UI: a credential with only Contents access can
+verify a run — `build_matrix_3_os` is the matrix aggregate, and the three `ci-evidence-<os>`
+branches prove each OS leg individually. When a leg fails, its `ci-evidence-<os>` branch also
+carries the raw `build.log` / `test.log`.
 
 
 ### Cargo.lock

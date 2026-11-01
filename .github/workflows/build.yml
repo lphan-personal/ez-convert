@@ -107,29 +107,37 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
-      # Forensics channel: a failing OS pushes its own cargo log to
-      # ci-logs-<os>, readable with Contents scope alone (no Actions API).
-      - name: Publish failure log to ci-logs-${{ matrix.os }}
-        if: failure()
+      # Evidence channel: every OS publishes its own result to ci-evidence-<os>
+      # (status + test summary, plus the cargo log when it failed). Readable
+      # with Contents scope alone — no Actions API, no log download.
+      - name: Publish evidence to ci-evidence-${{ matrix.os }}
+        if: always()
         env:
           OS_SLUG: ${{ matrix.os }}
+          JOB_STATUS: ${{ job.status }}
         run: |
           set -eo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          mkdir -p ci-logs
-          for f in src-tauri/build.log src-tauri/test.log; do
-            [ -f "$f" ] || continue
-            cp "$f" "ci-logs/${OS_SLUG}-$(basename "$f")"
-          done
-          printf 'run_id=%s\nrun_url=%s/%s/actions/runs/%s\njob=failed\n' \
-            "$GITHUB_RUN_ID" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" \
-            > "ci-logs/${OS_SLUG}-status.txt"
-          ls -la ci-logs
-          git checkout -B "ci-logs-${OS_SLUG}"
-          git add -f ci-logs
-          git commit -m "ci-logs: ${OS_SLUG} failed in run ${GITHUB_RUN_ID}" || echo "nothing to commit"
-          git push --force origin "ci-logs-${OS_SLUG}"
+          mkdir -p ci-evidence
+          # Test summary line, e.g. "test result: ok. 8 passed; 0 failed; ..."
+          summary=$(grep -hE '^test result:' src-tauri/test.log 2>/dev/null | head -1 || true)
+          printf '{\n  "os": "%s",\n  "run_id": %s,\n  "run_url": "%s/%s/actions/runs/%s",\n  "sha": "%s",\n  "job_status": "%s",\n  "cargo_build_ok": %s,\n  "test_summary": "%s",\n  "rustc": "%s"\n}\n' \
+            "$OS_SLUG" "$GITHUB_RUN_ID" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" \
+            "$GITHUB_SHA" "$JOB_STATUS" \
+            "$([ "$JOB_STATUS" = "success" ] && echo true || echo false)" \
+            "${summary//\"/}" "$(rustc --version 2>/dev/null || echo unknown)" \
+            > "ci-evidence/latest.json"
+          if [ "$JOB_STATUS" != "success" ]; then
+            for f in src-tauri/build.log src-tauri/test.log; do
+              [ -f "$f" ] && cp "$f" "ci-evidence/$(basename "$f")"
+            done
+          fi
+          cat ci-evidence/latest.json
+          git checkout -B "ci-evidence-${OS_SLUG}"
+          git add -f ci-evidence
+          git commit -m "ci-evidence: ${OS_SLUG} ${JOB_STATUS} in run ${GITHUB_RUN_ID}" || echo "nothing to commit"
+          git push --force origin "ci-evidence-${OS_SLUG}"
 
   # ------------------------------------------------------- ffmpeg licence gate
   license-assert:
