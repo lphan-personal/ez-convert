@@ -353,7 +353,7 @@ Impress (pptx, ppt):                 pdf, pptx, html
 ```
 
 - `docx` → **pdf, md, txt, html, rtf** (5 segments)
-- `doc` → **pdf, md, txt, docx, html, rtf** (6 — the only source that fills the cap)
+- `doc` → **pdf, md, txt, docx, html, rtf** (6 — the one source that fills the cap)
 - `xlsx` → **pdf, csv, txt, html**; `xls` → **pdf, csv, xlsx, txt, html**; `csv` → **pdf, xlsx, txt**
 - `html` → **pdf, md, docx, rtf**; `rtf` → **pdf, md, txt, docx, html**; `md` → **pdf, txt, docx,
   html, rtf**
@@ -399,6 +399,8 @@ Impress (pptx, ppt):                 pdf, pptx, html
 | `scripts/test-engine.sh` (Linux) | **171 passed, 0 failed** (`c3b-linux-engine-tests.txt`) |
 | `scripts/test-model.sh` (Linux) | **71 passed, 0 failed** (`c3b-linux-model-tests.txt`) |
 | `cargo check --locked --all-targets --target x86_64-pc-windows-gnu` | clean (exit 0; only the pre-existing dead-code warnings) |
+| `scripts/check-model-purity.sh` | ok — after the first push, CI's policy gate caught two `use … as …` aliases I had put in `matrix::wheel_rank`; they are gone and the script now passes locally too |
+| CI on the pushed head `59d5016` (run 41356206344) | `build_matrix_3_os=success`, `license_assert=success`, `policy_check=success` |
 
 Two engine tests had to be re-pointed because their fixture pair became a real route, and that is
 worth stating rather than hiding: `an_unrouted_pair_is_refused_before_any_spawn` used `rtf -> md`

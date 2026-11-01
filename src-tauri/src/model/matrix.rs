@@ -1566,7 +1566,7 @@ mod tests {
             ],
             "docx wheel order changed"
         );
-        // A .doc is the only source that fills all six segments.
+        // A .doc is the one source that fills all six segments.
         assert_eq!(offered_targets(CanonicalType::Doc).len(), 6);
         // A .txt offers nothing in v1 by decision (`CUT_DOC_TXT_SOURCE`).
         assert!(has_no_offer(CanonicalType::Txt));
