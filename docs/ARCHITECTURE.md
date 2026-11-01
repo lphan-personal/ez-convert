@@ -392,10 +392,21 @@ recorded on the card.
 | md/html/txt | valid UTF-8 (or declared encoding), non-empty, no NUL bytes |
 | audio/video | `ffprobe` reports a duration > 0 and the expected stream kind (Planned) |
 
-Two things this does **not** catch, stated so nobody assumes otherwise: a PDF built from
-garbage is still a syntactically valid PDF (measured: 1 page), and a lossy re-encode that is
-visually wrong is still a valid file. Detection (`§7`) is the guard against the first;
-fixture-based fidelity tests (`§19`) are the guard against the second.
+Two things this does **not** catch, stated so nobody assumes otherwise:
+
+- a PDF built from garbage is still a syntactically valid PDF — measured: a text file renamed
+  `.docx` produces a 12,388 B, **1-page, valid-looking PDF** (`§6.2` N3), which passes every
+  cheap validator. Detection is the guard for that case, and it only works because the file is
+  *not* a document by content;
+- a lossy re-encode that is visually wrong is still a valid file (fixture-based fidelity tests,
+  `§19`, are the guard).
+
+Residual risk, named rather than hidden: a file that passes structural detection (real ZIP,
+real `word/document.xml`) but whose XML is corrupt can still yield a plausible-looking PDF that
+passes verification. There is no cheap oracle for that in-process; `C3`'s corrupt-input test
+covers the cases we can catch (truncated ZIP, plain text renamed, wrong container) and the queue
+must report the job as `Done` with the file — claiming otherwise would be the fabrication this
+project is trying to avoid.
 
 #### 6.0.6 Egress
 
