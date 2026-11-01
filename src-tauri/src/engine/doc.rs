@@ -464,10 +464,10 @@ mod tests {
         let err = convert_batch(
             &paths,
             &DocJob {
-                from: CanonicalType::Rtf,
+                from: CanonicalType::Xls,
                 to: TargetFormat::Md,
             },
-            &inputs(&["/d/x.rtf"]),
+            &inputs(&["/d/x.xls"]),
             Path::new("/tmp/ezc-doc-out"),
             Path::new("/tmp"),
         )
@@ -509,7 +509,7 @@ mod tests {
         }));
         assert!(!accepts(&DocJob {
             from: CanonicalType::Docx,
-            to: TargetFormat::Txt
+            to: TargetFormat::Xlsx
         }));
     }
 

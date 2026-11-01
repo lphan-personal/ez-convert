@@ -251,7 +251,7 @@ specified dead.
 | pdf | rtf | soffice | cut | no raster-to-writer path for PDF input (ARCHITECTURE 8.3) |
 | pdf | xlsx | soffice | cut | no raster-to-writer path for PDF input (ARCHITECTURE 8.3) |
 | pdf | csv | soffice | cut | no raster-to-writer path for PDF input (ARCHITECTURE 8.3) |
-| pdf | txt | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
+| pdf | txt | soffice | cut | measured: a PDF imports as a Draw document, so the writer text filter answers rc=1 `Class:Write Code:16`; extracting text from a PDF is a different product (ARCHITECTURE 8.3, §10) |
 | mp3 | mp3 | ffmpeg | PROVEN | C2-AUDIO-MP3 — every audio source -> mp3 PASS (6 of 6, explicit -ar/-sample_fmt) |
 | mp3 | wav | ffmpeg | PROVEN | C2-AUDIO-WAV — every audio source -> wav PASS (6 of 6) |
 | mp3 | flac | ffmpeg | PROVEN | C2-AUDIO-FLAC — every audio source -> flac PASS (6 of 6) |
@@ -323,101 +323,100 @@ specified dead.
 | webm | gif | ffmpeg | PROVEN | C2-VIDEO-GIF — every video source -> gif PASS (4 of 4), fps + long-edge cap + palette |
 | docx | pdf | soffice | PROVEN | D1 — docx -> pdf: 26,460 B (Linux) / 39,946 B (Windows), 1 page 612x792 pt |
 | docx | md | soffice | PROVEN | D2 — docx -> md: 389 B Linux / 404 B Windows, real Markdown |
+| docx | txt | soffice | PROVEN | C3B-DOCX-TXT — docx -> txt PASS both legs (writer text filter, UTF-8) |
 | docx | html | soffice | PROVEN | D3 — docx -> html: 4,064 B, h1 + table + 13 p |
-| docx | xlsx | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
+| docx | rtf | soffice | PROVEN | C3B-DOCX-RTF — docx -> rtf PASS both legs (rtf:Rich Text Format, RTF header read back) |
+| docx | xlsx | soffice | cut | measured: a Writer document exported with the Calc xlsx filter is not a conversion on either leg — Linux aborts (rc=134, `Unspecified Application Error`), Windows answers rc=0 and leaves only a zero-byte `*.tmp`. No workbook is written on either leg (evidence/c3-document.md §10.2) |
 | docx | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
-| docx | rtf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | docx | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
-| docx | txt | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
-| xlsx | pdf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
-| xlsx | md | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
-| xlsx | html | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
+| xlsx | pdf | soffice | PROVEN | C3B-XLSX-PDF — xlsx -> pdf PASS both legs with pdf:calc_pdf_Export (2 pages: two sheets) |
+| xlsx | csv | soffice | PROVEN | D5 — xlsx -> csv: 147 B, named <stem>-<sheet>.csv |
+| xlsx | txt | soffice | PROVEN | C3B-XLSX-TXT — xlsx -> txt PASS both legs via the Calc text filter, TAB-separated, named <stem>-<sheet>.txt |
+| xlsx | html | soffice | PROVEN | C3B-XLSX-HTML — xlsx -> html PASS both legs with html:HTML (StarCalc) |
+| xlsx | md | soffice | cut | measured: only Writer registers the Markdown export filter. A Calc or Impress document answers rc=1 `Class:Write Code:16` for `md:Markdown`, so a spreadsheet or a slide deck cannot become markdown through the sidecar (§10) |
 | xlsx | docx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | xlsx | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | xlsx | rtf | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
-| xlsx | csv | soffice | PROVEN | D5 — xlsx -> csv: 147 B, named <stem>-<sheet>.csv |
-| xlsx | txt | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | pptx | pdf | soffice | PROVEN | D7 — pptx -> pdf: 33,957 B, 2 pages 720x540 pt |
-| pptx | md | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
-| pptx | html | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
+| pptx | html | soffice | PROVEN | C3B-PPTX-HTML — pptx -> html PASS both legs with html:impress_html_Export (single HTML file) |
+| pptx | md | soffice | cut | measured: only Writer registers the Markdown export filter. A Calc or Impress document answers rc=1 `Class:Write Code:16` for `md:Markdown`, so a spreadsheet or a slide deck cannot become markdown through the sidecar (§10) |
+| pptx | txt | soffice | cut | measured: Impress registers no plain-text export filter; both `txt:Text (encoded):UTF8` and the Calc text filter answer rc=1 `Class:Write Code:16` on a .ppt/.pptx (§10) |
 | pptx | docx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | pptx | xlsx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | pptx | rtf | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | pptx | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
-| pptx | txt | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | doc | pdf | soffice | PROVEN | C3-DOC-PDF — doc -> pdf PASS both legs (26,460 B Linux / 46,489 B Windows, 1 page) |
 | doc | md | soffice | PROVEN | C3-DOC-MD — doc -> md PASS both legs (385 B Linux / 400 B Windows) |
-| doc | html | soffice | PROVEN | C3-DOC-HTML — doc -> html PASS both legs (4,352 B Linux / 4,427 B Windows) |
+| doc | txt | soffice | PROVEN | C3-DOC-TXT — doc -> txt PASS both legs (341 B Linux / 349 B Windows via txt:Text (encoded):UTF8) |
 | doc | docx | soffice | PROVEN | C3-DOC-DOCX — doc -> docx PASS both legs (8,771 B Linux / 8,791 B Windows) |
+| doc | html | soffice | PROVEN | C3-DOC-HTML — doc -> html PASS both legs (4,352 B Linux / 4,427 B Windows) |
+| doc | rtf | soffice | PROVEN | C3B-DOC-RTF — doc -> rtf PASS both legs (legacy Word -> RTF) |
 | doc | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
-| doc | rtf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | doc | xlsx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | doc | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
-| doc | txt | soffice | PROVEN | C3-DOC-TXT — doc -> txt PASS both legs (341 B Linux / 349 B Windows via txt:Text (encoded):UTF8) |
 | xls | pdf | soffice | PROVEN | C3-XLS-PDF — xls -> pdf PASS both legs with pdf:calc_pdf_Export (26,212 B / 41,142 B) |
-| xls | md | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
+| xls | csv | soffice | PROVEN | C3-XLS-CSV — xls -> csv PASS both legs, named <stem>-<sheet>.csv (147 B / 151 B) |
+| xls | xlsx | soffice | PROVEN | C3-XLS-XLSX — xls -> xlsx PASS both legs (7,327 B / 7,330 B, workbooks re-opened) |
+| xls | txt | soffice | PROVEN | C3B-XLS-TXT — xls -> txt PASS both legs (legacy Calc, same TAB-separated text filter) |
 | xls | html | soffice | PROVEN | C3-XLS-HTML — xls -> html PASS both legs with html:HTML (StarCalc) (5,235 B / 5,330 B) |
+| xls | md | soffice | cut | measured: only Writer registers the Markdown export filter. A Calc or Impress document answers rc=1 `Class:Write Code:16` for `md:Markdown`, so a spreadsheet or a slide deck cannot become markdown through the sidecar (§10) |
 | xls | docx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | xls | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | xls | rtf | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
-| xls | xlsx | soffice | PROVEN | C3-XLS-XLSX — xls -> xlsx PASS both legs (7,327 B / 7,330 B, workbooks re-opened) |
-| xls | csv | soffice | PROVEN | C3-XLS-CSV — xls -> csv PASS both legs, named <stem>-<sheet>.csv (147 B / 151 B) |
-| xls | txt | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | ppt | pdf | soffice | PROVEN | C3-PPT-PDF — ppt -> pdf PASS both legs with pdf:impress_pdf_Export (33,915 B / 79,102 B) |
-| ppt | md | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
-| ppt | html | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
-| ppt | docx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | ppt | pptx | soffice | PROVEN | C3-PPT-PPTX — ppt -> pptx PASS both legs (pptx:Impress MS PowerPoint 2007 XML) |
+| ppt | html | soffice | PROVEN | C3B-PPT-HTML — ppt -> html PASS both legs with html:impress_html_Export (single HTML file) |
+| ppt | md | soffice | cut | measured: only Writer registers the Markdown export filter. A Calc or Impress document answers rc=1 `Class:Write Code:16` for `md:Markdown`, so a spreadsheet or a slide deck cannot become markdown through the sidecar (§10) |
+| ppt | txt | soffice | cut | measured: Impress registers no plain-text export filter; both `txt:Text (encoded):UTF8` and the Calc text filter answer rc=1 `Class:Write Code:16` on a .ppt/.pptx (§10) |
+| ppt | docx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | ppt | rtf | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | ppt | xlsx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | ppt | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
-| ppt | txt | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | rtf | pdf | soffice | PROVEN | C3-RTF-PDF — rtf -> pdf PASS both legs (13,100 B / 13,335 B) |
-| rtf | md | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
-| rtf | html | soffice | PROVEN | C3-RTF-HTML — rtf -> html PASS both legs (668 B / 687 B) |
+| rtf | md | soffice | PROVEN | C3B-RTF-MD — rtf -> md PASS both legs (md:Markdown, source text preserved) |
+| rtf | txt | soffice | PROVEN | C3-RTF-TXT — rtf -> txt PASS both legs (33 B / 34 B) |
 | rtf | docx | soffice | PROVEN | C3-RTF-DOCX — rtf -> docx PASS both legs (5,015 B / 5,041 B) |
+| rtf | html | soffice | PROVEN | C3-RTF-HTML — rtf -> html PASS both legs (668 B / 687 B) |
 | rtf | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | rtf | xlsx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | rtf | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
-| rtf | txt | soffice | PROVEN | C3-RTF-TXT — rtf -> txt PASS both legs (33 B / 34 B) |
-| csv | pdf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
-| csv | md | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
+| csv | pdf | soffice | PROVEN | C3B-CSV-PDF — csv -> pdf PASS both legs with pdf:calc_pdf_Export (1 page) |
+| csv | xlsx | soffice | PROVEN | D4 — csv -> xlsx: 5,802 B, numeric cells, UTF-8 via filter options |
+| csv | txt | soffice | PROVEN | C3B-CSV-TXT — csv -> txt PASS both legs (Calc text filter, TAB-separated, cells intact) |
+| csv | md | soffice | cut | measured: only Writer registers the Markdown export filter. A Calc or Impress document answers rc=1 `Class:Write Code:16` for `md:Markdown`, so a spreadsheet or a slide deck cannot become markdown through the sidecar (§10) |
 | csv | html | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | csv | docx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | csv | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
 | csv | rtf | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
-| csv | xlsx | soffice | PROVEN | D4 — csv -> xlsx: 5,802 B, numeric cells, UTF-8 via filter options |
-| csv | txt | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
-| md | pdf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
-| md | html | rust-crate | planned | t_f8d19f60 — in-process comrak/htmd conversion; unmeasured |
-| md | docx | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
+| md | pdf | soffice | PROVEN | C3B-MD-PDF — md -> pdf PASS both legs (1 page) |
+| md | txt | soffice | PROVEN | C3B-MD-TXT — md -> txt PASS both legs (writer text filter, UTF-8) |
+| md | docx | soffice | PROVEN | C3B-MD-DOCX — md -> docx PASS both legs (word/document.xml present) |
+| md | html | soffice | PROVEN | C3B-MD-HTML — md -> html PASS both legs (the `<html` element is present in the output) |
+| md | rtf | soffice | PROVEN | C3B-MD-RTF — md -> rtf PASS both legs (RTF header read back) |
 | md | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
-| md | rtf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | md | xlsx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | md | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
-| md | txt | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
-| html | pdf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
-| html | md | rust-crate | planned | t_f8d19f60 — in-process comrak/htmd conversion; unmeasured |
+| html | pdf | soffice | PROVEN | C3B-HTML-PDF — html -> pdf PASS both legs (1 page, imported with HTML (StarWriter)) |
+| html | md | soffice | PROVEN | C3B-HTML-MD — html -> md PASS both legs (heading kept as # Fixture; this replaces the unmeasured crate path) |
 | html | docx | soffice | PROVEN | D6 — html -> docx: 6,863 B, real 2x2 Word table |
+| html | rtf | soffice | PROVEN | C3B-HTML-RTF — html -> rtf PASS both legs (RTF header read back) |
+| html | txt | soffice | cut | measured PASS (27 B) but not offered: html -> txt is the same text with the heading stripped, while html -> md from the identical source keeps it (`# Fixture`). v1 offers one text target per source and it is md (§10) |
 | html | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
-| html | rtf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | html | xlsx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | html | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
-| html | txt | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
-| txt | pdf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
-| txt | md | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
+| txt | pdf | soffice | cut | measured PASS (pdf 14,522 B / docx 5,117 B / rtf 3,423 B) but not offered in v1: offering it turns the N3 trap (plain text renamed .docx is detected as Txt) from a refusal into a conversion, and that refusal is a shipped C3 acceptance. Flipping it is one route entry plus a stakeholder decision (§10) |
+| txt | docx | soffice | cut | measured PASS (pdf 14,522 B / docx 5,117 B / rtf 3,423 B) but not offered in v1: offering it turns the N3 trap (plain text renamed .docx is detected as Txt) from a refusal into a conversion, and that refusal is a shipped C3 acceptance. Flipping it is one route entry plus a stakeholder decision (§10) |
+| txt | rtf | soffice | cut | measured PASS (pdf 14,522 B / docx 5,117 B / rtf 3,423 B) but not offered in v1: offering it turns the N3 trap (plain text renamed .docx is detected as Txt) from a refusal into a conversion, and that refusal is a shipped C3 acceptance. Flipping it is one route entry plus a stakeholder decision (§10) |
+| txt | md | soffice | cut | measured PASS but not offered: LibreOffice's markdown export of a .txt wraps the entire file in a fenced code block (174 B from a 164 B source), which is not what txt -> md means; cut on the measurement (§10) |
 | txt | html | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
-| txt | docx | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | txt | pptx | soffice | cut | no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3) |
-| txt | rtf | soffice | planned | t_f8d19f60 — not offered in v1: C3's probe result for this pair (pass, family-filter fail, or not run) is on the owning card, which flips it or cuts it |
 | txt | xlsx | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 | txt | csv | soffice | cut | not offered in v1: no measured filter for this pair (ARCHITECTURE 8.3) |
 <!-- matrix:end -->
 
-Counts today: **112 `PROVEN` routes** — 21 image cells (9 image cells backed by 8
-measured invocations, V8 backs both `jpeg → avif` and `png → avif`, plus C2's 12),
-49 audio, 20 video, and **22 document directions** (7 from S3 + 15 legacy/rtf from
-C3). Everything else is `planned` or `cut`.
+Counts today: **148 `PROVEN` routes** — 37 image cells, 49 audio, 20 video, and **42
+document directions** (7 from S3, 15 legacy/rtf from C3, 20 from C3b). Everything else is
+`planned` or `cut`; the document grid has no `planned` cell left.
 
 ---
 
@@ -450,16 +449,16 @@ C3). Everything else is `planned` or `cut`.
 | mkv | Video | mp4, mkv, mov, webm, gif |
 | mov | Video | mp4, mkv, mov, webm, gif |
 | webm | Video | mp4, mkv, mov, webm, gif |
-| docx | Document | pdf, md, html |
-| xlsx | Document | csv |
-| pptx | Document | pdf |
-| doc | Document | pdf, md, html, docx, txt |
-| xls | Document | pdf, html, xlsx, csv |
-| ppt | Document | pdf, pptx |
-| rtf | Document | pdf, html, docx, txt |
-| csv | Document | xlsx |
-| md | Document | — |
-| html | Document | docx |
+| docx | Document | pdf, md, txt, html, rtf |
+| xlsx | Document | pdf, csv, txt, html |
+| pptx | Document | pdf, html |
+| doc | Document | pdf, md, txt, docx, html, rtf |
+| xls | Document | pdf, csv, xlsx, txt, html |
+| ppt | Document | pdf, pptx, html |
+| rtf | Document | pdf, md, txt, docx, html |
+| csv | Document | pdf, xlsx, txt |
+| md | Document | pdf, txt, docx, html, rtf |
+| html | Document | pdf, md, docx, rtf |
 | txt | Document | — |
 <!-- offered:end -->
 
@@ -494,17 +493,17 @@ matrix models every in-scope target and labels the ones that are not proven yet.
 | mkv | mp4, mkv, mov, webm, gif | mp4, mkv, mov, webm, gif |
 | mov | mp4, mkv, mov, webm, gif | mp4, mkv, mov, webm, gif |
 | webm | mp4, mkv, mov, webm, gif | mp4, mkv, mov, webm, gif |
-| docx | pdf, md, html, xlsx, pptx, rtf, csv, txt | pdf, md, html |
-| xlsx | pdf, md, html, docx, pptx, rtf, csv, txt | csv |
-| pptx | pdf, md, html, docx, xlsx, rtf, csv, txt | pdf |
-| doc | pdf, md, html, docx, pptx, rtf, xlsx, csv, txt | pdf, md, html, docx, txt |
-| xls | pdf, md, html, docx, pptx, rtf, xlsx, csv, txt | pdf, html, xlsx, csv |
-| ppt | pdf, md, html, docx, pptx, rtf, xlsx, csv, txt | pdf, pptx |
-| rtf | pdf, md, html, docx, pptx, xlsx, csv, txt | pdf, html, docx, txt |
-| csv | pdf, md, html, docx, pptx, rtf, xlsx, txt | xlsx |
-| md | pdf, html, docx, pptx, rtf, xlsx, csv, txt | — (nothing proven yet) |
-| html | pdf, md, docx, pptx, rtf, xlsx, csv, txt | docx |
-| txt | pdf, md, html, docx, pptx, rtf, xlsx, csv | — (nothing proven yet) |
+| docx | pdf, md, txt, html, rtf, xlsx, pptx, csv | pdf, md, txt, html, rtf |
+| xlsx | pdf, csv, txt, html, md, docx, pptx, rtf | pdf, csv, txt, html |
+| pptx | pdf, html, md, txt, docx, xlsx, rtf, csv | pdf, html |
+| doc | pdf, md, txt, docx, html, rtf, pptx, xlsx, csv | pdf, md, txt, docx, html, rtf |
+| xls | pdf, csv, xlsx, txt, html, md, docx, pptx, rtf | pdf, csv, xlsx, txt, html |
+| ppt | pdf, pptx, html, md, txt, docx, rtf, xlsx, csv | pdf, pptx, html |
+| rtf | pdf, md, txt, docx, html, pptx, xlsx, csv | pdf, md, txt, docx, html |
+| csv | pdf, xlsx, txt, md, html, docx, pptx, rtf | pdf, xlsx, txt |
+| md | pdf, txt, docx, html, rtf, pptx, xlsx, csv | pdf, txt, docx, html, rtf |
+| html | pdf, md, docx, rtf, txt, pptx, xlsx, csv | pdf, md, docx, rtf |
+| txt | pdf, docx, rtf, md, html, pptx, xlsx, csv | — (nothing proven yet) |
 <!-- scope:end -->
 
 Owner cards for `planned` rows (all on the `ezconvert` board):

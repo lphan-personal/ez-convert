@@ -121,9 +121,53 @@ pub fn route(from: CanonicalType, to: TargetFormat) -> Option<DocRoute> {
         (C::Rtf, T::Docx) => writer("docx:MS Word 2007 XML", None, "C3-RTF-DOCX"),
         (C::Rtf, T::Html) => writer("html:HTML (StarWriter)", None, "C3-RTF-HTML"),
         (C::Rtf, T::Txt) => writer("txt:Text (encoded):UTF8", None, "C3-RTF-TXT"),
+
+        // ---- C3b: the remaining document cells, measured 2026-11-01 on both
+        // legs (evidence/c3-document.md §10). The family rule is visible in the
+        // filters: `text` output from a spreadsheet is the Calc text filter with
+        // a TAB separator, `html` out of Impress is `impress_html_Export`, and
+        // every html *input* carries the html import filter.
+        (C::Docx, T::Txt) => writer("txt:Text (encoded):UTF8", None, "C3B-DOCX-TXT"),
+        (C::Docx, T::Rtf) => writer("rtf:Rich Text Format", None, "C3B-DOCX-RTF"),
+        (C::Doc, T::Rtf) => writer("rtf:Rich Text Format", None, "C3B-DOC-RTF"),
+        (C::Rtf, T::Md) => writer("md:Markdown", None, "C3B-RTF-MD"),
+        (C::Markdown, T::Pdf) => writer("pdf:writer_pdf_Export", None, "C3B-MD-PDF"),
+        (C::Markdown, T::Docx) => writer("docx:MS Word 2007 XML", None, "C3B-MD-DOCX"),
+        (C::Markdown, T::Rtf) => writer("rtf:Rich Text Format", None, "C3B-MD-RTF"),
+        (C::Markdown, T::Txt) => writer("txt:Text (encoded):UTF8", None, "C3B-MD-TXT"),
+        (C::Markdown, T::Html) => writer("html:HTML (StarWriter)", None, "C3B-MD-HTML"),
+        // html in: one import filter for every target, measured per target.
+        (C::Html, T::Pdf) => writer(
+            "pdf:writer_pdf_Export",
+            Some("HTML (StarWriter)"),
+            "C3B-HTML-PDF",
+        ),
+        (C::Html, T::Md) => writer("md:Markdown", Some("HTML (StarWriter)"), "C3B-HTML-MD"),
+        (C::Html, T::Rtf) => writer(
+            "rtf:Rich Text Format",
+            Some("HTML (StarWriter)"),
+            "C3B-HTML-RTF",
+        ),
+        // Calc: same StarCalc text filter as `xls -> csv`, TAB-separated.
+        (C::Xlsx, T::Pdf) => writer("pdf:calc_pdf_Export", None, "C3B-XLSX-PDF"),
+        (C::Xlsx, T::Html) => writer("html:HTML (StarCalc)", None, "C3B-XLSX-HTML"),
+        (C::Xlsx, T::Txt) => writer(CALC_TEXT_FILTER, None, "C3B-XLSX-TXT"),
+        (C::Xls, T::Txt) => writer(CALC_TEXT_FILTER, None, "C3B-XLS-TXT"),
+        (C::Csv, T::Pdf) => writer("pdf:calc_pdf_Export", None, "C3B-CSV-PDF"),
+        (C::Csv, T::Txt) => writer(CALC_TEXT_FILTER, None, "C3B-CSV-TXT"),
+        // Impress: the html export is `impress_html_Export`, not the writer name.
+        (C::Pptx, T::Html) => writer("html:impress_html_Export", None, "C3B-PPTX-HTML"),
+        (C::Ppt, T::Html) => writer("html:impress_html_Export", None, "C3B-PPT-HTML"),
         _ => return None,
     })
 }
+
+/// Plain-text export for a spreadsheet: the **Calc** text filter with a TAB
+/// field separator (ASCII 9). `txt:Text (encoded):UTF8` is a Writer filter and
+/// answers `rc=1 … Class:Write Code:16` on a Calc document; the filter name and
+/// the separator are both part of the measurement.
+pub const CALC_TEXT_FILTER: &str =
+    "txt:Text - txt - csv (StarCalc):9,34,76,1,,0,false,true,true,false,false,1";
 
 /// Every measured document route, for the matrix cross-check and for tests.
 pub fn proven_routes() -> &'static [(CanonicalType, TargetFormat)] {
@@ -150,6 +194,27 @@ pub fn proven_routes() -> &'static [(CanonicalType, TargetFormat)] {
         (CanonicalType::Rtf, TargetFormat::Docx),
         (CanonicalType::Rtf, TargetFormat::Html),
         (CanonicalType::Rtf, TargetFormat::Txt),
+        // -- C3b (evidence/c3-document.md §10) --------------------------------
+        (CanonicalType::Docx, TargetFormat::Txt),
+        (CanonicalType::Docx, TargetFormat::Rtf),
+        (CanonicalType::Doc, TargetFormat::Rtf),
+        (CanonicalType::Rtf, TargetFormat::Md),
+        (CanonicalType::Markdown, TargetFormat::Pdf),
+        (CanonicalType::Markdown, TargetFormat::Docx),
+        (CanonicalType::Markdown, TargetFormat::Rtf),
+        (CanonicalType::Markdown, TargetFormat::Txt),
+        (CanonicalType::Markdown, TargetFormat::Html),
+        (CanonicalType::Html, TargetFormat::Pdf),
+        (CanonicalType::Html, TargetFormat::Md),
+        (CanonicalType::Html, TargetFormat::Rtf),
+        (CanonicalType::Xlsx, TargetFormat::Pdf),
+        (CanonicalType::Xlsx, TargetFormat::Html),
+        (CanonicalType::Xlsx, TargetFormat::Txt),
+        (CanonicalType::Xls, TargetFormat::Txt),
+        (CanonicalType::Csv, TargetFormat::Pdf),
+        (CanonicalType::Csv, TargetFormat::Txt),
+        (CanonicalType::Pptx, TargetFormat::Html),
+        (CanonicalType::Ppt, TargetFormat::Html),
     ]
 }
 
@@ -507,34 +572,118 @@ mod tests {
         }
         assert_eq!(
             proven_routes().len(),
-            22,
+            42,
             "every routed direction must be listed in proven_routes()"
         );
     }
 
+    /// The C3b literals, character for character. Two of them are the measured
+    /// trap: the Writer text filter fails on a Calc document, and Impress's html
+    /// export is `impress_html_Export` (the writer name answers Parameter:26).
+    #[test]
+    fn the_c3b_filters_are_the_measured_literals() {
+        let cases = [
+            (
+                CanonicalType::Docx,
+                TargetFormat::Txt,
+                "txt:Text (encoded):UTF8",
+                None,
+            ),
+            (
+                CanonicalType::Docx,
+                TargetFormat::Rtf,
+                "rtf:Rich Text Format",
+                None,
+            ),
+            (
+                CanonicalType::Xls,
+                TargetFormat::Txt,
+                CALC_TEXT_FILTER,
+                None,
+            ),
+            (
+                CanonicalType::Xlsx,
+                TargetFormat::Txt,
+                CALC_TEXT_FILTER,
+                None,
+            ),
+            (
+                CanonicalType::Csv,
+                TargetFormat::Txt,
+                CALC_TEXT_FILTER,
+                None,
+            ),
+            (
+                CanonicalType::Ppt,
+                TargetFormat::Html,
+                "html:impress_html_Export",
+                None,
+            ),
+            (
+                CanonicalType::Pptx,
+                TargetFormat::Html,
+                "html:impress_html_Export",
+                None,
+            ),
+        ];
+        for (from, to, convert_to, infilter) in cases {
+            let r = route(from, to).unwrap_or_else(|| panic!("{from:?} -> {to:?} not routed"));
+            assert_eq!(r.convert_to, convert_to, "{from:?} -> {to:?}");
+            assert_eq!(r.infilter, infilter, "{from:?} -> {to:?}");
+        }
+        // The Calc text filter really is the Calc filter with a TAB separator.
+        assert!(CALC_TEXT_FILTER.starts_with("txt:Text - txt - csv (StarCalc):9,"));
+        assert!(CALC_TEXT_FILTER.contains(":9,"));
+        // And the Writer text filter is still the writer one for writer documents.
+        assert_eq!(
+            route(CanonicalType::Markdown, TargetFormat::Txt)
+                .unwrap()
+                .convert_to,
+            "txt:Text (encoded):UTF8"
+        );
+    }
+
+    /// Every html input carries the html import filter, for every target.
+    #[test]
+    fn every_html_route_carries_the_html_import_filter() {
+        let targets = [
+            TargetFormat::Pdf,
+            TargetFormat::Md,
+            TargetFormat::Docx,
+            TargetFormat::Rtf,
+        ];
+        for to in targets {
+            let r = route(CanonicalType::Html, to)
+                .unwrap_or_else(|| panic!("Html -> {to:?} not routed"));
+            assert_eq!(
+                r.infilter,
+                Some("HTML (StarWriter)"),
+                "Html -> {to:?} must import with the html filter"
+            );
+        }
+    }
+
     #[test]
     fn unmeasured_directions_have_no_route() {
-        // One row per family is flipped only when both legs measured it. These
-        // are the cells that stay `Planned`/`Cut` after C3: a route here would
-        // let the wheel offer an argv nobody measured.
+        // A row is routed only when both legs measured a validated output. These
+        // are the cells C3b leaves `Cut`: either LibreOffice has no filter for
+        // the pair (measured `rc=1 … Class:Write Code:16`, or `rc=134` for the
+        // Writer->Calc attempt), or the pair converts but is not offered for a
+        // product reason stated in the matrix.
         for (from, to) in [
-            (CanonicalType::Xls, TargetFormat::Md),
-            (CanonicalType::Xls, TargetFormat::Txt),
-            (CanonicalType::Ppt, TargetFormat::Md),
-            (CanonicalType::Ppt, TargetFormat::Html),
-            (CanonicalType::Ppt, TargetFormat::Txt),
-            (CanonicalType::Ppt, TargetFormat::Csv),
-            (CanonicalType::Rtf, TargetFormat::Md),
-            (CanonicalType::Doc, TargetFormat::Csv),
-            (CanonicalType::Docx, TargetFormat::Txt),
-            (CanonicalType::Xlsx, TargetFormat::Pdf),
+            (CanonicalType::Docx, TargetFormat::Xlsx),
             (CanonicalType::Pptx, TargetFormat::Md),
-            (CanonicalType::Csv, TargetFormat::Pdf),
-            (CanonicalType::Csv, TargetFormat::Txt),
+            (CanonicalType::Pptx, TargetFormat::Txt),
+            (CanonicalType::Xls, TargetFormat::Md),
+            (CanonicalType::Ppt, TargetFormat::Md),
+            (CanonicalType::Ppt, TargetFormat::Txt),
+            (CanonicalType::Html, TargetFormat::Txt),
+            // txt stays input-only in v1: see `CUT_DOC_TXT_SOURCE`.
             (CanonicalType::Txt, TargetFormat::Pdf),
-            // The measured silent-garbage trap: text named .docx never gets a
-            // document route, because detection says Txt (§6.2 N3).
             (CanonicalType::Txt, TargetFormat::Docx),
+            (CanonicalType::Txt, TargetFormat::Rtf),
+            (CanonicalType::Txt, TargetFormat::Md),
+            (CanonicalType::Pdf, TargetFormat::Txt),
         ] {
             assert!(route(from, to).is_none(), "{from:?} -> {to:?} must not be routed");
         }
@@ -556,11 +705,11 @@ mod tests {
             route(CanonicalType::Doc, TargetFormat::Pdf).unwrap().convert_to,
             "pdf:writer_pdf_Export"
         );
-        // Plain text export is the same filter for writer and calc.
+        // Plain text: the Writer filter for a Writer document, the Calc filter
+        // (TAB-separated) for a spreadsheet. Measured both ways in C3b §10.
         assert_eq!(
-            route(CanonicalType::Xls, TargetFormat::Txt).is_none(),
-            true,
-            "xls -> txt is not measured yet"
+            route(CanonicalType::Xls, TargetFormat::Txt).unwrap().convert_to,
+            CALC_TEXT_FILTER
         );
         assert_eq!(
             route(CanonicalType::Rtf, TargetFormat::Txt).unwrap().convert_to,

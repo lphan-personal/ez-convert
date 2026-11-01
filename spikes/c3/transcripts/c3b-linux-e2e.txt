@@ -1,0 +1,87 @@
+warning: unused import: `ALL_TARGETS`
+  --> /opt/data/kanban/boards/ezconvert/workspaces/t_f8d19f60/wt/src-tauri/src/model/matrix.rs:20:26
+   |
+20 |     ALL_CANONICAL_TYPES, ALL_TARGETS,
+   |                          ^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: 1 warning emitted
+
+--- linux leg ---
+=== EZ Convert C3 document matrix ===
+fixtures: /opt/data/kanban/boards/ezconvert/workspaces/t_f8d19f60/wt/fixtures
+work:     /opt/data/cache/scratch/ezc-c3-e2e.252630/linux
+launcher: soffice
+engine: LibreOffice 26.8.2.2 9dea406ab7695df6325b11b0e19fdca8db4b7276  (matches the pin)
+PASS  warm-up hook       app-start hook bootstrapped in 90 ms, relaunch is a no-op
+PASS  warm-up            fresh profile 90 ms, warm 90 ms, profile bootstrapped
+--- advertised directions (matrix Proven) ---
+PASS  Csv -> pdf         19362 B  528 ms  1 page(s), 19362 B
+PASS  Csv -> txt         105 B  498 ms  105 bytes of text, "Widget A" present, 12 TAB separators
+PASS  Csv -> xlsx        5804 B  498 ms  xlsx container with xl/workbook.xml
+PASS  Doc -> docx        8771 B  528 ms  docx container with word/document.xml
+PASS  Doc -> html        4352 B  513 ms  4352 bytes of html
+PASS  Doc -> md          385 B  513 ms  385 bytes of markdown, marker present
+PASS  Doc -> pdf         26460 B  513 ms  1 page(s), 26460 B
+PASS  Doc -> rtf         23116 B  513 ms  23116 bytes, RTF header present
+PASS  Doc -> txt         341 B  498 ms  341 bytes of text, "MARKER-ALPHA" present, 8 TAB separators
+PASS  Docx -> html       4064 B  558 ms  4064 bytes of html
+PASS  Docx -> md         389 B  558 ms  389 bytes of markdown, marker present
+PASS  Docx -> pdf        26460 B  558 ms  1 page(s), 26460 B
+PASS  Docx -> rtf        22392 B  558 ms  22392 bytes, RTF header present
+PASS  Docx -> txt        341 B  558 ms  341 bytes of text, "MARKER-ALPHA" present, 8 TAB separators
+PASS  Html -> docx       5358 B  468 ms  docx container with word/document.xml
+PASS  Html -> md         27 B  467 ms  27 bytes of markdown, heading kept
+PASS  Html -> pdf        18453 B  467 ms  1 page(s), 18453 B
+PASS  Html -> rtf        3254 B  482 ms  3254 bytes, RTF header present
+PASS  Markdown -> docx   6363 B  498 ms  docx container with word/document.xml
+PASS  Markdown -> html   1336 B  513 ms  1336 bytes of html
+PASS  Markdown -> pdf    40527 B  498 ms  1 page(s), 40527 B
+PASS  Markdown -> rtf    5505 B  512 ms  5505 bytes, RTF header present
+PASS  Markdown -> txt    124 B  497 ms  124 bytes of text, "emphasis" present
+PASS  Ppt -> html        932 B  528 ms  932 bytes of html
+PASS  Ppt -> pdf         33915 B  558 ms  2 page(s), 33915 B
+PASS  Ppt -> pptx        10251 B  573 ms  pptx container with ppt/presentation.xml
+PASS  Pptx -> html       917 B  693 ms  917 bytes of html
+PASS  Pptx -> pdf        33957 B  679 ms  2 page(s), 33957 B
+PASS  Rtf -> docx        5015 B  498 ms  docx container with word/document.xml
+PASS  Rtf -> html        668 B  498 ms  668 bytes of html
+PASS  Rtf -> md          30 B  498 ms  30 bytes of markdown, source text present
+PASS  Rtf -> pdf         13100 B  513 ms  1 page(s), 13100 B
+PASS  Rtf -> txt         33 B  498 ms  33 bytes of text, "café" present
+PASS  Xls -> csv         147 B  498 ms  produced as xls-to-csv.csv, source cell present
+PASS  Xls -> html        5235 B  497 ms  5235 bytes of html
+PASS  Xls -> pdf         26212 B  527 ms  2 page(s), 26212 B
+PASS  Xls -> txt         145 B  497 ms  145 bytes of text, "Widget A" present, 24 TAB separators
+PASS  Xls -> xlsx        7327 B  528 ms  xlsx container with xl/workbook.xml
+PASS  Xlsx -> csv        147 B  543 ms  produced as xlsx-to-csv.csv, source cell present
+PASS  Xlsx -> html       5655 B  543 ms  5655 bytes of html
+PASS  Xlsx -> pdf        26211 B  558 ms  2 page(s), 26211 B
+PASS  Xlsx -> txt        145 B  543 ms  145 bytes of text, "Widget A" present, 24 TAB separators
+--- batching ---
+PASS  batch 8            8 outputs in 860 ms = 108 ms/file
+PASS  3 individual       3 outputs in 1705 ms = 568 ms/file
+      batch speedup: 5.29x  (108 ms/file batched vs 568 ms/file spawned)
+--- negative controls ---
+PASS  trap text.doc→pdf  detected Txt, document targets offered: []
+PASS  trap refusal       refused before spawning
+PASS  truncated.docx     reported error: Unknown -> Pdf has no measured LibreOffice filter
+PASS  missing input      reported: path does not exist: /opt/data/cache/scratch/ezc-c3-e2e.252630/linux/does-not-exist.docx
+--- unproven directions (measurement only) ---
+probe FAIL  Xls -> md          rc=Some(1) (engine did not report success) and 0 file(s) (stderr: Error: Please verify input parameters... (SfxBaseModel::impl_store <file:///opt/data/cache/scratch/ezc-c3-e2e.252630/linux/tmp/measure-probe-sample-xls-md.md/out/sample.md> failed: 0xc10(Error Area:Io Class:Write Code:16)))
+probe FAIL  Xlsx -> md         rc=Some(1) (engine did not report success) and 0 file(s) (stderr: Error: Please verify input parameters... (SfxBaseModel::impl_store <file:///opt/data/cache/scratch/ezc-c3-e2e.252630/linux/tmp/measure-probe-sample-xlsx-md.md/out/sample.md> failed: 0xc10(Error Area:Io Class:Write Code:16)))
+probe FAIL  Pptx -> md         rc=Some(1) (engine did not report success) and 0 file(s) (stderr: Error: Please verify input parameters... (SfxBaseModel::impl_store <file:///opt/data/cache/scratch/ezc-c3-e2e.252630/linux/tmp/measure-probe-sample-pptx-md.md/out/sample.md> failed: 0xc10(Error Area:Io Class:Write Code:16)))
+probe FAIL  Ppt -> md          rc=Some(1) (engine did not report success) and 0 file(s) (stderr: Error: Please verify input parameters... (SfxBaseModel::impl_store <file:///opt/data/cache/scratch/ezc-c3-e2e.252630/linux/tmp/measure-probe-sample-ppt-md.md/out/sample.md> failed: 0xc10(Error Area:Io Class:Write Code:16)))
+probe FAIL  Ppt -> txt         rc=Some(1) (engine did not report success) and 0 file(s) (stderr: Error: Please verify input parameters... (SfxBaseModel::impl_store <file:///opt/data/cache/scratch/ezc-c3-e2e.252630/linux/tmp/measure-probe-sample-ppt-txt.txt/out/sample.txt> failed: 0xc10(Error Area:Io Class:Write Code:16)))
+probe FAIL  Pptx -> txt        rc=Some(1) (engine did not report success) and 0 file(s) (stderr: Error: Please verify input parameters... (SfxBaseModel::impl_store <file:///opt/data/cache/scratch/ezc-c3-e2e.252630/linux/tmp/measure-probe-sample-pptx-txt.txt/out/sample.txt> failed: 0xc10(Error Area:Io Class:Write Code:16)))
+probe FAIL  Pdf -> txt         rc=Some(1) (engine did not report success) and 0 file(s) (stderr: Error: Please verify input parameters... (SfxBaseModel::impl_store <file:///opt/data/cache/scratch/ezc-c3-e2e.252630/linux/tmp/measure-probe-sample-pdf-txt.txt/out/sample.txt> failed: 0xc10(Error Area:Io Class:Write Code:16)))
+probe FAIL  Docx -> xlsx       rc=Some(134) (engine did not report success) and 1 file(s) (stderr: Unspecified Application Error)
+probe PASS  Html -> txt        27 B  467 ms  as sample.txt
+probe PASS  Txt -> md          174 B  497 ms  as sample.md
+probe PASS  Txt -> pdf         14522 B  497 ms  as sample.pdf
+probe PASS  Txt -> docx        5117 B  497 ms  as sample.docx
+probe PASS  Txt -> rtf         3423 B  512 ms  as sample.rtf
+      13 unadvertised directions probed, 8 did not produce a validated file
+--- summary ---
+50 passed, 0 failed

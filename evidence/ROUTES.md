@@ -63,26 +63,46 @@ The generated table below is the contract. Regenerate it with
 | C2-VIDEO-GIF | transcript | `spikes/c2/EVIDENCE.md` | every video source -> gif PASS (4 of 4), fps + long-edge cap + palette | mp4 → gif, mkv → gif, mov → gif, webm → gif |
 | D1 | transcript | `spikes/s3/EVIDENCE.md` | docx -> pdf: 26,460 B (Linux) / 39,946 B (Windows), 1 page 612x792 pt | docx → pdf |
 | D2 | transcript | `spikes/s3/EVIDENCE.md` | docx -> md: 389 B Linux / 404 B Windows, real Markdown | docx → md |
+| C3B-DOCX-TXT | transcript | `evidence/c3-document.md` | docx -> txt PASS both legs (writer text filter, UTF-8) | docx → txt |
 | D3 | transcript | `spikes/s3/EVIDENCE.md` | docx -> html: 4,064 B, h1 + table + 13 p | docx → html |
+| C3B-DOCX-RTF | transcript | `evidence/c3-document.md` | docx -> rtf PASS both legs (rtf:Rich Text Format, RTF header read back) | docx → rtf |
+| C3B-XLSX-PDF | transcript | `evidence/c3-document.md` | xlsx -> pdf PASS both legs with pdf:calc_pdf_Export (2 pages: two sheets) | xlsx → pdf |
 | D5 | transcript | `spikes/s3/EVIDENCE.md` | xlsx -> csv: 147 B, named <stem>-<sheet>.csv | xlsx → csv |
+| C3B-XLSX-TXT | transcript | `evidence/c3-document.md` | xlsx -> txt PASS both legs via the Calc text filter, TAB-separated, named <stem>-<sheet>.txt | xlsx → txt |
+| C3B-XLSX-HTML | transcript | `evidence/c3-document.md` | xlsx -> html PASS both legs with html:HTML (StarCalc) | xlsx → html |
 | D7 | transcript | `spikes/s3/EVIDENCE.md` | pptx -> pdf: 33,957 B, 2 pages 720x540 pt | pptx → pdf |
+| C3B-PPTX-HTML | transcript | `evidence/c3-document.md` | pptx -> html PASS both legs with html:impress_html_Export (single HTML file) | pptx → html |
 | C3-DOC-PDF | transcript | `evidence/c3-document.md` | doc -> pdf PASS both legs (26,460 B Linux / 46,489 B Windows, 1 page) | doc → pdf |
 | C3-DOC-MD | transcript | `evidence/c3-document.md` | doc -> md PASS both legs (385 B Linux / 400 B Windows) | doc → md |
-| C3-DOC-HTML | transcript | `evidence/c3-document.md` | doc -> html PASS both legs (4,352 B Linux / 4,427 B Windows) | doc → html |
-| C3-DOC-DOCX | transcript | `evidence/c3-document.md` | doc -> docx PASS both legs (8,771 B Linux / 8,791 B Windows) | doc → docx |
 | C3-DOC-TXT | transcript | `evidence/c3-document.md` | doc -> txt PASS both legs (341 B Linux / 349 B Windows via txt:Text (encoded):UTF8) | doc → txt |
+| C3-DOC-DOCX | transcript | `evidence/c3-document.md` | doc -> docx PASS both legs (8,771 B Linux / 8,791 B Windows) | doc → docx |
+| C3-DOC-HTML | transcript | `evidence/c3-document.md` | doc -> html PASS both legs (4,352 B Linux / 4,427 B Windows) | doc → html |
+| C3B-DOC-RTF | transcript | `evidence/c3-document.md` | doc -> rtf PASS both legs (legacy Word -> RTF) | doc → rtf |
 | C3-XLS-PDF | transcript | `evidence/c3-document.md` | xls -> pdf PASS both legs with pdf:calc_pdf_Export (26,212 B / 41,142 B) | xls → pdf |
-| C3-XLS-HTML | transcript | `evidence/c3-document.md` | xls -> html PASS both legs with html:HTML (StarCalc) (5,235 B / 5,330 B) | xls → html |
-| C3-XLS-XLSX | transcript | `evidence/c3-document.md` | xls -> xlsx PASS both legs (7,327 B / 7,330 B, workbooks re-opened) | xls → xlsx |
 | C3-XLS-CSV | transcript | `evidence/c3-document.md` | xls -> csv PASS both legs, named <stem>-<sheet>.csv (147 B / 151 B) | xls → csv |
+| C3-XLS-XLSX | transcript | `evidence/c3-document.md` | xls -> xlsx PASS both legs (7,327 B / 7,330 B, workbooks re-opened) | xls → xlsx |
+| C3B-XLS-TXT | transcript | `evidence/c3-document.md` | xls -> txt PASS both legs (legacy Calc, same TAB-separated text filter) | xls → txt |
+| C3-XLS-HTML | transcript | `evidence/c3-document.md` | xls -> html PASS both legs with html:HTML (StarCalc) (5,235 B / 5,330 B) | xls → html |
 | C3-PPT-PDF | transcript | `evidence/c3-document.md` | ppt -> pdf PASS both legs with pdf:impress_pdf_Export (33,915 B / 79,102 B) | ppt → pdf |
 | C3-PPT-PPTX | transcript | `evidence/c3-document.md` | ppt -> pptx PASS both legs (pptx:Impress MS PowerPoint 2007 XML) | ppt → pptx |
+| C3B-PPT-HTML | transcript | `evidence/c3-document.md` | ppt -> html PASS both legs with html:impress_html_Export (single HTML file) | ppt → html |
 | C3-RTF-PDF | transcript | `evidence/c3-document.md` | rtf -> pdf PASS both legs (13,100 B / 13,335 B) | rtf → pdf |
-| C3-RTF-HTML | transcript | `evidence/c3-document.md` | rtf -> html PASS both legs (668 B / 687 B) | rtf → html |
-| C3-RTF-DOCX | transcript | `evidence/c3-document.md` | rtf -> docx PASS both legs (5,015 B / 5,041 B) | rtf → docx |
+| C3B-RTF-MD | transcript | `evidence/c3-document.md` | rtf -> md PASS both legs (md:Markdown, source text preserved) | rtf → md |
 | C3-RTF-TXT | transcript | `evidence/c3-document.md` | rtf -> txt PASS both legs (33 B / 34 B) | rtf → txt |
+| C3-RTF-DOCX | transcript | `evidence/c3-document.md` | rtf -> docx PASS both legs (5,015 B / 5,041 B) | rtf → docx |
+| C3-RTF-HTML | transcript | `evidence/c3-document.md` | rtf -> html PASS both legs (668 B / 687 B) | rtf → html |
+| C3B-CSV-PDF | transcript | `evidence/c3-document.md` | csv -> pdf PASS both legs with pdf:calc_pdf_Export (1 page) | csv → pdf |
 | D4 | transcript | `spikes/s3/EVIDENCE.md` | csv -> xlsx: 5,802 B, numeric cells, UTF-8 via filter options | csv → xlsx |
+| C3B-CSV-TXT | transcript | `evidence/c3-document.md` | csv -> txt PASS both legs (Calc text filter, TAB-separated, cells intact) | csv → txt |
+| C3B-MD-PDF | transcript | `evidence/c3-document.md` | md -> pdf PASS both legs (1 page) | md → pdf |
+| C3B-MD-TXT | transcript | `evidence/c3-document.md` | md -> txt PASS both legs (writer text filter, UTF-8) | md → txt |
+| C3B-MD-DOCX | transcript | `evidence/c3-document.md` | md -> docx PASS both legs (word/document.xml present) | md → docx |
+| C3B-MD-HTML | transcript | `evidence/c3-document.md` | md -> html PASS both legs (the `<html` element is present in the output) | md → html |
+| C3B-MD-RTF | transcript | `evidence/c3-document.md` | md -> rtf PASS both legs (RTF header read back) | md → rtf |
+| C3B-HTML-PDF | transcript | `evidence/c3-document.md` | html -> pdf PASS both legs (1 page, imported with HTML (StarWriter)) | html → pdf |
+| C3B-HTML-MD | transcript | `evidence/c3-document.md` | html -> md PASS both legs (heading kept as # Fixture; this replaces the unmeasured crate path) | html → md |
 | D6 | transcript | `spikes/s3/EVIDENCE.md` | html -> docx: 6,863 B, real 2x2 Word table | html → docx |
+| C3B-HTML-RTF | transcript | `evidence/c3-document.md` | html -> rtf PASS both legs (RTF header read back) | html → rtf |
 <!-- routes:end -->
 
 ## Notes that the table cannot carry

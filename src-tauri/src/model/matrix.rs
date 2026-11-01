@@ -27,8 +27,9 @@ use super::types::{
 /// C2 — media pipeline (vips images, ffmpeg audio/video).
 pub const OWNER_C2: CardId = CardId("t_dc07a72e");
 /// C3b — the remaining document directions. `C3` (`t_ea95c826`) shipped the pipeline and
-/// flipped 22 cells; the cells still `Planned` are owned by the follow-up it filed, so a
-/// planned route never points at a finished card.
+/// flipped 22 cells; this card decided the 33 that were left. **It owns no `Planned` route
+/// now** — every document cell is `Proven` or `Cut` (`evidence/c3-document.md` §10) — so the
+/// constant stays for provenance, not as an owner.
 pub const OWNER_C3: CardId = CardId("t_f8d19f60");
 /// C4 — output rules. No route is owned here today; kept for symmetry.
 pub const OWNER_C4: CardId = CardId("t_b2723c61");
@@ -240,6 +241,113 @@ const EV_C3_RTF_TXT: EvidenceId = c3(
     "C3-RTF-TXT",
     "rtf -> txt PASS both legs (33 B / 34 B)",
     "rtf -> txt PASS",
+);
+
+// ---------------------------------------------------------------------------
+// C3b — the remaining document cells, decided and measured 2026-11-01
+// (evidence/c3-document.md §10). Same rule as C3: one EvidenceId per direction,
+// the marker is the verbatim PASS line in that file.
+// ---------------------------------------------------------------------------
+
+const EV_C3B_DOCX_TXT: EvidenceId = c3(
+    "C3B-DOCX-TXT",
+    "docx -> txt PASS both legs (writer text filter, UTF-8)",
+    "docx -> txt PASS",
+);
+const EV_C3B_DOCX_RTF: EvidenceId = c3(
+    "C3B-DOCX-RTF",
+    "docx -> rtf PASS both legs (rtf:Rich Text Format, RTF header read back)",
+    "docx -> rtf PASS",
+);
+const EV_C3B_DOC_RTF: EvidenceId = c3(
+    "C3B-DOC-RTF",
+    "doc -> rtf PASS both legs (legacy Word -> RTF)",
+    "doc -> rtf PASS",
+);
+const EV_C3B_RTF_MD: EvidenceId = c3(
+    "C3B-RTF-MD",
+    "rtf -> md PASS both legs (md:Markdown, source text preserved)",
+    "rtf -> md PASS",
+);
+const EV_C3B_MD_PDF: EvidenceId = c3(
+    "C3B-MD-PDF",
+    "md -> pdf PASS both legs (1 page)",
+    "md -> pdf PASS",
+);
+const EV_C3B_MD_DOCX: EvidenceId = c3(
+    "C3B-MD-DOCX",
+    "md -> docx PASS both legs (word/document.xml present)",
+    "md -> docx PASS",
+);
+const EV_C3B_MD_RTF: EvidenceId = c3(
+    "C3B-MD-RTF",
+    "md -> rtf PASS both legs (RTF header read back)",
+    "md -> rtf PASS",
+);
+const EV_C3B_MD_TXT: EvidenceId = c3(
+    "C3B-MD-TXT",
+    "md -> txt PASS both legs (writer text filter, UTF-8)",
+    "md -> txt PASS",
+);
+const EV_C3B_MD_HTML: EvidenceId = c3(
+    "C3B-MD-HTML",
+    "md -> html PASS both legs (the `<html` element is present in the output)",
+    "md -> html PASS",
+);
+const EV_C3B_HTML_PDF: EvidenceId = c3(
+    "C3B-HTML-PDF",
+    "html -> pdf PASS both legs (1 page, imported with HTML (StarWriter))",
+    "html -> pdf PASS",
+);
+const EV_C3B_HTML_MD: EvidenceId = c3(
+    "C3B-HTML-MD",
+    "html -> md PASS both legs (heading kept as # Fixture; this replaces the unmeasured crate path)",
+    "html -> md PASS",
+);
+const EV_C3B_HTML_RTF: EvidenceId = c3(
+    "C3B-HTML-RTF",
+    "html -> rtf PASS both legs (RTF header read back)",
+    "html -> rtf PASS",
+);
+const EV_C3B_XLSX_PDF: EvidenceId = c3(
+    "C3B-XLSX-PDF",
+    "xlsx -> pdf PASS both legs with pdf:calc_pdf_Export (2 pages: two sheets)",
+    "xlsx -> pdf PASS",
+);
+const EV_C3B_XLSX_HTML: EvidenceId = c3(
+    "C3B-XLSX-HTML",
+    "xlsx -> html PASS both legs with html:HTML (StarCalc)",
+    "xlsx -> html PASS",
+);
+const EV_C3B_XLSX_TXT: EvidenceId = c3(
+    "C3B-XLSX-TXT",
+    "xlsx -> txt PASS both legs via the Calc text filter, TAB-separated, named <stem>-<sheet>.txt",
+    "xlsx -> txt PASS",
+);
+const EV_C3B_XLS_TXT: EvidenceId = c3(
+    "C3B-XLS-TXT",
+    "xls -> txt PASS both legs (legacy Calc, same TAB-separated text filter)",
+    "xls -> txt PASS",
+);
+const EV_C3B_CSV_PDF: EvidenceId = c3(
+    "C3B-CSV-PDF",
+    "csv -> pdf PASS both legs with pdf:calc_pdf_Export (1 page)",
+    "csv -> pdf PASS",
+);
+const EV_C3B_CSV_TXT: EvidenceId = c3(
+    "C3B-CSV-TXT",
+    "csv -> txt PASS both legs (Calc text filter, TAB-separated, cells intact)",
+    "csv -> txt PASS",
+);
+const EV_C3B_PPTX_HTML: EvidenceId = c3(
+    "C3B-PPTX-HTML",
+    "pptx -> html PASS both legs with html:impress_html_Export (single HTML file)",
+    "pptx -> html PASS",
+);
+const EV_C3B_PPT_HTML: EvidenceId = c3(
+    "C3B-PPT-HTML",
+    "ppt -> html PASS both legs with html:impress_html_Export (single HTML file)",
+    "ppt -> html PASS",
 );
 
 // ---------------------------------------------------------------------------
@@ -486,15 +594,6 @@ const PLANNED_PDF_IN: RouteStatus = RouteStatus::Planned {
     owner: OWNER_C2,
     hypothesis: "PDFium raster -> vips (ARCHITECTURE 6.4); PDFium binary never built or run",
 };
-const PLANNED_DOC: RouteStatus = RouteStatus::Planned {
-    owner: OWNER_C3,
-    hypothesis: "not offered in v1: C3's probe result for this pair (pass, family-filter fail, \
-                  or not run) is on the owning card, which flips it or cuts it",
-};
-const PLANNED_DOC_CRATE: RouteStatus = RouteStatus::Planned {
-    owner: OWNER_C3,
-    hypothesis: "in-process comrak/htmd conversion; unmeasured",
-};
 const CUT_HEIC: RouteStatus = RouteStatus::Cut {
     reason: "HEIC encode cut: x265 is GPL-2 and Media Foundation HEVC needs a Store codec pack (SPEC 9.3 D4)",
 };
@@ -512,6 +611,53 @@ const CUT_PDF_WRITER: RouteStatus = RouteStatus::Cut {
 };
 const CUT_CROSS_FAMILY: RouteStatus = RouteStatus::Cut {
     reason: "no measured Writer/Calc/Impress cross-family filter for this pair (ARCHITECTURE 8.3)",
+};
+
+// -- C3b cuts: every one of these was measured (evidence/c3-document.md §10) ---
+
+/// Writer document -> spreadsheet: not unsupported, *aborting*.
+const CUT_DOC_CROSS_ABORT: RouteStatus = RouteStatus::Cut {
+    reason: "measured: a Writer document exported with the Calc xlsx filter is not a conversion on \
+             either leg — Linux aborts (rc=134, `Unspecified Application Error`), Windows answers \
+             rc=0 and leaves only a zero-byte `*.tmp`. No workbook is written on either leg \
+             (evidence/c3-document.md §10.2)",
+};
+/// Calc/Impress -> markdown: only Writer registers the markdown export filter.
+const CUT_DOC_NO_MARKDOWN: RouteStatus = RouteStatus::Cut {
+    reason: "measured: only Writer registers the Markdown export filter. A Calc or Impress \
+             document answers rc=1 `Class:Write Code:16` for `md:Markdown`, so a spreadsheet or \
+             a slide deck cannot become markdown through the sidecar (§10)",
+};
+/// Impress -> plain text: there is no text export filter in the Impress family.
+const CUT_DOC_IMPRESS_NO_TEXT: RouteStatus = RouteStatus::Cut {
+    reason: "measured: Impress registers no plain-text export filter; both `txt:Text \
+             (encoded):UTF8` and the Calc text filter answer rc=1 `Class:Write Code:16` on a \
+             .ppt/.pptx (§10)",
+};
+/// html -> txt converts, but md from the same source keeps the structure.
+const CUT_DOC_HTML_TXT: RouteStatus = RouteStatus::Cut {
+    reason: "measured PASS (27 B) but not offered: html -> txt is the same text with the heading \
+             stripped, while html -> md from the identical source keeps it (`# Fixture`). v1 \
+             offers one text target per source and it is md (§10)",
+};
+/// A `.txt` source has no offer in v1 - and that is the N3 refusal, not an oversight.
+const CUT_DOC_TXT_SOURCE: RouteStatus = RouteStatus::Cut {
+    reason: "measured PASS (pdf 14,522 B / docx 5,117 B / rtf 3,423 B) but not offered in v1: \
+             offering it turns the N3 trap (plain text renamed .docx is detected as Txt) from a \
+             refusal into a conversion, and that refusal is a shipped C3 acceptance. Flipping it \
+             is one route entry plus a stakeholder decision (§10)",
+};
+/// txt -> md wraps the whole file in one fenced code block.
+const CUT_DOC_TXT_TO_MD: RouteStatus = RouteStatus::Cut {
+    reason: "measured PASS but not offered: LibreOffice's markdown export of a .txt wraps the \
+             entire file in a fenced code block (174 B from a 164 B source), which is not what \
+             txt -> md means; cut on the measurement (§10)",
+};
+/// PDF input: the text extractor is a different product.
+const CUT_PDF_TEXT: RouteStatus = RouteStatus::Cut {
+    reason: "measured: a PDF imports as a Draw document, so the writer text filter answers rc=1 \
+             `Class:Write Code:16`; extracting text from a PDF is a different product \
+             (ARCHITECTURE 8.3, §10)",
 };
 
 macro_rules! route {
@@ -664,66 +810,71 @@ static R_PDF: &[Route] = &[
     route!(Rtf, Soffice, CUT_PDF_WRITER),
     route!(Xlsx, Soffice, CUT_PDF_WRITER),
     route!(Csv, Soffice, CUT_PDF_WRITER),
-    route!(Txt, Soffice, PLANNED_DOC),
+    route!(Txt, Soffice, CUT_PDF_TEXT),
 ];
 
 // ---------------------------------------------------------------------------
 // Document routes (ARCHITECTURE §8.3)
+//
+// Row order *is* wheel order (`offered_targets` preserves it): each row lists its
+// `Proven` targets in the family's intent rank — see `wheel_rank` — and the cuts
+// follow. `document_wheel_order_follows_the_intent_rank` asserts both the order
+// and the 6-segment cap (ARCHITECTURE §10.2).
 // ---------------------------------------------------------------------------
 
 static R_DOCX: &[Route] = &[
     route!(Pdf, Soffice, RouteStatus::Proven { evidence: EV_D1 }),
     route!(Md, Soffice, RouteStatus::Proven { evidence: EV_D2 }),
+    route!(Txt, Soffice, RouteStatus::Proven { evidence: EV_C3B_DOCX_TXT }),
     route!(Html, Soffice, RouteStatus::Proven { evidence: EV_D3 }),
-    route!(Xlsx, Soffice, PLANNED_DOC),
+    route!(Rtf, Soffice, RouteStatus::Proven { evidence: EV_C3B_DOCX_RTF }),
+    route!(Xlsx, Soffice, CUT_DOC_CROSS_ABORT),
     route!(Pptx, Soffice, CUT_CROSS_FAMILY),
-    route!(Rtf, Soffice, PLANNED_DOC),
     route!(Csv, Soffice, CUT_DOC),
-    route!(Txt, Soffice, PLANNED_DOC),
 ];
 
 static R_PPTX: &[Route] = &[
     route!(Pdf, Soffice, RouteStatus::Proven { evidence: EV_D7 }),
-    route!(Md, Soffice, PLANNED_DOC),
-    route!(Html, Soffice, PLANNED_DOC),
+    route!(Html, Soffice, RouteStatus::Proven { evidence: EV_C3B_PPTX_HTML }),
+    route!(Md, Soffice, CUT_DOC_NO_MARKDOWN),
+    route!(Txt, Soffice, CUT_DOC_IMPRESS_NO_TEXT),
     route!(Docx, Soffice, CUT_CROSS_FAMILY),
     route!(Xlsx, Soffice, CUT_DOC),
     route!(Rtf, Soffice, CUT_CROSS_FAMILY),
     route!(Csv, Soffice, CUT_DOC),
-    route!(Txt, Soffice, CUT_DOC),
 ];
 
 static R_XLSX: &[Route] = &[
-    route!(Pdf, Soffice, PLANNED_DOC),
-    route!(Md, Soffice, CUT_DOC),
-    route!(Html, Soffice, PLANNED_DOC),
+    route!(Pdf, Soffice, RouteStatus::Proven { evidence: EV_C3B_XLSX_PDF }),
+    route!(Csv, Soffice, RouteStatus::Proven { evidence: EV_D5 }),
+    route!(Txt, Soffice, RouteStatus::Proven { evidence: EV_C3B_XLSX_TXT }),
+    route!(Html, Soffice, RouteStatus::Proven { evidence: EV_C3B_XLSX_HTML }),
+    route!(Md, Soffice, CUT_DOC_NO_MARKDOWN),
     route!(Docx, Soffice, CUT_DOC),
     route!(Pptx, Soffice, CUT_CROSS_FAMILY),
     route!(Rtf, Soffice, CUT_CROSS_FAMILY),
-    route!(Csv, Soffice, RouteStatus::Proven { evidence: EV_D5 }),
-    route!(Txt, Soffice, PLANNED_DOC),
 ];
 
 static R_CSV: &[Route] = &[
-    route!(Pdf, Soffice, PLANNED_DOC),
-    route!(Md, Soffice, CUT_DOC),
+    route!(Pdf, Soffice, RouteStatus::Proven { evidence: EV_C3B_CSV_PDF }),
+    route!(Xlsx, Soffice, RouteStatus::Proven { evidence: EV_D4 }),
+    route!(Txt, Soffice, RouteStatus::Proven { evidence: EV_C3B_CSV_TXT }),
+    route!(Md, Soffice, CUT_DOC_NO_MARKDOWN),
     route!(Html, Soffice, CUT_DOC),
     route!(Docx, Soffice, CUT_DOC),
     route!(Pptx, Soffice, CUT_CROSS_FAMILY),
     route!(Rtf, Soffice, CUT_CROSS_FAMILY),
-    route!(Xlsx, Soffice, RouteStatus::Proven { evidence: EV_D4 }),
-    route!(Txt, Soffice, PLANNED_DOC),
 ];
 
 static R_HTML: &[Route] = &[
-    route!(Pdf, Soffice, PLANNED_DOC),
-    route!(Md, RustCrate, PLANNED_DOC_CRATE),
+    route!(Pdf, Soffice, RouteStatus::Proven { evidence: EV_C3B_HTML_PDF }),
+    route!(Md, Soffice, RouteStatus::Proven { evidence: EV_C3B_HTML_MD }),
     route!(Docx, Soffice, RouteStatus::Proven { evidence: EV_D6 }),
+    route!(Rtf, Soffice, RouteStatus::Proven { evidence: EV_C3B_HTML_RTF }),
+    route!(Txt, Soffice, CUT_DOC_HTML_TXT),
     route!(Pptx, Soffice, CUT_CROSS_FAMILY),
-    route!(Rtf, Soffice, PLANNED_DOC),
     route!(Xlsx, Soffice, CUT_DOC),
     route!(Csv, Soffice, CUT_DOC),
-    route!(Txt, Soffice, PLANNED_DOC),
 ];
 
 // Legacy Office split into three rows by C3: .doc is Writer, .xls is Calc and
@@ -732,68 +883,73 @@ static R_HTML: &[Route] = &[
 static R_DOC: &[Route] = &[
     route!(Pdf, Soffice, RouteStatus::Proven { evidence: EV_C3_DOC_PDF }),
     route!(Md, Soffice, RouteStatus::Proven { evidence: EV_C3_DOC_MD }),
-    route!(Html, Soffice, RouteStatus::Proven { evidence: EV_C3_DOC_HTML }),
+    route!(Txt, Soffice, RouteStatus::Proven { evidence: EV_C3_DOC_TXT }),
     route!(Docx, Soffice, RouteStatus::Proven { evidence: EV_C3_DOC_DOCX }),
+    route!(Html, Soffice, RouteStatus::Proven { evidence: EV_C3_DOC_HTML }),
+    route!(Rtf, Soffice, RouteStatus::Proven { evidence: EV_C3B_DOC_RTF }),
     route!(Pptx, Soffice, CUT_CROSS_FAMILY),
-    route!(Rtf, Soffice, PLANNED_DOC),
     route!(Xlsx, Soffice, CUT_DOC),
     route!(Csv, Soffice, CUT_DOC),
-    route!(Txt, Soffice, RouteStatus::Proven { evidence: EV_C3_DOC_TXT }),
 ];
 
 static R_XLS: &[Route] = &[
     route!(Pdf, Soffice, RouteStatus::Proven { evidence: EV_C3_XLS_PDF }),
-    route!(Md, Soffice, PLANNED_DOC),
+    route!(Csv, Soffice, RouteStatus::Proven { evidence: EV_C3_XLS_CSV }),
+    route!(Xlsx, Soffice, RouteStatus::Proven { evidence: EV_C3_XLS_XLSX }),
+    route!(Txt, Soffice, RouteStatus::Proven { evidence: EV_C3B_XLS_TXT }),
     route!(Html, Soffice, RouteStatus::Proven { evidence: EV_C3_XLS_HTML }),
+    route!(Md, Soffice, CUT_DOC_NO_MARKDOWN),
     route!(Docx, Soffice, CUT_CROSS_FAMILY),
     route!(Pptx, Soffice, CUT_CROSS_FAMILY),
     route!(Rtf, Soffice, CUT_CROSS_FAMILY),
-    route!(Xlsx, Soffice, RouteStatus::Proven { evidence: EV_C3_XLS_XLSX }),
-    route!(Csv, Soffice, RouteStatus::Proven { evidence: EV_C3_XLS_CSV }),
-    route!(Txt, Soffice, PLANNED_DOC),
 ];
 
 static R_PPT: &[Route] = &[
     route!(Pdf, Soffice, RouteStatus::Proven { evidence: EV_C3_PPT_PDF }),
-    route!(Md, Soffice, PLANNED_DOC),
-    route!(Html, Soffice, PLANNED_DOC),
-    route!(Docx, Soffice, CUT_CROSS_FAMILY),
     route!(Pptx, Soffice, RouteStatus::Proven { evidence: EV_C3_PPT_PPTX }),
+    route!(Html, Soffice, RouteStatus::Proven { evidence: EV_C3B_PPT_HTML }),
+    route!(Md, Soffice, CUT_DOC_NO_MARKDOWN),
+    route!(Txt, Soffice, CUT_DOC_IMPRESS_NO_TEXT),
+    route!(Docx, Soffice, CUT_CROSS_FAMILY),
     route!(Rtf, Soffice, CUT_CROSS_FAMILY),
     route!(Xlsx, Soffice, CUT_DOC),
     route!(Csv, Soffice, CUT_DOC),
-    route!(Txt, Soffice, PLANNED_DOC),
 ];
 
 static R_RTF: &[Route] = &[
     route!(Pdf, Soffice, RouteStatus::Proven { evidence: EV_C3_RTF_PDF }),
-    route!(Md, Soffice, PLANNED_DOC),
-    route!(Html, Soffice, RouteStatus::Proven { evidence: EV_C3_RTF_HTML }),
+    route!(Md, Soffice, RouteStatus::Proven { evidence: EV_C3B_RTF_MD }),
+    route!(Txt, Soffice, RouteStatus::Proven { evidence: EV_C3_RTF_TXT }),
     route!(Docx, Soffice, RouteStatus::Proven { evidence: EV_C3_RTF_DOCX }),
+    route!(Html, Soffice, RouteStatus::Proven { evidence: EV_C3_RTF_HTML }),
     route!(Pptx, Soffice, CUT_CROSS_FAMILY),
     route!(Xlsx, Soffice, CUT_DOC),
     route!(Csv, Soffice, CUT_DOC),
-    route!(Txt, Soffice, RouteStatus::Proven { evidence: EV_C3_RTF_TXT }),
 ];
 
 static R_MD: &[Route] = &[
-    route!(Pdf, Soffice, PLANNED_DOC),
-    route!(Html, RustCrate, PLANNED_DOC_CRATE),
-    route!(Docx, Soffice, PLANNED_DOC),
+    route!(Pdf, Soffice, RouteStatus::Proven { evidence: EV_C3B_MD_PDF }),
+    route!(Txt, Soffice, RouteStatus::Proven { evidence: EV_C3B_MD_TXT }),
+    route!(Docx, Soffice, RouteStatus::Proven { evidence: EV_C3B_MD_DOCX }),
+    // Measured and flipped: the sidecar writes markdown directly, so the
+    // in-process comrak/htmd path this row used to plan is retired.
+    route!(Html, Soffice, RouteStatus::Proven { evidence: EV_C3B_MD_HTML }),
+    route!(Rtf, Soffice, RouteStatus::Proven { evidence: EV_C3B_MD_RTF }),
     route!(Pptx, Soffice, CUT_CROSS_FAMILY),
-    route!(Rtf, Soffice, PLANNED_DOC),
     route!(Xlsx, Soffice, CUT_DOC),
     route!(Csv, Soffice, CUT_DOC),
-    route!(Txt, Soffice, PLANNED_DOC),
 ];
 
+// A .txt source offers nothing in v1 by decision, not by omission: every target
+// below measured PASS (evidence/c3-document.md §10) and is held back so the N3
+// refusal keeps working. See `CUT_DOC_TXT_SOURCE`.
 static R_TXT: &[Route] = &[
-    route!(Pdf, Soffice, PLANNED_DOC),
-    route!(Md, Soffice, CUT_DOC),
+    route!(Pdf, Soffice, CUT_DOC_TXT_SOURCE),
+    route!(Docx, Soffice, CUT_DOC_TXT_SOURCE),
+    route!(Rtf, Soffice, CUT_DOC_TXT_SOURCE),
+    route!(Md, Soffice, CUT_DOC_TXT_TO_MD),
     route!(Html, Soffice, CUT_DOC),
-    route!(Docx, Soffice, PLANNED_DOC),
     route!(Pptx, Soffice, CUT_CROSS_FAMILY),
-    route!(Rtf, Soffice, PLANNED_DOC),
     route!(Xlsx, Soffice, CUT_DOC),
     route!(Csv, Soffice, CUT_DOC),
 ];
@@ -901,6 +1057,52 @@ pub fn offered_targets(ty: CanonicalType) -> Vec<TargetFormat> {
 /// True when the wheel would show nothing for this type at all.
 pub fn has_no_offer(ty: CanonicalType) -> bool {
     offered_targets(ty).is_empty()
+}
+
+// ---------------------------------------------------------------------------
+// Wheel ordering for documents (C3b)
+//
+// `offered_targets` returns matrix order, so the row order *is* the wheel order.
+// Document sources are ranked by intent inside their family, because "the same
+// list for every source" is wrong: a spreadsheet's second segment is `csv`, not
+// `md`. The rank is data, not prose, so a row that drifts fails a test.
+// ---------------------------------------------------------------------------
+
+/// The LibreOffice family a document source is converted by.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DocWheelFamily {
+    /// docx, doc, rtf, md, html: imported as a text document.
+    Writer,
+    /// xlsx, xls, csv: imported as a spreadsheet.
+    Calc,
+    /// pptx, ppt: imported as a presentation.
+    Impress,
+}
+
+/// The wheel family for a document source, or `None` for non-documents.
+pub fn document_wheel_family(ty: CanonicalType) -> Option<DocWheelFamily> {
+    use CanonicalType as C;
+    Some(match ty {
+        C::Docx | C::Doc | C::Rtf | C::Markdown | C::Html => DocWheelFamily::Writer,
+        C::Xlsx | C::Xls | C::Csv => DocWheelFamily::Calc,
+        C::Pptx | C::Ppt => DocWheelFamily::Impress,
+        _ => return None,
+    })
+}
+
+/// The wheel segment order for a document direction: 0 is the first segment.
+///
+/// Writer sources: hand-off, editable notes, plain text, editable Word, web,
+/// legacy interchange. Calc sources: hand-off, data, modern workbook, plain
+/// text, web. Impress sources: hand-off, modern deck, web.
+pub fn wheel_rank(from: CanonicalType, to: TargetFormat) -> Option<usize> {
+    use TargetFormat as T;
+    let order: &[T] = match document_wheel_family(from)? {
+        DocWheelFamily::Writer => &[T::Pdf, T::Md, T::Txt, T::Docx, T::Html, T::Rtf],
+        DocWheelFamily::Calc => &[T::Pdf, T::Csv, T::Xlsx, T::Txt, T::Html],
+        DocWheelFamily::Impress => &[T::Pdf, T::Pptx, T::Html],
+    };
+    order.iter().position(|t| *t == to)
 }
 
 /// The SPEC §3 scope for a type: every target the matrix knows about,
@@ -1193,7 +1395,8 @@ mod tests {
         // avif->gif, and 4 gif inputs) = 37.
         // §8.4 audio: 7 sources × 7 targets = 49, every one measured.
         // §8.4 video: 4 sources × 5 targets (mp4/mkv/mov/webm/gif) = 20.
-        // §8.3 documents: 7 from S3 + 15 legacy/rtf cells measured by C3 = 22.
+        // §8.3 documents: 7 from S3 + 15 legacy/rtf cells measured by C3 = 22;
+        // C3b flipped 20 more (§10, the remaining Planned cells) = 42.
         assert_eq!(
             image, 37,
             "proven image cells drifted from ARCHITECTURE §8.2"
@@ -1207,7 +1410,7 @@ mod tests {
             "proven video cells drifted from ARCHITECTURE §8.4"
         );
         assert_eq!(
-            document, 22,
+            document, 42,
             "proven document cells drifted from ARCHITECTURE §8.3"
         );
     }
@@ -1299,6 +1502,85 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// The wheel shows a document source's targets in intent order, never more
+    /// than 6 segments (ARCHITECTURE §10.2), and every offered pair has a rank.
+    #[test]
+    fn document_wheel_order_follows_the_intent_rank() {
+        for ty in ALL_CANONICAL_TYPES {
+            let Some(family) = document_wheel_family(*ty) else {
+                continue;
+            };
+            assert_eq!(
+                ty.family(),
+                Family::Document,
+                "{ty} has a wheel family but is not a document"
+            );
+            let offered = offered_targets(*ty);
+            assert!(
+                offered.len() <= 6,
+                "{ty} offers {} segments ({offered:?}) — the wheel caps at 6",
+                offered.len()
+            );
+            let mut last: Option<usize> = None;
+            for target in &offered {
+                let rank = wheel_rank(*ty, *target).unwrap_or_else(|| {
+                    panic!("{ty}→{target} is offered but has no wheel rank in {family:?}")
+                });
+                if let Some(previous) = last {
+                    assert!(
+                        rank > previous,
+                        "{ty}: {target} (rank {rank}) is listed after rank {previous} — \
+                         row order is wheel order"
+                    );
+                }
+                last = Some(rank);
+            }
+        }
+        // The one row pinned explicitly: a .docx is the most common drop, so its
+        // wheel is checked literally, not only by the ordering invariant.
+        assert_eq!(
+            offered_targets(CanonicalType::Docx),
+            vec![
+                TargetFormat::Pdf,
+                TargetFormat::Md,
+                TargetFormat::Txt,
+                TargetFormat::Html,
+                TargetFormat::Rtf,
+            ],
+            "docx wheel order changed"
+        );
+        // A .doc is the only source that fills all six segments.
+        assert_eq!(offered_targets(CanonicalType::Doc).len(), 6);
+        // A .txt offers nothing in v1 by decision (`CUT_DOC_TXT_SOURCE`).
+        assert!(has_no_offer(CanonicalType::Txt));
+        assert_eq!(document_wheel_family(CanonicalType::Jpeg), None);
+    }
+
+    /// The document grid is closed: every cell is `Proven` or `Cut` with a reason.
+    /// C3b's whole point — a `Planned` cell here would need an owner card, and
+    /// there is none because nothing in the grid is undecided.
+    #[test]
+    fn no_document_cell_is_left_planned() {
+        let mut planned: Vec<String> = Vec::new();
+        for ty in ALL_CANONICAL_TYPES {
+            for route in routes_for(*ty) {
+                // Only the LibreOffice document engine: `pdf → png` is a PDF
+                // *image* source (PDFium, C2) that happens to sit on the pdf row.
+                if route.engine != Engine::Soffice {
+                    continue;
+                }
+                if route.status.is_planned() {
+                    planned.push(format!("{ty}→{}", route.target));
+                }
+            }
+        }
+        assert!(
+            planned.is_empty(),
+            "document cells left Planned without a measurement: {planned:?} \
+             (evidence/c3-document.md §10 decides every one of them)"
+        );
     }
 
     #[test]
@@ -1681,7 +1963,13 @@ mod tests {
         assert_eq!(plan.targets, offered_targets(CanonicalType::Docx));
         assert_eq!(
             plan.targets,
-            vec![TargetFormat::Pdf, TargetFormat::Md, TargetFormat::Html]
+            vec![
+                TargetFormat::Pdf,
+                TargetFormat::Md,
+                TargetFormat::Txt,
+                TargetFormat::Html,
+                TargetFormat::Rtf
+            ]
         );
     }
 

@@ -39,11 +39,12 @@ Consequences, stated plainly because they change what ships:
 - A unit test asserts every `Proven` route names an evidence file that exists on disk and
   every `Planned` route names a live card. Adding a target without evidence fails CI.
 - At the time of writing, `Proven` covers **37 image cells, all 69 audio/video cells**
-  (49 audio + 20 video) and **22 document directions through LibreOffice** (`§6.1`, `§6.2`,
-  `§6.3`) — 128 routes, every one with a fixture on disk. Still `Planned`: PDF raster input,
-  SVG input, BMP in/out, animated-GIF *preservation* (`gif → gif`; gif input itself is proven
-  and labelled frame-1-only, `§8.2.1`), HEIC encode is `cut`, and the rest of the document
-  grid. `C3` and `C4` exist to move the remainder.
+  (49 audio + 20 video) and **42 document directions through LibreOffice** (`§6.1`, `§6.2`,
+  `§6.3`, `§8.3`) — 148 routes, every one with a fixture on disk. **The document grid has no
+  `Planned` cell left**: `C3b` flipped 20 and cut 13 with a measured reason (`§8.3`). Still
+  `Planned`: PDF raster input, SVG input, BMP in/out, animated-GIF *preservation* (`gif → gif`;
+  gif input itself is proven and labelled frame-1-only, `§8.2.1`). HEIC encode is `cut`. `C4`
+  moves the output rules.
 
 ---
 
@@ -965,27 +966,41 @@ rule in `§0`, so they stay `planned` until each has its own fixture and asserti
 
 ### 8.3 Documents
 
-| input | → pdf | → md | → html | → docx | → xlsx | → csv | → txt |
-|---|---|---|---|---|---|---|---|
-| docx | **PROVEN** (D1) | **PROVEN** (D2) | **PROVEN** (D3) | — | planned | cut | planned (LO txt filter, measured, not advertised) |
-| pptx | **PROVEN** (D7) | planned | planned | cut | cut | cut | cut |
-| xlsx | planned | cut | planned | cut | — | **PROVEN** (D5) | planned (sheet-aware) |
-| csv | planned | cut | cut | cut | **PROVEN** (D4) | — | planned (normalise) |
-| html | planned | planned | — | **PROVEN** (D6) | cut | cut | planned |
-| doc (legacy Word) | **PROVEN** (C3) | **PROVEN** (C3) | **PROVEN** (C3) | **PROVEN** (C3) | cut | cut | **PROVEN** (C3) |
-| xls (legacy Calc) | **PROVEN** (C3) | planned | **PROVEN** (C3) | cut | **PROVEN** (C3) | **PROVEN** (C3) | planned |
-| ppt (legacy Impress) | **PROVEN** (C3) | planned | planned | cut | cut | cut | planned |
-| rtf | **PROVEN** (C3) | planned | **PROVEN** (C3) | **PROVEN** (C3) | cut | cut | **PROVEN** (C3) |
-| md | planned | — | planned | planned | cut | cut | planned |
-| txt | planned | cut | cut | planned | cut | cut | — |
-| pdf | cut (no raster-to-writer path) | cut | cut | cut | cut | cut | planned (text extraction is a different product) |
+| input | → pdf | → md | → txt | → docx | → html | → csv | → xlsx | → rtf | → pptx |
+|---|---|---|---|---|---|---|---|---|---|
+| docx | **PROVEN** (D1) | **PROVEN** (D2) | **PROVEN** (C3b) | — | **PROVEN** (D3) | cut | cut (aborts) | **PROVEN** (C3b) | cut |
+| pptx | **PROVEN** (D7) | cut (no filter) | cut (no filter) | cut | **PROVEN** (C3b) | cut | cut | cut | — |
+| xlsx | **PROVEN** (C3b) | cut (no filter) | **PROVEN** (C3b) | cut | **PROVEN** (C3b) | **PROVEN** (D5) | — | cut | cut |
+| csv | **PROVEN** (C3b) | cut (no filter) | **PROVEN** (C3b) | cut | cut | — | **PROVEN** (D4) | cut | cut |
+| html | **PROVEN** (C3b) | **PROVEN** (C3b) | cut (duplicate) | **PROVEN** (D6) | — | cut | cut | **PROVEN** (C3b) | cut |
+| doc (legacy Word) | **PROVEN** (C3) | **PROVEN** (C3) | **PROVEN** (C3) | **PROVEN** (C3) | **PROVEN** (C3) | cut | cut | **PROVEN** (C3b) | cut |
+| xls (legacy Calc) | **PROVEN** (C3) | cut (no filter) | **PROVEN** (C3b) | cut | **PROVEN** (C3) | **PROVEN** (C3) | **PROVEN** (C3) | cut | cut |
+| ppt (legacy Impress) | **PROVEN** (C3) | cut (no filter) | cut (no filter) | cut | **PROVEN** (C3b) | cut | cut | cut | **PROVEN** (C3) |
+| rtf | **PROVEN** (C3) | **PROVEN** (C3b) | **PROVEN** (C3) | **PROVEN** (C3) | **PROVEN** (C3) | cut | cut | — | cut |
+| md | **PROVEN** (C3b) | — | **PROVEN** (C3b) | **PROVEN** (C3b) | **PROVEN** (C3b) | cut | cut | **PROVEN** (C3b) | cut |
+| txt | cut (N3) | cut (no gain) | — | cut (N3) | cut | cut | cut | cut (N3) | cut |
+| pdf | cut (no raster-to-writer path) | cut | cut (no filter) | cut | cut | cut | cut | cut | cut |
 
-**v1 truth:** **22** document routes are live: 7 proven by `S3` and 15 legacy/rtf cells proven
-by `C3` (`evidence/c3-document.md` §6) on **both** legs. The rest are `planned` with an owner
-card and will appear in the wheel the day their card flips them with evidence. `C3` split the
-former single `R_DOC_LEGACY` row into `R_DOC`/`R_XLS`/`R_PPT` because the measured filters are
-per family: `.xls → pdf` needs `pdf:calc_pdf_Export`, `.ppt → pdf` needs
-`pdf:impress_pdf_Export`, and a shared row would have advertised `xls → csv` for a `.doc`.
+Every cell above is decided: **42 `PROVEN`, the rest `CUT` with a measured reason** — the document
+grid has no `Planned` cell left. `C3b` (`evidence/c3-document.md` §10) flipped 20 directions and
+cut 13: the cuts are either *no filter for the pair* (a Calc or Impress document has no Markdown
+filter; Impress has no plain-text filter; a PDF imports as Draw, so the writer text filter fails —
+`rc=1 … Class:Write Code:16`), *an abort* (Writer → Calc answers rc=134 on Linux and rc=0 with a
+zero-byte temp file on Windows), or a *product decision* stated on the cell (`html → txt` is the
+same text without the heading md keeps; `txt → md` fences the whole file; a `.txt` source is held
+back so the N3 refusal keeps working — see §20.7).
+
+`C3` split the former single `R_DOC_LEGACY` row into `R_DOC`/`R_XLS`/`R_PPT` because the measured
+filters are per family: `.xls → pdf` needs `pdf:calc_pdf_Export`, `.ppt → pdf` needs
+`pdf:impress_pdf_Export`, and a shared row would have advertised `xls → csv` for a `.doc`. `C3b`
+extended the same rule: `.xls/.xlsx/.csv → txt` is the **Calc** text filter with a TAB separator,
+`.ppt/.pptx → html` is `html:impress_html_Export` (not the writer name), and every `.html` input
+imports with `--infilter=HTML (StarWriter)`.
+
+**Wheel order is the matrix row order** (`offered_targets` preserves it), ranked by intent inside
+the source's family (`model::matrix::wheel_rank`), and the hard cap of 6 segments holds for every
+source — a `.doc` fills exactly six. Writer sources: `pdf, md, txt, docx, html, rtf`. Calc
+sources: `pdf, csv, xlsx, txt, html`. Impress sources: `pdf, pptx, html`.
 
 ### 8.4 Audio and video
 
@@ -1550,15 +1565,19 @@ fixture (a known input with known output properties) and a test that consumes it
    `§6.2.4`) — which is where the accented-text caveat was confirmed as a real cross-engine
    defect. Still **not** measured: Acrobat Reader itself, macOS Preview, Vietnamese stacked
    diacritics, very large documents, and
-   the bundled-tree layout `P2` will ship. Legacy `.doc/.xls/.ppt` are measured for the
-   directions in §8.3 (C3); the remaining legacy cells are not.
+   the bundled-tree layout `P2` will ship. Legacy `.doc/.xls/.ppt` and `.rtf` are measured for
+   every advertised direction in §8.3 (`C3`, `C3b`).
 6. **Timeouts and concurrency defaults are safety limits, not measurements.** No large file
    has been converted yet.
-7. **The remaining legacy and rtf cells** (`xls → md/txt`, `ppt → md/html/txt`, `rtf → md`,
-   `csv → txt`, `docx → txt`, `xlsx → pdf/html`, `md/txt/html → pdf/html`) were probed by `C3`
-   (`evidence/c3-document.md` §6-§7): some pass and are simply not advertised yet, six fail with
-   the writer filter on a non-writer document (`Class:Write Code:16`) and need a family filter.
-   They stay `Planned` with owner `C3`.
+7. **The remaining document cells are decided, not queued.** `C3b` measured the 33 cells that
+   were still `Planned` after `C3` (`evidence/c3-document.md` §10, both legs): **20 flipped to
+   `Proven`, 13 `Cut` with a measured reason, 0 left `Planned`** — the document grid in `§8.3`
+   has no open cell. Three cuts are a *product* decision rather than a missing filter and are
+   called out for signature: a `.txt` source offers nothing, because flipping `txt → pdf/docx/rtf`
+   turns the N3 trap (plain text renamed `.docx` is detected as `Txt`) from a refusal into a
+   conversion; `html → txt` duplicates `html → md` without the heading; `txt → md` fences the
+   whole file in one code block. Flipping any of them is one route entry plus a matrix row — the
+   measurement is already in §10.
 8. **Wheel placement on multi-monitor** is fixed by design (`§10.2`) but not yet proven on
    hardware; the only monitor evidence is single-monitor (`DISPLAY1`).
 

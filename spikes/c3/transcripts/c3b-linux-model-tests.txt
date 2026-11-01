@@ -1,0 +1,92 @@
+warning: constant `EV_C2_META` is never used
+   --> /opt/data/kanban/boards/ezconvert/workspaces/t_f8d19f60/wt/src-tauri/src/model/matrix.rs:423:7
+    |
+423 | const EV_C2_META: EvidenceId = EvidenceId {
+    |       ^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: constant `EV_C2_TAGS` is never used
+   --> /opt/data/kanban/boards/ezconvert/workspaces/t_f8d19f60/wt/src-tauri/src/model/matrix.rs:480:7
+    |
+480 | const EV_C2_TAGS: EvidenceId = EvidenceId {
+    |       ^^^^^^^^^^
+
+warning: 2 warnings emitted
+
+
+running 71 tests
+test detect::tests::a_cfb_without_an_office_stream_is_not_a_document ... ok
+test detect::tests::a_zip_with_the_ooxml_parts_is_a_docx ... ok
+test detect::tests::a_zip_without_an_ooxml_part_is_not_a_document ... ok
+test detect::tests::adts_aac_is_not_mistaken_for_mp3 ... ok
+test detect::tests::avif_brand_wins_over_a_heif_compatible_brand ... ok
+test detect::tests::binary_with_nul_bytes_is_never_text ... ok
+test detect::tests::csv_needs_stable_delimiter_counts ... ok
+test detect::tests::directory_path_is_unreadable ... ok
+test detect::tests::ebml_without_a_doctype_is_unknown_not_a_guess ... ok
+test detect::tests::heif_base_brand_without_a_codec_hint_is_unknown ... ok
+test detect::tests::jpeg_renamed_png_resolves_to_jpeg_by_content ... ok
+test detect::tests::missing_path_is_unreadable_not_unknown_silence ... ok
+test detect::tests::oversized_input_is_refused_before_parsing ... ok
+test detect::tests::riff_disambiguation_needs_the_form_type ... ok
+test detect::tests::random_bytes_are_unknown_not_guessed ... ok
+test detect::tests::renamed_jpeg_offers_jpeg_targets_not_png_targets ... ok
+test detect::tests::the_corpus_covers_every_canonical_type_except_unknown ... ok
+test detect::tests::text_shapes_resolve_in_the_documented_order ... ok
+test detect::tests::text_renamed_docx_is_text_not_a_document ... ok
+test detect::tests::truncated_jpeg_is_flagged_truncated_but_still_jpeg ... ok
+test detect::tests::utf16_text_with_bom_is_text ... ok
+test detect::tests::truncated_png_is_flagged_truncated ... ok
+test detect::tests::zero_byte_file_is_unknown_and_empty ... ok
+test detect::tests::zip_bomb_guard_uses_declared_uncompressed_size ... ok
+test matrix::tests::a_drop_of_only_unproven_types_offers_nothing ... ok
+test matrix::tests::document_wheel_order_follows_the_intent_rank ... ok
+test detect::tests::every_corpus_fixture_detects_its_expected_type_completely ... ok
+test matrix::tests::every_cut_route_states_a_reason ... ok
+test detect::tests::truncated_docx_is_unknown_and_truncated_never_a_guess ... ok
+test matrix::tests::ffmpeg_only_appears_for_gif_from_images_or_for_audio_video ... ok
+test matrix::tests::architecture_doc_still_carries_the_labels_the_evidence_points_at ... ok
+test detect::tests::a_multibyte_character_cut_at_the_prefix_boundary_is_tolerated ... ok
+test matrix::tests::every_type_except_unknown_has_at_least_one_route ... ok
+test detect::tests::truncated_pdf_is_flagged_truncated ... ok
+test matrix::tests::matrix_is_wide_enough_to_be_useful ... ok
+test matrix::tests::heic_and_svg_output_are_cut_for_every_image_input ... ok
+test matrix::tests::identity_routes_are_absent_or_explicitly_justified ... ok
+test matrix::tests::multi_file_drop_falls_back_to_the_union_when_the_intersection_is_empty ... ok
+test matrix::tests::every_target_format_is_modelled_somewhere ... ok
+test matrix::tests::every_planned_route_names_a_well_formed_card_and_a_hypothesis ... ok
+test matrix::tests::multi_file_drop_offers_the_intersection ... ok
+test matrix::tests::no_document_cell_is_left_planned ... ok
+test matrix::tests::no_type_lists_the_same_target_twice ... ok
+test matrix::tests::out_of_scope_formats_never_enter_the_matrix ... ok
+test matrix::tests::single_file_drop_is_just_its_offered_targets ... ok
+test matrix::tests::proven_counts_match_the_architecture_tables ... ok
+test matrix::tests::soffice_is_never_used_for_images_or_audio ... ok
+test matrix::tests::spec_section_3_audio_and_video_scope_is_fully_modelled ... ok
+test matrix::tests::detection_doc_matrix_matches_the_code ... ok
+test matrix::tests::evidence_index_documents_every_proven_route ... ok
+test matrix::tests::spec_section_3_document_scope_is_fully_modelled ... ok
+test matrix::tests::spec_section_3_image_scope_is_fully_modelled ... ok
+test matrix::tests::unknown_bytes_offer_nothing ... ok
+test matrix::tests::vips_is_never_used_for_documents_or_audio ... ok
+test matrix::tests::wheel_offers_only_proven_targets ... ok
+test types::queue_shape_tests::every_queue_state_has_a_stable_code ... ok
+test types::queue_shape_tests::human_size_is_readable ... ok
+test types::queue_shape_tests::known_target_is_case_insensitive ... ok
+test types::queue_shape_tests::target_names_are_lowercase_and_unique ... ok
+test types::tests::card_ids_must_look_like_board_ids ... ok
+test types::tests::canonical_type_ids_are_unique_and_lowercase ... ok
+test types::tests::claimed_extension_is_parsed_from_names_not_paths ... ok
+test types::tests::claimed_mismatch_is_reported_not_resolved ... ok
+test types::tests::every_family_has_a_member_and_unknown_is_its_own ... ok
+test types::tests::extension_table_accepts_aliases ... ok
+test types::tests::target_ids_are_unique_and_lowercase ... ok
+test types::tests::the_windows_target_name_list_matches_the_matrix_targets ... ok
+test types::tests::unknown_and_unreadable_are_not_routable ... ok
+test detect::tests::every_fixture_under_a_wrong_extension_still_resolves_by_content ... ok
+test matrix::tests::every_proven_route_points_at_evidence_that_still_says_so ... ok
+test detect::tests::zip_directory_entry_cap_is_enforced ... ok
+
+test result: ok. 71 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

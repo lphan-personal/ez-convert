@@ -276,29 +276,28 @@ impl Harness {
         );
     }
 
-    /// Not part of the advertised matrix: measures the directions that are still
-    /// `Planned`, so the next card can flip them with numbers instead of a guess.
+    /// Not part of the advertised matrix: measures the directions C3b **cuts**,
+    /// so every `Cut` in `model::matrix` quotes a measurement instead of a guess.
     /// Probe failures do **not** fail this run — they are the finding.
     fn legacy_measurements(&mut self) {
         let cases: &[(&str, CanonicalType, TargetFormat, &str, &str)] = &[
             // fixture, from, to, convert-to literal, infilter
-            ("sample.docx", CanonicalType::Docx, TargetFormat::Txt, "txt:Text (encoded):UTF8", ""),
-            ("sample.xlsx", CanonicalType::Xlsx, TargetFormat::Pdf, "pdf:calc_pdf_Export", ""),
-            ("sample.xlsx", CanonicalType::Xlsx, TargetFormat::Html, "html:HTML (StarCalc)", ""),
+            // -- no filter for the pair (writer filter on a Calc/Impress doc) --
             ("sample.xls", CanonicalType::Xls, TargetFormat::Md, "md:Markdown", ""),
-            ("sample.xls", CanonicalType::Xls, TargetFormat::Txt, "txt:Text (encoded):UTF8", ""),
+            ("sample.xlsx", CanonicalType::Xlsx, TargetFormat::Md, "md:Markdown", ""),
+            ("sample.pptx", CanonicalType::Pptx, TargetFormat::Md, "md:Markdown", ""),
             ("sample.ppt", CanonicalType::Ppt, TargetFormat::Md, "md:Markdown", ""),
-            ("sample.ppt", CanonicalType::Ppt, TargetFormat::Html, "html:HTML (StarWriter)", ""),
             ("sample.ppt", CanonicalType::Ppt, TargetFormat::Txt, "txt:Text (encoded):UTF8", ""),
-            ("sample.rtf", CanonicalType::Rtf, TargetFormat::Md, "md:Markdown", ""),
-            ("sample.html", CanonicalType::Html, TargetFormat::Pdf, "pdf:writer_pdf_Export", ""),
-            ("sample.html", CanonicalType::Html, TargetFormat::Txt, "txt:Text (encoded):UTF8", ""),
-            ("sample.md", CanonicalType::Markdown, TargetFormat::Pdf, "pdf:writer_pdf_Export", ""),
-            ("sample.md", CanonicalType::Markdown, TargetFormat::Html, "html:HTML (StarWriter)", ""),
+            ("sample.pptx", CanonicalType::Pptx, TargetFormat::Txt, "txt:Text (encoded):UTF8", ""),
+            ("sample.pdf", CanonicalType::Pdf, TargetFormat::Txt, "txt:Text (encoded):UTF8", ""),
+            // -- cross-family: the Writer document is exported with a Calc filter
+            ("sample.docx", CanonicalType::Docx, TargetFormat::Xlsx, "xlsx:Calc MS Excel 2007 XML", ""),
+            // -- these convert, and are cut on the product decision (N3 / no gain)
+            ("sample.html", CanonicalType::Html, TargetFormat::Txt, "txt:Text (encoded):UTF8", "HTML (StarWriter)"),
+            ("sample.txt", CanonicalType::Txt, TargetFormat::Md, "md:Markdown", ""),
             ("sample.txt", CanonicalType::Txt, TargetFormat::Pdf, "pdf:writer_pdf_Export", ""),
             ("sample.txt", CanonicalType::Txt, TargetFormat::Docx, "docx:MS Word 2007 XML", ""),
-            ("sample.csv", CanonicalType::Csv, TargetFormat::Pdf, "pdf:calc_pdf_Export", ""),
-            ("sample.csv", CanonicalType::Csv, TargetFormat::Txt, "txt:Text (encoded):UTF8", ""),
+            ("sample.txt", CanonicalType::Txt, TargetFormat::Rtf, "rtf:Rich Text Format", ""),
         ];
         let mut probes = 0;
         let mut probe_failures = 0;
@@ -369,9 +368,25 @@ fn run_harness_route(
         .map_err(|e| e.to_string())?
         .flatten()
         .map(|e| e.path())
-        .filter(|p| p.is_file())
+        // A crashed LibreOffice leaves `.~lock.<name>#` behind. It is not an
+        // output, and treating it as one is exactly the silent-garbage trap.
+        .filter(|p| {
+            p.is_file()
+                && !p
+                    .file_name()
+                    .map(|n| n.to_string_lossy().starts_with(".~lock."))
+                    .unwrap_or(false)
+        })
         .collect();
     files.sort();
+    if !outcome.ok() {
+        return Err(format!(
+            "rc={:?} (engine did not report success) and {} file(s) (stderr: {})",
+            outcome.status,
+            files.len(),
+            outcome.stderr.trim()
+        ));
+    }
     if files.is_empty() {
         return Err(format!(
             "rc={:?} and no file (stderr: {})",
@@ -444,6 +459,106 @@ fn check_for(to: TargetFormat) -> fn(&Path, &str) -> Result<String, String> {
         TargetFormat::Csv => check_csv,
         _ => check_text,
     }
+}
+
+/// The content check for one advertised direction.
+///
+/// A target-shaped check is not enough: `docx -> txt` and `xlsx -> txt` can both
+/// produce a non-empty file while only one of them still carries the source. So
+/// the needle is picked per **source**, and the page count per family, from what
+/// the fixture actually contains.
+fn check_output(
+    from: CanonicalType,
+    to: TargetFormat,
+    path: &Path,
+    name: &str,
+) -> Result<String, String> {
+    use CanonicalType as C;
+    match to {
+        TargetFormat::Pdf => {
+            let expected = match from {
+                // Two sheets, two slides: the fixtures really have two pages.
+                C::Pptx | C::Ppt | C::Xls | C::Xlsx => 2,
+                _ => 1,
+            };
+            let data = std::fs::read(path).map_err(|e| e.to_string())?;
+            let pages = verify::count_pdf_pages(&data);
+            if pages != expected {
+                return Err(format!("expected {expected} page(s), found {pages}"));
+            }
+            Ok(format!("{pages} page(s), {} B", data.len()))
+        }
+        TargetFormat::Md => match from {
+            C::Html => {
+                let text = read_text(path);
+                if !text.contains("# Fixture") {
+                    return Err(format!(
+                        "the heading did not survive as markdown: {:?}",
+                        text.chars().take(60).collect::<String>()
+                    ));
+                }
+                Ok(format!("{} bytes of markdown, heading kept", text.len()))
+            }
+            C::Rtf => {
+                let text = read_text(path);
+                if !text.contains("caf\u{e9}") {
+                    return Err(format!(
+                        "source text missing: {:?}",
+                        text.chars().take(60).collect::<String>()
+                    ));
+                }
+                Ok(format!("{} bytes of markdown, source text present", text.len()))
+            }
+            _ => check_markdown(path, name),
+        },
+        TargetFormat::Html => check_html(path, name),
+        TargetFormat::Docx => check_docx(path, name),
+        TargetFormat::Xlsx => check_xlsx(path, name),
+        TargetFormat::Pptx => check_pptx(path, name),
+        TargetFormat::Csv => check_csv(path, name),
+        TargetFormat::Rtf => check_rtf(path, name),
+        _ => check_source_text(from, path, name),
+    }
+}
+
+/// Plain text must still carry the source, not just be non-empty.
+fn check_source_text(from: CanonicalType, path: &Path, name: &str) -> Result<String, String> {
+    use CanonicalType as C;
+    let text = read_text(path);
+    let needle = match from {
+        C::Csv | C::Xls | C::Xlsx => "Widget A",
+        C::Docx | C::Doc => "MARKER-ALPHA",
+        C::Markdown => "emphasis",
+        C::Rtf => "caf\u{e9}",
+        _ => "",
+    };
+    if text.trim().is_empty() {
+        return Err("empty text output".into());
+    }
+    if !needle.is_empty() && !text.contains(needle) {
+        return Err(format!(
+            "{needle:?} missing from the text output (got {:?})",
+            text.chars().take(80).collect::<String>()
+        ));
+    }
+    let tabs = text.matches('\t').count();
+    let detail = if tabs > 0 {
+        format!("{} bytes of text, {needle:?} present, {tabs} TAB separators", text.len())
+    } else {
+        format!("{} bytes of text, {needle:?} present", text.len())
+    };
+    let _ = name;
+    Ok(detail)
+}
+
+/// RTF: the header, not just a file with the right extension.
+fn check_rtf(path: &Path, _name: &str) -> Result<String, String> {
+    let data = std::fs::read(path).map_err(|e| e.to_string())?;
+    let head = String::from_utf8_lossy(&data[..data.len().min(8)]).into_owned();
+    if !head.starts_with("{\\rtf") {
+        return Err(format!("no RTF header (starts {head:?})"));
+    }
+    Ok(format!("{} bytes, RTF header present", data.len()))
 }
 
 /// The fixture that carries each document input type.
@@ -692,19 +807,9 @@ fn main() {
             Ok(_) => {
                 let ms = started.elapsed().as_millis();
                 let bytes = std::fs::metadata(&output).map(|m| m.len()).unwrap_or(0);
-                match check_for(to)(&output, &out_name) {
+                match check_output(from, to, &output, &out_name) {
                     Ok(extra) => {
                         let label = format!("{from:?} -> {}", to.as_str());
-                        // The one content property that is per-source: the
-                        // pptx fixture is the only two-page document here.
-                        if from == CanonicalType::Pptx || from == CanonicalType::Ppt {
-                            let data = std::fs::read(&output).unwrap_or_default();
-                            let pages = verify::count_pdf_pages(&data);
-                            if to == TargetFormat::Pdf && pages != 2 {
-                                h.bad(&label, format!("expected 2 pages, found {pages}"));
-                                continue;
-                            }
-                        }
                         h.ok(&label, format!("{bytes} B  {ms} ms  {extra}"));
                     }
                     Err(why) => {

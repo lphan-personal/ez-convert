@@ -360,6 +360,28 @@ pub fn document_output(path: &Path, target: TargetFormat) -> Verdict {
             }
             Verdict::Pass
         }
+        TargetFormat::Rtf => {
+            // The measured trap for a container-free format: a text file named
+            // `.rtf` is not an RTF, and an empty `{\rtf}` header is not a
+            // document. LibreOffice writes `{\rtf1\ansi\deff…{\fonttbl…` and at
+            // least one paragraph mark, so both are required.
+            if !data.starts_with(b"{\\rtf") {
+                return Verdict::Fail(format!(
+                    "{} does not start with {{\\rtf (first bytes: {:?})",
+                    path.display(),
+                    String::from_utf8_lossy(&data[..data.len().min(16)])
+                ));
+            }
+            let text = String::from_utf8_lossy(&data);
+            if !text.contains("\\fonttbl") && !text.contains("\\par") && !text.contains("\\pard")
+            {
+                return Verdict::Fail(format!(
+                    "{} has an RTF header but no document body",
+                    path.display()
+                ));
+            }
+            Verdict::Pass
+        }
         other => Verdict::Fail(format!("no document validator for {}", other.as_str())),
     }
 }
@@ -556,5 +578,23 @@ mod tests {
         assert!(document_output(&html, TargetFormat::Html).is_pass());
         let md = fixture("sample.md");
         assert!(document_output(&md, TargetFormat::Md).is_pass());
+
+        // RTF: header + body, and neither one alone is enough.
+        let rtf = fixture("sample.rtf");
+        assert!(
+            document_output(&rtf, TargetFormat::Rtf).is_pass(),
+            "the real rtf fixture must pass its own validator"
+        );
+        assert!(
+            !document_output(&md, TargetFormat::Rtf).is_pass(),
+            "markdown text must not pass as rtf"
+        );
+        let stub = tmp("stub.rtf");
+        std::fs::write(&stub, b"{\\rtf1}").unwrap();
+        assert!(
+            !document_output(&stub, TargetFormat::Rtf).is_pass(),
+            "an empty rtf header is not a document"
+        );
+        let _ = std::fs::remove_file(&stub);
     }
 }
