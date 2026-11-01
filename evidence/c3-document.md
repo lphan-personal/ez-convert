@@ -73,7 +73,7 @@ Windows  batch 8: 3,716 ms  = 465 ms/file     3 individual: 5,659 ms = 1,886 ms/
 The card's planning numbers (0.20 s/file batched vs 0.52 s/file spawned) are the same effect
 measured on a faster box; the direction and the magnitude class reproduce.
 
-## 3. Warm-up (`--terminate_after_init`)
+## 3. Warm-up (`--terminate_after_init`), and where it is called
 
 A brand-new `-env:UserInstallation` profile, then the same call again:
 
@@ -85,6 +85,26 @@ Windows  fresh profile 262 ms    warm 170 ms   profile bootstrapped (user/ prese
 The install-cold **first conversion** is the number that hurts (S3 measured 5,111 ms on Windows);
 the warm-up exists so that cost is paid at startup, not on the user's first job. It is not a
 capability probe and its failure is never fatal — the job still runs.
+
+It is wired, not just available: `lib.rs`'s `.setup()` spawns a thread that calls
+`soffice::warm_up_at_startup(paths, cache_dir)` once per launch, and that function returns
+`NotInstalled` / `AlreadyWarm` / `Warmed { millis, bootstrapped }` / `Failed(reason)`. Two rules
+make it safe to call unconditionally:
+
+- **bootstrap once** — `Profile::bootstrapped()` (the `user/` directory LibreOffice writes) is
+  the cheap "nothing to pay" signal, so a relaunch spawns nothing at all (asserted);
+- **`rc=0` is not the claim** — the result is read back from the profile, so a launcher that
+  exits 0 and writes nothing is `Failed`, never `Warmed` (asserted with a stub launcher).
+
+The e2e's `warm-up hook` case runs the real app-start function against the real engine on both
+legs: Linux 90 ms, Windows 201 ms, and the second call is `AlreadyWarm` on both.
+
+App-start call site verification, stated exactly: the Tauri crate is **compile-checked** for
+`x86_64-pc-windows-gnu` (`cargo check --locked --all-targets`, clean, after proving the checker
+reaches the new closure with a deliberately-broken line), and the decision logic is unit-tested
+on both legs and exercised against real LibreOffice by the e2e. The GUI itself was **not** run
+here — this box has no WebKitGTK, so "the window starts and prints the warm-up line" is a gap,
+not a claim.
 
 ## 4. Negative controls — the acceptance criteria
 
@@ -176,18 +196,20 @@ That run also caught a genuine test-portability bug: `traversal_is_refused` asse
 hard-coded `/tmp/../etc/passwd`, which is not absolute on Windows, so the test was asserting
 `NotAbsolute` instead of `Traversal`. Fixed to build the path from `temp_dir()`.
 
-## 9. Re-verification (2026-11-01T21:23Z, `main` @ `bb93d5a`)
+## 9. Re-verification (2026-11-01T21:40Z, `main` @ `bb93d5a` + the app-start hook)
 
 Both legs and the Windows unit-test run were re-run at the pushed head, not trusted from the
 earlier session's log, and the transcripts in `spikes/c3/transcripts/` are those runs:
 
 | run | result |
 |---|---|
-| `spikes/c3/run-e2e.sh` (Linux) | `29 passed, 0 failed`; batch 8 = 107 ms/file vs 543 ms/file spawned (5.05x) |
-| `spikes/c3/run-e2e.sh --windows` (win11-dev, 10.0.0.191) | `29 passed, 0 failed`; batch 8 = 475 ms/file vs 1,954 ms/file (4.12x) |
-| `spikes/c3/run-win-unit-tests.sh` | `159 passed, 0 failed` |
-| `scripts/test-engine.sh` (Linux) | `163 passed, 0 failed` |
+| `spikes/c3/run-e2e.sh` (Linux) | `30 passed, 0 failed`; batch 8 = 107 ms/file vs 543 ms/file spawned (5.05x); app-start hook 90 ms |
+| `spikes/c3/run-e2e.sh --windows` (win11-dev, 10.0.0.191) | `30 passed, 0 failed`; batch 8 = 475 ms/file vs 1,954 ms/file (4.12x); app-start hook 201 ms |
+| `spikes/c3/run-win-unit-tests.sh` | `160 passed, 0 failed` |
+| `scripts/test-engine.sh` (Linux) | `167 passed, 0 failed` |
 | `scripts/test-model.sh` (Linux) | `69 passed, 0 failed` |
+| `cargo check --locked --all-targets --target x86_64-pc-windows-gnu` | clean (exit 0) |
 
-The only change between the first run and this one is a `RouteStatus::Planned` hypothesis
-string, so the numbers are expected to match; they do.
+The 30th e2e case is the app-start warm-up hook added in this round; the earlier 29 numbers are
+unchanged. The only other change since the first run is a `RouteStatus::Planned` hypothesis
+string, so the conversion numbers are expected to match — they do.

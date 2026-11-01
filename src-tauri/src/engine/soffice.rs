@@ -24,6 +24,7 @@
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use super::proc::{self, EnginePaths, Invocation, Outcome, Program};
 use crate::model::types::{CanonicalType, TargetFormat};
@@ -356,6 +357,78 @@ pub fn warm_up(
     proc::run(paths, &invocation)
 }
 
+/// How the startup warm-up went. Recorded for the diagnostics pane; a warm-up
+/// is a performance call, so nothing here is fatal to a job (§6.2, §6.7).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WarmUp {
+    /// No document engine on disk: nothing to warm and no document targets.
+    NotInstalled,
+    /// An earlier launch already bootstrapped the profile: nothing to pay.
+    AlreadyWarm,
+    /// Bootstrapped in this launch. `millis` is the spawn, `bootstrapped` the
+    /// measured effect — a plausible exit code is not the claim.
+    Warmed { millis: u128, bootstrapped: bool },
+    /// The launcher exists and the warm-up failed. The first job still runs.
+    Failed(String),
+}
+
+impl std::fmt::Display for WarmUp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WarmUp::NotInstalled => write!(f, "no document engine installed"),
+            WarmUp::AlreadyWarm => write!(f, "profile already warm"),
+            WarmUp::Warmed { millis, .. } => write!(f, "profile bootstrapped in {millis} ms"),
+            WarmUp::Failed(reason) => write!(f, "warm-up failed: {reason}"),
+        }
+    }
+}
+
+/// The startup hook the window calls once, on a worker thread (§6.2 operational
+/// contract): the measured install-cold *first conversion* is 5,111 ms on
+/// Windows, and that cost belongs to app start, not to the user's first job.
+///
+/// Two rules make this safe to call unconditionally:
+///
+/// 1. **Bootstrap once.** `Profile::bootstrapped()` (the `user/` directory the
+///    engine writes) is the cheap "nothing to pay" signal, so a relaunch does
+///    not spawn a process at all.
+/// 2. **`rc=0` is not the claim.** The result is read back from the profile,
+///    so a launcher that exits 0 and writes nothing is `Failed`, not `Warmed`.
+pub fn warm_up_at_startup(paths: &EnginePaths, cache_dir: &Path) -> WarmUp {
+    if !paths.installed(Program::Soffice) {
+        return WarmUp::NotInstalled;
+    }
+    let profile = Profile::under(cache_dir);
+    if profile.bootstrapped() {
+        return WarmUp::AlreadyWarm;
+    }
+    let work = cache_dir.join("warm-up");
+    if let Err(e) = std::fs::create_dir_all(&work) {
+        return WarmUp::Failed(format!("cannot create {}: {e}", work.display()));
+    }
+    let started = Instant::now();
+    match warm_up(paths, &profile, &work) {
+        Ok(outcome) => {
+            let millis = started.elapsed().as_millis();
+            if profile.bootstrapped() {
+                WarmUp::Warmed {
+                    millis,
+                    bootstrapped: true,
+                }
+            } else {
+                WarmUp::Failed(format!(
+                    "no user/ in {} after {} ms (status {:?}): {}",
+                    profile.dir.display(),
+                    millis,
+                    outcome.status,
+                    outcome.stderr.trim()
+                ))
+            }
+        }
+        Err(e) => WarmUp::Failed(e.to_string()),
+    }
+}
+
 /// `soffice --version` text, for the §6.7 identity check.
 pub fn version_argv(launcher: &Path) -> Vec<OsString> {
     vec![
@@ -633,5 +706,103 @@ mod tests {
                 "{from:?} -> {to:?} is routed but not Proven in the matrix"
             );
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Startup warm-up (§6.2 operational contract)
+    // -----------------------------------------------------------------------
+
+    /// A scratch cache dir with an `engines/soffice/program/` root beside it.
+    #[cfg(unix)]
+    fn warm_work(name: &str) -> (PathBuf, PathBuf) {
+        let base = std::env::temp_dir().join(format!("ezc-warm-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let root = base.join("root");
+        let cache = base.join("cache");
+        std::fs::create_dir_all(root.join("engines/soffice/program")).unwrap();
+        std::fs::create_dir_all(&cache).unwrap();
+        (root, cache)
+    }
+
+    /// Write an executable fake launcher at the path `from_root` expects.
+    #[cfg(unix)]
+    fn fake_launcher(root: &Path, body: &str) -> EnginePaths {
+        use std::os::unix::fs::PermissionsExt;
+        let mut paths = EnginePaths::from_root(root);
+        std::fs::write(&paths.soffice, format!("#!/bin/sh\n{body}")).unwrap();
+        let mut perms = std::fs::metadata(&paths.soffice).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&paths.soffice, perms).unwrap();
+        paths.soffice_dir = paths.soffice.parent().unwrap().to_path_buf();
+        paths
+    }
+
+    #[test]
+    fn a_missing_engine_is_not_a_warm_up_attempt() {
+        let (root, cache) = {
+            let base = std::env::temp_dir().join(format!("ezc-warm-none-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&base);
+            (base.join("root"), base.join("cache"))
+        };
+        let paths = EnginePaths::from_root(&root);
+        assert_eq!(
+            warm_up_at_startup(&paths, &cache),
+            WarmUp::NotInstalled,
+            "no launcher on disk means nothing to warm, and no spawn"
+        );
+    }
+
+    /// The engine is installed and the profile is already bootstrapped: the
+    /// relaunch path spawns nothing at all.
+    #[cfg(unix)]
+    #[test]
+    fn a_bootstrapped_profile_is_left_alone() {
+        let (root, cache) = warm_work("already");
+        let paths = fake_launcher(&root, "echo SHOULD-NOT-RUN >> \"$PWD/spawned.log\"\n");
+        let profile = Profile::under(&cache);
+        std::fs::create_dir_all(profile.dir.join("user")).unwrap();
+        assert_eq!(
+            warm_up_at_startup(&paths, &cache),
+            WarmUp::AlreadyWarm,
+            "a relaunch must not spawn soffice again"
+        );
+        assert!(
+            !cache.join("warm-up").exists(),
+            "the warm-up work dir must not even be created when the profile is warm"
+        );
+        let _ = std::fs::remove_dir_all(root.parent().unwrap());
+    }
+
+    /// The measured failure shape: the launcher runs, says nothing, exits 0 and
+    /// writes no profile. That is `Failed`, never `Warmed` (§6.0.4).
+    #[cfg(unix)]
+    #[test]
+    fn exit_zero_without_a_bootstrapped_profile_is_a_failure() {
+        let (root, cache) = warm_work("noop");
+        let paths = fake_launcher(&root, "exit 0\n");
+        match warm_up_at_startup(&paths, &cache) {
+            WarmUp::Failed(reason) => assert!(reason.contains("no user/"), "{reason}"),
+            other => panic!("expected Failed, got {other:?}"),
+        }
+        let _ = std::fs::remove_dir_all(root.parent().unwrap());
+    }
+
+    /// A launcher that does what LibreOffice does — writes `user/` under the
+    /// profile it is handed — is `Warmed`, and the reported effect is read back
+    /// from disk rather than inferred from the exit code.
+    #[cfg(unix)]
+    #[test]
+    fn a_bootstrapped_profile_after_the_spawn_is_warmed() {
+        let (root, cache) = warm_work("real");
+        // `-env:UserInstallation=file:///…` -> create <dir>/user, like soffice.
+        let body = "profile=\"\"\nfor a in \"$@\"; do\n  case \"$a\" in\n    -env:UserInstallation=*) profile=\"${a#-env:UserInstallation=}\" ;;\n  esac\ndone\nprofile=\"${profile#file://}\"\nmkdir -p \"$profile/user\"\nexit 0\n";
+        let paths = fake_launcher(&root, body);
+        match warm_up_at_startup(&paths, &cache) {
+            WarmUp::Warmed { bootstrapped, .. } => assert!(bootstrapped),
+            other => panic!("expected Warmed, got {other:?}"),
+        }
+        // Second call sees the bootstrapped profile and spawns nothing.
+        assert_eq!(warm_up_at_startup(&paths, &cache), WarmUp::AlreadyWarm);
+        let _ = std::fs::remove_dir_all(root.parent().unwrap());
     }
 }

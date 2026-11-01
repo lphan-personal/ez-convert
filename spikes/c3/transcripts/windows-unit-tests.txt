@@ -1,12 +1,12 @@
-2026-11-01T21:25:22Z reverified on main @ bb93d5a
+2026-11-01T21:30:33Z reverified on main @ 5c99a7a
 
-running 159 tests
+running 160 tests
 test engine::convert::tests::engine_paths_use_the_pack_layout ... ok
 test engine::doc::tests::a_longer_stem_is_not_attributed_to_a_shorter_one ... ok
+test engine::convert::tests::unrouted_jobs_fail_at_plan_time_before_any_spawn ... ok
+test engine::doc::tests::an_unrouted_pair_is_refused_before_any_spawn ... ok
 test engine::doc::tests::a_missing_engine_is_named_not_silently_skipped ... ok
 test engine::convert::tests::missing_engine_is_named_not_silently_skipped ... ok
-test engine::doc::tests::an_unrouted_pair_is_refused_before_any_spawn ... ok
-test engine::convert::tests::unrouted_jobs_fail_at_plan_time_before_any_spawn ... ok
 test engine::doc::tests::attribution_prefers_the_longest_matching_stem ... ok
 test engine::doc::tests::document_jobs_only_exist_for_document_types ... ok
 test engine::doc::tests::every_failure_has_a_user_message_from_the_table ... ok
@@ -21,13 +21,13 @@ test engine::ffmpeg::tests::opus_is_48k_and_m4a_is_ipod ... ok
 test engine::ffmpeg::tests::quality_scales_the_video_bitrate_but_stays_bounded ... ok
 test engine::ffmpeg::tests::render_only_emits_filter_grammar_characters ... ok
 test engine::ffmpeg::tests::trim_seeks_before_the_input_and_sets_length_after ... ok
+test engine::ffmpeg::tests::video_is_cfr_and_never_uses_x264 ... ok
 test engine::ffmpeg::tests::video_to_gif_filter_caps_rate_and_width ... ok
 test engine::ffmpeg::tests::wav_and_flac_keep_24_bit_when_the_source_is_wide ... ok
-test engine::ffmpeg::tests::video_is_cfr_and_never_uses_x264 ... ok
 test engine::ffmpeg::tests::webm_is_vp9_opus_and_the_rest_are_openh264_aac ... ok
 test engine::plan::tests::a_96k_source_is_clamped_for_mp3_and_kept_for_flac ... ok
-test engine::plan::tests::audio_tags_merge_unless_stripping ... ok
 test engine::plan::tests::audio_plan_always_names_rate_and_sample_format ... ok
+test engine::plan::tests::audio_tags_merge_unless_stripping ... ok
 test engine::plan::tests::every_planned_step_uses_an_approved_engine ... ok
 test engine::plan::tests::ffmpeg_never_reads_or_writes_a_still_image ... ok
 test engine::plan::tests::image_targets_are_encoded_by_vips ... ok
@@ -46,13 +46,14 @@ test engine::plan::tests::video_trim_is_expressed_as_fast_seek_plus_exact_length
 test engine::proc::tests::every_program_has_a_timeout_and_ffmpeg_has_a_stall_limit ... ok
 test engine::proc::tests::exit_zero_with_fatal_stderr_is_fatal ... ok
 test engine::proc::tests::leading_dash_file_names_are_refused ... ok
-test engine::proc::tests::missing_input_is_reported_not_guessed ... ok
 test engine::proc::tests::network_and_device_paths_are_refused ... ok
+test engine::proc::tests::missing_input_is_reported_not_guessed ... ok
+test engine::proc::tests::existing_input_is_canonicalised ... ok
 test engine::proc::tests::output_path_is_canonicalised_through_its_parent ... ok
 test engine::proc::tests::relative_paths_are_refused ... ok
-test engine::proc::tests::existing_input_is_canonicalised ... ok
 test engine::proc::tests::traversal_is_refused ... ok
 test engine::soffice::tests::a_batch_is_one_spawn_with_every_input ... ok
+test engine::soffice::tests::a_missing_engine_is_not_a_warm_up_attempt ... ok
 test engine::soffice::tests::batch_argv_follows_the_measured_order ... ok
 test engine::soffice::tests::every_route_is_in_the_matrix_as_proven ... ok
 test engine::soffice::tests::infilter_appears_only_when_the_route_measured_one ... ok
@@ -62,13 +63,13 @@ test engine::soffice::tests::profile_url_is_a_file_url_on_both_platforms ... ok
 test engine::soffice::tests::the_seven_measured_filters_are_literals_from_the_transcript ... ok
 test engine::soffice::tests::the_windows_url_is_not_a_naive_concatenation ... ok
 test engine::soffice::tests::unmeasured_directions_have_no_route ... ok
-test engine::soffice::tests::warm_up_argv_bootstraps_and_exits ... ok
 test engine::soffice::tests::version_pin_accepts_the_patch_suffix_only ... ok
+test engine::soffice::tests::warm_up_argv_bootstraps_and_exits ... ok
 test engine::stderr_rules::tests::clean_stderr_is_not_fatal ... ok
 test engine::stderr_rules::tests::every_pattern_has_an_explanation ... ok
 test engine::stderr_rules::tests::ffmpeg_progress_chatter_is_not_fatal ... ok
-test engine::stderr_rules::tests::measured_truncated_png_stderr_is_fatal ... ok
 test engine::stderr_rules::tests::measured_truncated_jpeg_stderr_is_fatal ... ok
+test engine::stderr_rules::tests::measured_truncated_png_stderr_is_fatal ... ok
 test engine::stderr_rules::tests::measured_unknown_format_stderr_is_fatal ... ok
 test engine::verify::tests::a_real_pdf_passes_and_counts_pages_without_extracting_text ... ok
 test engine::verify::tests::every_target_we_write_has_a_validator ... ok
@@ -91,14 +92,14 @@ test engine::vips::tests::tiff_keeps_its_loader_guard ... ok
 test model::detect::tests::a_cfb_without_an_office_stream_is_not_a_document ... ok
 test model::detect::tests::a_multibyte_character_cut_at_the_prefix_boundary_is_tolerated ... ok
 test model::detect::tests::a_zip_with_the_ooxml_parts_is_a_docx ... ok
-test model::detect::tests::a_zip_without_an_ooxml_part_is_not_a_document ... ok
+test engine::verify::tests::the_measured_silent_garbage_is_a_failure_not_a_success ... ok
 test model::detect::tests::adts_aac_is_not_mistaken_for_mp3 ... ok
 test model::detect::tests::avif_brand_wins_over_a_heif_compatible_brand ... ok
 test model::detect::tests::binary_with_nul_bytes_is_never_text ... ok
 test model::detect::tests::csv_needs_stable_delimiter_counts ... ok
 test model::detect::tests::directory_path_is_unreadable ... ok
 test model::detect::tests::ebml_without_a_doctype_is_unknown_not_a_guess ... ok
-test engine::verify::tests::the_measured_silent_garbage_is_a_failure_not_a_success ... ok
+test model::detect::tests::a_zip_without_an_ooxml_part_is_not_a_document ... ok
 test engine::proc::tests::capture_is_bounded_and_keeps_the_tail ... ok
 test model::detect::tests::heif_base_brand_without_a_codec_hint_is_unknown ... ok
 test model::detect::tests::jpeg_renamed_png_resolves_to_jpeg_by_content ... ok
@@ -120,11 +121,11 @@ test model::detect::tests::zip_bomb_guard_uses_declared_uncompressed_size ... ok
 test model::detect::tests::zip_directory_entry_cap_is_enforced ... ok
 test model::matrix::tests::a_drop_of_only_unproven_types_offers_nothing ... ok
 test model::matrix::tests::architecture_doc_still_carries_the_labels_the_evidence_points_at ... ok
-test model::detect::tests::every_corpus_fixture_detects_its_expected_type_completely ... ok
 test model::matrix::tests::detection_doc_matrix_matches_the_code ... ok
-test model::detect::tests::every_fixture_under_a_wrong_extension_still_resolves_by_content ... ok
 test model::matrix::tests::every_cut_route_states_a_reason ... ok
 test model::matrix::tests::every_planned_route_names_a_well_formed_card_and_a_hypothesis ... ok
+test model::detect::tests::every_corpus_fixture_detects_its_expected_type_completely ... ok
+test model::detect::tests::every_fixture_under_a_wrong_extension_still_resolves_by_content ... ok
 test model::matrix::tests::every_target_format_is_modelled_somewhere ... ok
 test model::matrix::tests::every_type_except_unknown_has_at_least_one_route ... ok
 test model::matrix::tests::ffmpeg_only_appears_for_gif_from_images_or_for_audio_video ... ok
@@ -152,14 +153,14 @@ test model::types::tests::canonical_type_ids_are_unique_and_lowercase ... ok
 test model::types::tests::card_ids_must_look_like_board_ids ... ok
 test model::types::tests::claimed_extension_is_parsed_from_names_not_paths ... ok
 test model::types::tests::claimed_mismatch_is_reported_not_resolved ... ok
-test model::matrix::tests::evidence_index_documents_every_proven_route ... ok
 test model::types::tests::every_family_has_a_member_and_unknown_is_its_own ... ok
 test model::types::tests::extension_table_accepts_aliases ... ok
 test model::types::tests::target_ids_are_unique_and_lowercase ... ok
 test model::types::tests::the_windows_target_name_list_matches_the_matrix_targets ... ok
 test model::types::tests::unknown_and_unreadable_are_not_routable ... ok
+test model::matrix::tests::evidence_index_documents_every_proven_route ... ok
 test model::matrix::tests::every_proven_route_points_at_evidence_that_still_says_so ... ok
 test engine::proc::tests::only_proc_constructs_commands ... ok
 
-test result: ok. 159 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+test result: ok. 160 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
 

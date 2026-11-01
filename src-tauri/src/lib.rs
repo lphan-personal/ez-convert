@@ -26,6 +26,30 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::new())
+        .setup(|app| {
+            // `ARCHITECTURE.md` §6.2 operational contract: the install-cold
+            // *first* document conversion costs 5,111 ms on Windows because
+            // LibreOffice bootstraps its profile. That cost belongs to app
+            // start, not to the user's first job — so it is paid here, on a
+            // worker thread, once per profile. Best effort by construction:
+            // `warm_up_at_startup` never fails the app and never blocks the
+            // window; a failure is a diagnostics line, not an error dialog.
+            use tauri::Manager;
+            let root = app
+                .path()
+                .resource_dir()
+                .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default());
+            let cache = app
+                .path()
+                .app_cache_dir()
+                .unwrap_or_else(|_| std::env::temp_dir());
+            std::thread::spawn(move || {
+                let paths = engine::engines_in(&root);
+                let outcome = engine::soffice::warm_up_at_startup(&paths, &cache);
+                eprintln!("document warm-up: {outcome}");
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             engine_version,
             // settings (U2)

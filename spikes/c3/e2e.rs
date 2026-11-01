@@ -609,6 +609,25 @@ fn main() {
     );
     report_identity(&h);
 
+    // The app-start hook the window calls (`warm_up_at_startup`), on a fresh
+    // cache dir: it must bootstrap the profile once and then be a no-op, using
+    // the real engine on this leg.
+    let hook_cache = work.join("hook-cache");
+    let started = Instant::now();
+    let first_hook = soffice::warm_up_at_startup(&h.paths, &hook_cache);
+    let cold_ms = started.elapsed().as_millis();
+    let second_hook = soffice::warm_up_at_startup(&h.paths, &hook_cache);
+    match (&first_hook, &second_hook) {
+        (soffice::WarmUp::Warmed { bootstrapped: true, .. }, soffice::WarmUp::AlreadyWarm) => h.ok(
+            "warm-up hook",
+            format!("app-start hook bootstrapped in {cold_ms} ms, relaunch is a no-op"),
+        ),
+        _ => h.bad(
+            "warm-up hook",
+            format!("first {first_hook:?} then {second_hook:?}"),
+        ),
+    }
+
     // Warm-up: a brand-new profile, then the same call again.
     let profile = Profile::under(&work.join("cache"));
     let started = Instant::now();
