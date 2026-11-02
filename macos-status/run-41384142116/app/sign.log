@@ -1,0 +1,3 @@
+src-tauri/target/universal-apple-darwin/release/bundle/macos/EZ Convert.app: valid on disk
+src-tauri/target/universal-apple-darwin/release/bundle/macos/EZ Convert.app: satisfies its Designated Requirement
+x86_64 arm64
