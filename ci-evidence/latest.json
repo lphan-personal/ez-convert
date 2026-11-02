@@ -1,0 +1,10 @@
+{
+  "os": "ubuntu-latest",
+  "run_id": 41506156610,
+  "run_url": "https://github.com/lphan-personal/ez-convert/actions/runs/41506156610",
+  "sha": "a07f462a8bff4ddce14bfc5899bafc94c2b5a625",
+  "job_status": "success",
+  "cargo_build_ok": true,
+  "test_summary": "test result: ok. 337 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.04s",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)"
+}
