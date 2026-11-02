@@ -1,7 +1,10 @@
 # Release notes — EZ Convert v1 (0.0.1)
 
-Released 2026-11-02. Internal build. Not published, not notarised, not a store package —
-see `docs/DISTRIBUTION.md`.
+Released 2026-11-02 as the internal GitHub release **v1.0.0**
+(<https://github.com/lphan-personal/ez-convert/releases/tag/v1.0.0>) — a download link only,
+no GitHub login needed. Not notarised, no Developer ID, no Authenticode, not a store package;
+see `docs/DISTRIBUTION.md`. The binaries inside self-report version `0.0.1` (`EZC_VERSION`)
+while the tag says `v1.0.0`, which is why the file names carry `0.0.1`.
 
 ---
 
@@ -28,16 +31,28 @@ images, audio, video and office documents by spawning engine processes on the sa
 
 ## Installation
 
-| platform | artifact | measured |
+| platform | artifact | published size and sha256 |
 |---|---|---|
-| Windows 11 x64 | `EZ Convert_0.0.1_x64-setup.exe`, per-user NSIS, no UAC | 512,319,647 B (488.59 MiB), sha256 `d49a012ae521f73a24485e69a6cacdf88f2c7cb96464687c9bf9ce7c97c3ed5d` |
-| Windows 11 x64 | same installer, first bundle (kept because it is the one with the clean-machine transcript) | 512,304,426 B (488.57 MiB), sha256 `5432C8AEFF26B7AF81B3CF3389ABED010E8438EDB2B1CB32D05AFFD9635C7BFF` |
-| macOS 11+ | `EZ-Convert-0.0.1-macos-universal.dmg` (arm64 + x86_64 slices, ad-hoc signed) | sha256 `9002d00350965cec7ea8d7edc837be1568ed8390e82303efcc69a6a74e987144` |
-| macOS, Apple Silicon | `EZ-Convert-Engine-Pack-arm64.dmg` (separate install) | 362,201,061 B, sha256 `5f6c41050dfa91d04aa91ed7d6b09ba47598b4bdb9c45ecfb66dd1c9e998eb9c` |
+| macOS 11+, arm64 + x86_64 | `EZ-Convert-0.0.1-macos-universal.dmg` — universal app, ad-hoc signed | 6,299,468 B (6.0 MiB), sha256 `adbe945dcd1b8eb6847a921feaaf2516f2b442be0245756812ce7189bc132a54` |
+| macOS, Apple Silicon | `EZ-Convert-Engine-Pack-arm64.dmg` — engine pack, separate install | 361,154,840 B (344.4 MiB), sha256 `26ca81b521ba8158429988000e1cb40510bb591fbfcab5334e6e3dc5cfb44067` |
+| macOS, Intel | `EZ-Convert-Engine-Pack-x86_64.dmg` — engine pack, separate install | 380,435,751 B (362.8 MiB), sha256 `cbbcd97731b13d6673d7d7c16573fa66d36ab71da84339cd4859a10f7fa3dfb2` |
+| macOS, either | `EZ-Convert-Engine-Pack-{arm64,x86_64}.dmg.manifest.json`, `SHA256SUMS.txt` | pack metadata; sums of every file above |
+| Windows 11 x64 — measured internal build, **not in the v1.0.0 release** | `EZ Convert_0.0.1_x64-setup.exe`, per-user NSIS, no UAC | 512,319,647 B (488.59 MiB), sha256 `d49a012ae521f73a24485e69a6cacdf88f2c7cb96464687c9bf9ce7c97c3ed5d` |
+| Windows 11 x64 — first bundle of the same build, **not in the v1.0.0 release** | `EZ Convert_0.0.1_x64-setup.exe` (kept because it is the one with the clean-machine transcript) | 512,304,426 B (488.57 MiB), sha256 `5432C8AEFF26B7AF81B3CF3389ABED010E8438EDB2B1CB32D05AFFD9635C7BFF` |
 
-Both macOS DMGs install and convert on Apple Silicon; the engine pack must be installed
-(`Install Engine Pack.command`, which verifies `MANIFEST.sha256` before copying). The app
-bundle contains no engines by design — Tauri's macOS bundler cannot sign them there.
+v1.0.0 publishes the **macOS** deliverables. The Windows rows are the measured internal build
+(`docs/PACKAGING-WINDOWS.md`, `evidence/p2-windows-installer.md`); the release page states that
+the Windows installer and engine pack follow in a separate release, because an installer
+without its engine pack would install an app that cannot convert anything.
+
+Install **one** engine pack, the one that matches your Mac: `uname -m` prints `arm64` on
+Apple Silicon and `x86_64` on Intel, each pack declares its `arch` in `MANIFEST.json`, and
+`Install Engine Pack.command` refuses a mismatched pack before verifying or copying anything
+(`docs/MACOS-PACKAGING.md` §1). The app bundle contains no engines by design — Tauri's macOS
+bundler cannot sign them there.
+
+Verify the download before installing — `shasum -a 256 -c SHA256SUMS.txt` reports OK for
+every line.
 
 **Unsigned builds:** Windows SmartScreen → *More info → Run anyway*; macOS Gatekeeper →
 right-click → *Open*, or `xattr -d com.apple.quarantine "/Applications/EZ Convert.app"`.
@@ -53,6 +68,7 @@ walkthrough.
 | Windows 11, shipping engine dist | `scripts/e2e.sh` | **154/154 rows pass, 0 fail, 0 skip**, 13/13 planted-fault controls caught (`evidence/avif-strip.md`) |
 | Linux test dist | `scripts/e2e.sh` | 148/148 runnable directions pass, 6 `→ avif` skips (that dist has no AV1 encoder), 13/13 controls (`evidence/q3-e2e.md`) |
 | macOS 26, arm64 | one conversion per family | 4/4 pass; the x86_64 slice under Rosetta 4/4 (`evidence/p3-macos-validation.md`) |
+| macOS 15.7.9, Intel x86_64 native | install from the published DMGs, `codesign --verify --strict`, 5/5 engines resolved, one conversion per family | 4/4 pass, `SUMMARY families=4 pass=4 fail=0` (macos-validate run [41427529926](https://github.com/lphan-personal/ez-convert/actions/runs/41427529926); `evidence/p3-x86-pack.md`) |
 | Windows 11, clean machine, offline | installed build | `SUMMARY families=4 pass=4 fail=0` (cold 198 s, warm 3 s) (`evidence/p2-acceptance-clean-win11.txt`) |
 
 Each row asserts existence, content sanity (decoded geometry and non-blank mean for images,
@@ -91,29 +107,26 @@ Two defects were found by those runs and fixed before this release:
 ## Known issues in this build
 
 1. Unsigned builds — Gatekeeper / SmartScreen friction as described above.
-2. **Intel Macs cannot convert**: the engine pack is arm64 only. Install, signature and
-   engine discovery pass; execution fails `Bad CPU type in executable`. An x86_64 pack is
-   open (`t_31f9e38d`).
-3. **The macOS wheel overlay is unmeasured** — hotkey, focus-free placement, click-through
+2. **The macOS wheel overlay is unmeasured** — hotkey, focus-free placement, click-through
    and dismiss rules are measured on Windows 11 only.
-4. **Smart grab does nothing**: the toggle and its consent behaviour exist; the selection
+3. **Smart grab does nothing**: the toggle and its consent behaviour exist; the selection
    reader is not implemented.
-5. **No resize, trim, bitrate, quality or codec controls** — encoder settings are fixed.
-6. **Multi-sheet workbooks → csv/txt** are not fully wired: the engine writes one file per
+4. **No resize, trim, bitrate, quality or codec controls** — encoder settings are fixed.
+5. **Multi-sheet workbooks → csv/txt** are not fully wired: the engine writes one file per
    sheet (`<stem>-<sheet>.csv`), the app's publish step records one output per input
    (`evidence/c4-output-rules.md` §5).
-7. **Recognised but not convertible:** bmp, svg, pdf as input, txt. **Not offered as
+6. **Recognised but not convertible:** bmp, svg, pdf as input, txt. **Not offered as
    outputs:** HEIC, SVG, PDF, legacy Office formats.
-8. **GIF input is first-frame only**; GIF-to-GIF animation re-encoding is not offered.
-9. **Cold-start image conversion is 113 s against a 120 s engine timeout** on a fresh
+7. **GIF input is first-frame only**; GIF-to-GIF animation re-encoding is not offered.
+8. **Cold-start image conversion is 113 s against a 120 s engine timeout** on a fresh
    Defender-scanned install. Warm conversions are fast; a slower disk could time out the
    first one.
-10. **No auto-update** — upgrade by reinstalling.
+9. **No auto-update** — upgrade by reinstalling.
 
-Engineering follow-ups open at release: MSVC runtime inventory/notices rows (`t_34f3a93b`),
-the x86_64 macOS engine pack (`t_31f9e38d`), the `ezc-pdf` sidecar (PDF as an image input is
-not packaged), and the multi-sheet publish wiring. All are recorded on the board rather than
-smoothed over here.
+Engineering follow-ups open at release: the Microsoft VC++ runtime inventory and notice rows
+for the DLLs the Windows installer now carries, the `ezc-pdf` sidecar (PDF as an image input
+is not packaged), and the multi-sheet publish wiring. They are recorded on the project board
+rather than smoothed over here.
 
 ---
 

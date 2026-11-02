@@ -49,9 +49,10 @@ under a second to a few seconds (`evidence/p2-acceptance-clean-win11.txt`).
 
 To uninstall: Windows **Settings → Apps → EZ Convert → Uninstall**.
 
-### macOS (Apple Silicon)
+### macOS (Apple Silicon and Intel)
 
-Intel Macs cannot convert in this build — see the note at the end of this section.
+Both architectures are supported. The one step that differs is step 3, which picks the engine
+pack for your Mac.
 
 1. Open `EZ-Convert-0.0.1-macos-universal.dmg` and drag **EZ Convert** into
    `/Applications`. Use `/Applications`, not a desktop copy: a copy run from another
@@ -64,18 +65,24 @@ Intel Macs cannot convert in this build — see the note at the end of this sect
    ```
 
    This is a documented one-time step in this build.
-3. Open `EZ-Convert-Engine-Pack-arm64.dmg` and double-click **Install Engine Pack.command**.
-   If macOS refuses to open it, right-click → **Open**. The installer checks every file
-   against `MANIFEST.sha256` before copying anything, then installs to:
+3. Open the engine-pack DMG for your Mac — `EZ-Convert-Engine-Pack-arm64.dmg` on Apple
+   Silicon, `EZ-Convert-Engine-Pack-x86_64.dmg` on Intel (`uname -m` prints `arm64` or
+   `x86_64`) — and double-click **Install Engine Pack.command**. If macOS refuses to open it,
+   right-click → **Open**. The installer compares the pack's `arch` with `uname -m` and
+   **refuses a mismatched pack** before verifying or copying anything; the wrong pack would
+   otherwise leave every conversion failing with `Bad CPU type in executable (os error 86)`
+   (`docs/MACOS-PACKAGING.md` §1). It then checks every file against `MANIFEST.sha256` and
+   installs to:
 
    ```
    ~/Library/Application Support/app.ezconvert.desktop/engines
    ```
 
-   The pack is 362,201,061 B and contains the LibreOffice tree, libvips and ffmpeg
-   (`evidence/p3-engine-pack-manifest.md`). It is installed once, separately from the app,
-   because Tauri's macOS bundler cannot sign engines placed inside the app bundle
-   (`docs/MACOS-PACKAGING.md` §1).
+   The published packs are 361,154,840 B (arm64) and 380,435,751 B (x86_64); each contains the
+   LibreOffice tree, libvips and ffmpeg built for that architecture
+   (`evidence/p3-engine-pack-manifest.md`, `evidence/p3-x86-pack.md`). The pack is installed
+   once, separately from the app, because Tauri's macOS bundler cannot sign engines placed
+   inside the app bundle (`docs/MACOS-PACKAGING.md` §1).
 4. Open **EZ Convert** normally.
 
 To verify an installation from Terminal:
@@ -87,10 +94,13 @@ To verify an installation from Terminal:
 To uninstall: delete `/Applications/EZ Convert.app` and
 `~/Library/Application Support/app.ezconvert.desktop`.
 
-**Intel Macs:** the app is universal and installs, but the shipped engine pack is arm64
-only. Conversions fail with `Bad CPU type in executable (os error 86)` — the app reports a
-failure per family rather than silently doing nothing (`evidence/p3-macos-validation.md`).
-An x86_64 pack is not in this build.
+**Intel Macs:** supported, with the x86_64 pack from step 3. The two packs are separate builds
+and are not interchangeable, so the installer refuses a pack whose `arch` is not your
+`uname -m` — that check is what stops the old `Bad CPU type in executable (os error 86)`
+failure mode from being mistaken for an app bug (`docs/MACOS-PACKAGING.md` §1). Measured on
+Intel hardware, macOS 15.7.9 (build 24G830): install, `codesign --verify --strict`, 5/5
+engines resolved, `SUMMARY families=4 pass=4 fail=0` — one real conversion per family
+(`evidence/p3-x86-pack.md`; matrix in `docs/MACOS-PACKAGING.md` §7).
 
 ### Upgrading
 
@@ -369,31 +379,29 @@ These are current, measured limits — not bugs waiting to be discovered:
 1. **The builds are unsigned.** Windows SmartScreen needs *More info → Run anyway*; macOS
    Gatekeeper needs right-click → Open or `xattr -d com.apple.quarantine`. `docs/DISTRIBUTION.md`
    records the decision (internal-only distribution).
-2. **Intel Macs cannot convert.** The app installs and finds its engines, but the engine
-   pack is arm64 only, so execution fails per family. An x86_64 pack is not shipped yet.
-3. **The macOS wheel overlay is unmeasured.** Hotkey, placement, click-through and dismiss
+2. **The macOS wheel overlay is unmeasured.** Hotkey, placement, click-through and dismiss
    rules are measured on Windows 11; the macOS window primitives behind them have not been
    run on a Mac.
-4. **Smart grab does nothing yet.** The toggle and its consent behaviour exist; the code
+3. **Smart grab does nothing yet.** The toggle and its consent behaviour exist; the code
    that reads the current Explorer/Finder selection is not implemented.
-5. **Aptos documents reflow** — Word's newer default font is not bundled and has no metrical
+4. **Aptos documents reflow** — Word's newer default font is not bundled and has no metrical
    clone.
-6. **Copying accented text out of a Windows-generated PDF can be wrong** in Edge, Acrobat
+5. **Copying accented text out of a Windows-generated PDF can be wrong** in Edge, Acrobat
    and pdf.js; rendering and search are fine.
-7. **Hebrew Culmus typefaces are substituted** with open-licence twins whose widths differ
+6. **Hebrew Culmus typefaces are substituted** with open-licence twins whose widths differ
    by up to ~8 %, so lines can rebreak.
-8. **No resize, trim, bitrate, quality or codec controls.** Conversions use fixed encoder
+7. **No resize, trim, bitrate, quality or codec controls.** Conversions use fixed encoder
    settings.
-9. **Multi-sheet workbooks → csv/txt are not fully wired**: the document engine writes one
+8. **Multi-sheet workbooks → csv/txt are not fully wired**: the document engine writes one
    file per sheet (`<stem>-<sheet>.csv`), while the app's publish step records one output
    per input in this build (`evidence/c4-output-rules.md` §5). Treat multi-sheet csv/txt
    output as unverified.
-10. **Recognised but not convertible:** bmp, svg, pdf (as input), txt.
-11. **Not offered as outputs:** HEIC, SVG, PDF (as an image output), any legacy Office
+9. **Recognised but not convertible:** bmp, svg, pdf (as input), txt.
+10. **Not offered as outputs:** HEIC, SVG, PDF (as an image output), any legacy Office
     format as an output.
-12. **GIF input is first-frame only**, and GIF-to-GIF animation re-encoding is not offered.
-13. **No auto-update** — upgrade by reinstalling.
-14. **Cold-start image conversion is close to its timeout** on a Defender-scanned install
+11. **GIF input is first-frame only**, and GIF-to-GIF animation re-encoding is not offered.
+12. **No auto-update** — upgrade by reinstalling.
+13. **Cold-start image conversion is close to its timeout** on a Defender-scanned install
     (113 s measured against a 120 s engine timeout). Warm conversions are fast; a much
     slower disk could time the first one out.
 
@@ -410,6 +418,7 @@ merely compiles (`e2e/q3/README.md`).
 | Windows 11, shipping engine dist | **154/154 rows pass, 0 skip, 13/13 planted-fault controls caught** (`evidence/avif-strip.md`, `windows.txt`) |
 | Linux test dist | 148/148 runnable directions pass; the six `→ avif` directions skip because that test dist has no AV1 encoder (`evidence/q3-e2e.md`) |
 | macOS 26 arm64 | one conversion per family: 4/4 pass, and 4/4 through the x86_64 slice under Rosetta (`evidence/p3-macos-validation.md`) |
+| macOS 15.7.9 Intel x86_64, native | install from the published DMGs, 5/5 engines resolved, one conversion per family: 4/4 pass (`evidence/p3-x86-pack.md`) |
 
 The suite plants faults too — a deleted output, zero-byte output, JPEG bytes named `.png`,
 a text file named `.docx`, a PDF with no pages, metadata that survives a strip, a WAV

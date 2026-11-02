@@ -45,9 +45,9 @@ rows are invisible and `cut` rows are measured dead.
 
 | | Windows | macOS |
 |---|---|---|
-| OS | Windows 11 x64 (measured); Windows 10 untested | macOS 11+ |
-| CPU | x64 | **Apple Silicon for conversion** — the engine pack is arm64 only; the app is universal but Intel conversions fail `Bad CPU type in executable` |
-| Disk | ~1 GB installed | app ~6 MB + engine pack 362,201,061 B |
+| OS | Windows 11 x64 (measured); Windows 10 untested | macOS 11+ (Apple Silicon and Intel) |
+| CPU | x64 | Apple Silicon or Intel — the app is universal, and there is one engine pack per architecture: install the one `uname -m` reports, and the pack installer refuses a mismatch |
+| Disk | ~1 GB installed | app 6,299,468 B + engine pack, 361,154,840 B (arm64) or 380,435,751 B (x86_64) — the published v1.0.0 sizes |
 | Network | none required | none required |
 
 ---
@@ -219,9 +219,11 @@ conversion reports `MissingEngine`. With it, the installer is ~489 MiB and works
 The supported way to produce the payload is `scripts/stage-engines.sh`, and it refuses to
 finish on a licence-gate failure (`docs/PACKAGING-WINDOWS.md`).
 
-**macOS** — universal app DMG plus a separately signed arm64 engine pack, built by
-`macos-dmg.yml`; the app bundle deliberately contains no engines, and a CI shape gate fails
-the run if one appears in `Contents/Resources` (`docs/MACOS-PACKAGING.md` §1, §6).
+**macOS** — universal app DMG plus a separately signed engine pack **per architecture**
+(`arm64`, `x86_64`), both built by `macos-dmg.yml`; the app bundle deliberately contains no
+engines, and a CI shape gate fails the run if one appears in `Contents/Resources`
+(`docs/MACOS-PACKAGING.md` §1, §6). Each pack declares its `arch`, and
+`packaging/macos/install-engine-pack.command` refuses the one that does not match `uname -m`.
 
 No auto-update, no store listing, no notarization — see `docs/DISTRIBUTION.md`.
 
