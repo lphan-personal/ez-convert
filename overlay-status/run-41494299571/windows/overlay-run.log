@@ -1,0 +1,127 @@
+document warm-up: no document engine installed
+wheel overlay: window created (hidden)
+Ctrl+Alt+Shift+D registered
+{
+  "os": "windows",
+  "arch": "x86_64",
+  "probe": "overlay",
+  "monitors": [
+    {
+      "device": [
+        0,
+        0,
+        1024,
+        768
+      ],
+      "work": [
+        0,
+        0,
+        1024,
+        720
+      ]
+    }
+  ],
+  "cursor_before": [
+    512,
+    384
+  ],
+  "placement": {
+    "x": 252,
+    "y": 124,
+    "width": 520,
+    "height": 520,
+    "cursor_x": 512,
+    "cursor_y": 384,
+    "monitor_index": 0,
+    "placed": true,
+    "grab_note": null,
+    "cursor_inside_rect": true,
+    "monitor_in_range": true
+  },
+  "window": {
+    "found": true,
+    "visible": true,
+    "focused": true,
+    "always_on_top": true,
+    "decorated": false,
+    "outer_position": [
+      252,
+      124
+    ],
+    "outer_size": [
+      520,
+      520
+    ],
+    "scale_factor": 1.0,
+    "region_type": 3,
+    "non_activating": true,
+    "ignores_mouse_events": null
+  },
+  "click": {
+    "method": "warp",
+    "centre": [
+      512,
+      384
+    ],
+    "centre_cursor": [
+      512,
+      384
+    ],
+    "centre_inside_disc": true,
+    "centre_ignores_mouse_events": null,
+    "corner": [
+      258,
+      130
+    ],
+    "corner_cursor": [
+      258,
+      130
+    ],
+    "corner_inside_disc": false,
+    "corner_ignores_mouse_events": null,
+    "corner_window_is_ours": false,
+    "warped": true
+  },
+  "main_focused_before": false,
+  "main_focused_after": false,
+  "render_ms": 28,
+  "cold_render_ms": 38,
+  "page_ready": true,
+  "checks": {
+    "always-on-top": true,
+    "click-through-sampled": true,
+    "corner-belongs-to-another-window": true,
+    "cursor-at-wheel-or-clamped": true,
+    "main-window-keeps-focus": true,
+    "monitor-index-in-range": true,
+    "overlay-not-key": false,
+    "placement-reported": true,
+    "position-matches-placement": true,
+    "rendered-within-150ms": true,
+    "size-matches-wheel": true,
+    "undecorated": true,
+    "window-created": true,
+    "window-non-activating": true,
+    "window-region-is-ellipse": true,
+    "window-visible": true
+  },
+  "asserted": [
+    "window-created",
+    "window-visible",
+    "placement-reported",
+    "position-matches-placement",
+    "size-matches-wheel",
+    "always-on-top",
+    "undecorated",
+    "main-window-keeps-focus",
+    "rendered-within-150ms",
+    "cursor-at-wheel-or-clamped",
+    "monitor-index-in-range",
+    "click-through-sampled",
+    "window-region-is-ellipse",
+    "corner-belongs-to-another-window",
+    "window-non-activating"
+  ],
+  "ok": true
+}
+[1102/175149.045:ERROR:ui\gfx\win\window_impl.cc:172] Failed to unregister class Chrome_WidgetWin_0. Error = 1412
