@@ -170,6 +170,41 @@ survivor="$(find "$PACK/engines/soffice" \( -name 'DavidCLM-*' -o -name 'FrankRu
 [ -z "$survivor" ] || { echo "strip incomplete: GPL-2.0 Culmus font still shipped: $survivor" >&2; exit 1; }
 note "strip verified: gallery, help and the five Culmus families are gone"
 
+# --------------------------------------------------- 2b. LibreOffice boots early
+# LibreOffice is the biggest and least predictable dependency, and the ffmpeg
+# build after this takes minutes of billed macOS time. Prove LO boots and converts
+# *here*, right after the layout is built, and print what it is looking at when it
+# does not. (Run 41384142116 got through the licence gate and both media engines
+# and only then hit `Abort trap: 6 / DeploymentException` from soffice.)
+step "2b/8 smoke LibreOffice before the long engines are built"
+LO_PROFILE="file://$WORK/smoke/lo-early"
+mkdir -p "$WORK/smoke"
+"$PACK/engines/soffice/program/soffice" --headless --norestore \
+  -env:UserInstallation="$LO_PROFILE" --convert-to pdf --outdir "$WORK/smoke" \
+  "$REPO_ROOT/fixtures/sample.docx" >"$WORK/smoke/soffice-early.log" 2>&1 || true
+if [ ! -s "$WORK/smoke/sample.pdf" ]; then
+  echo "LibreOffice did not produce a PDF from the pack. What it said:" >&2
+  tail -20 "$WORK/smoke/soffice-early.log" >&2
+  echo "--- engines/soffice layout ---" >&2
+  ls -la "$PACK/engines/soffice" >&2
+  echo "--- program/ (first 20) ---" >&2
+  ls -la "$PACK/engines/soffice/program" 2>&1 | head -20 >&2
+  echo "--- probes ---" >&2
+  for probe in program/soffice program/soffice.bin fundamentalrc Resources \
+               registry/main.xcd share/registry/main.xcd program/services; do
+    p="$PACK/engines/soffice/$probe"
+    if [ -L "$p" ]; then printf '  %-24s symlink -> %s\n' "$probe" "$(readlink "$p")" >&2
+    elif [ -e "$p" ]; then printf '  %-24s present\n' "$probe" >&2
+    else printf '  %-24s MISSING\n' "$probe" >&2; fi
+  done
+  echo "--- what the launcher links ---" >&2
+  otool -L "$PACK/engines/soffice/program/soffice" 2>&1 | head -8 >&2 || true
+  echo "--- bootstrap files that mention BRAND_BASE_DIR ---" >&2
+  grep -rl "BRAND_BASE_DIR" "$PACK/engines/soffice" 2>/dev/null | head -5 >&2 || true
+  exit 1
+fi
+note "LibreOffice converts from the pack: $(stat -f%z "$WORK/smoke/sample.pdf") B pdf"
+
 # -------------------------------------------------------------------- 3. vips
 step "3/8 libvips ($ARCH) — Homebrew bottle, relocated to the pack"
 if [ ! -x "$BREW_PREFIX/bin/brew" ] || ! brew list --versions vips >/dev/null 2>&1; then
