@@ -1,0 +1,39 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png",
+      "icons/icon.ico"
+    ],
+    "publisher": "lphan-personal",
+    "category": "Utility",
+    "shortDescription": "Offline file conversion",
+    "longDescription": "EZ Convert converts images, audio, video and documents locally. No network calls, no telemetry.",
+    "externalBin": [
+      "binaries/ffmpeg",
+      "binaries/ffprobe"
+    ],
+    "resources": {
+      "resources/engines": "engines",
+      "resources/licenses": "licenses"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "offlineInstaller",
+        "silent": true
+      },
+      "bundleVCRuntime": true,
+      "nsis": {
+        "installMode": "currentUser",
+        "compression": "lzma",
+        "languages": ["English"],
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}

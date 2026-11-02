@@ -211,7 +211,9 @@ scan_tree() {
     if [ "$M_SHA" != "-" ] && [ -n "$M_SHA" ]; then
       local actual
       actual="$(sha256sum "$f" | cut -d' ' -f1)"
-      if [ "$actual" != "$M_SHA" ]; then
+      # Hex digests are case-insensitive; the inventory rows were written by
+      # hand in upper case, `sha256sum` emits lower case.
+      if [ "${actual,,}" != "${M_SHA,,}" ]; then
         log "FAIL $rel :: sha256 drift (inventory $M_SHA, on disk $actual)"
         fails=$((fails + 1))
       fi

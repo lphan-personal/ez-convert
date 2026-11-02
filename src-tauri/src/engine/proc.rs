@@ -122,7 +122,7 @@ impl EnginePaths {
             };
             dir.join(name)
         };
-        Self {
+        let mut paths = Self {
             vips: exe(&vips_dir, "vips"),
             vipsheader: exe(&vips_dir, "vipsheader"),
             vips_dir: vips_dir.clone(),
@@ -134,7 +134,22 @@ impl EnginePaths {
             soffice_dir,
             lib_dir: absolute_env_dir("EZC_ENGINE_LIB_DIR"),
             plugin_dir: absolute_env_dir("EZC_VIPS_PLUGIN_DIR"),
+        };
+        // ffmpeg/ffprobe ship as Tauri `externalBin` sidecars (ARCHITECTURE §18):
+        // the bundler strips the `-<triple>` suffix and drops them next to the
+        // app executable, not under `engines/`. Accept both layouts — the
+        // bundled `engines/ffmpeg/` tree wins when present (it is what a staged
+        // pack provides), otherwise the siblings that the installer actually
+        // wrote are used.
+        if !paths.ffmpeg.is_file() && paths.ffmpeg_dir != root {
+            let sibling = root.join(if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" });
+            if sibling.is_file() {
+                paths.ffmpeg = sibling;
+                paths.ffprobe = root.join(if cfg!(windows) { "ffprobe.exe" } else { "ffprobe" });
+                paths.ffmpeg_dir = root.to_path_buf();
+            }
         }
+        paths
     }
 
     /// Test/dev override: `EZC_VIPS_DIR`, `EZC_FFMPEG_DIR` and `EZC_SOFFICE_DIR`
