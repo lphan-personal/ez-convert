@@ -16,7 +16,9 @@ name: windows-engine-pack
 #   2  vips               the S2-dist GPL-free build (43 files), runs from the pack,
 #                         config shows imagequant/poppler off and libheif on
 #   3  ffmpeg/ffprobe     LGPL autobuild, `-buildconf` has no --enable-gpl
-#   4  LibreOffice        MSI administrative extraction (the tree, not an install)
+#   4  LibreOffice        silent MSI install; the installed program directory is
+#                         what the pack carries (13,836 files — the same tree P2
+#                         shipped and the gate was made green against)
 #   5  strip              gallery, help and the five GPL-2.0 Culmus families gone,
 #                         asserted independently of the script that removed them
 #   6  closure            every PE import resolves to a file in the pack or to a

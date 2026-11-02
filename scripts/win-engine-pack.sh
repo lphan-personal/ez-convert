@@ -204,64 +204,56 @@ note "ffmpeg $("$FFMPEG_OUT/ffmpeg.exe" -hide_banner -version 2>&1 | head -1) (e
 note "ffprobe $("$FFMPEG_OUT/ffprobe.exe" -hide_banner -version 2>&1 | head -1)"
 
 # ---------------------------------------------------------- 4. LibreOffice
-step "4/9 LibreOffice $LO_VERSION ($ARCH) — administrative extraction of the MSI"
+step "4/9 LibreOffice $LO_VERSION ($ARCH) — silent install, then pack the installed tree"
 LO_OUT="$PACK/engines/soffice"
-mkdir -p "$LO_OUT"
 msilog="$WORK/msiexec.log"
+# The pack is the *installed* program directory, not an administrative (/a)
+# extraction. Measured on run 41425160848: `msiexec /a` lays out 19,418 files /
+# 1.60 GB — every file the MSI can place anywhere, including `Fonts/` (the copy
+# the installer drops into C:\Windows\Fonts) and `System{,64}/` (MSVC runtime
+# payloads for the OS). The installed tree is 13,836 files / 734 MB, which is
+# also exactly the tree P2 shipped and the licence gate was made green against
+# (evidence/p2-windows-installer.md §2). Installing on a disposable runner is
+# therefore both smaller and the layout with prior measured evidence.
+LO_INSTALL="$(cygpath -u 'C:\Program Files\LibreOffice')"
 rc=0
-# /a = administrative install: the MSI's file tree is laid out under TARGETDIR
-# without registering anything on the machine — the Windows equivalent of
-# unpacking the macOS .app or the Linux deb tree.
-MSYS2_ARG_CONV_EXCL='*' msiexec /a "$(win "$LO_MSI")" /qn /norestart \
-  TARGETDIR="$(win "$LO_OUT")" /l*v "$(win "$msilog")" || rc=$?
-note "msiexec /a rc=$rc"
+MSYS2_ARG_CONV_EXCL='*' msiexec /i "$(win "$LO_MSI")" /qn /norestart ALLUSERS=1 \
+  REGISTER_NO_MSO_TYPES=1 /l*v "$(win "$msilog")" || rc=$?
+note "msiexec /i rc=$rc"
 if [ "$rc" -ne 0 ] && [ "$rc" -ne 3010 ]; then
   tail -40 "$msilog" >&2 || true
-  die "msiexec administrative install failed (rc=$rc)"
+  die "LibreOffice install failed (rc=$rc)"
 fi
-# Where the tree actually landed: TARGETDIR, or one directory below it on some
-# MSI versions. Detect from the launcher rather than assuming.
-launcher="$(find "$LO_OUT" -maxdepth 4 -type f -name soffice.com | head -1)"
-[ -n "$launcher" ] || {
-  find "$LO_OUT" -maxdepth 3 -type d >&2
-  die "no program/soffice.com after extraction"
+[ -f "$LO_INSTALL/program/soffice.com" ] || {
+  ls -la "$LO_INSTALL" 2>&1 | head -20 >&2
+  die "no $LO_INSTALL/program/soffice.com after install"
 }
-LO_ROOT="$(cd "$(dirname "$launcher")/.." && pwd)"
-if [ "$LO_ROOT" != "$LO_OUT" ]; then
-  note "tree landed in ${LO_ROOT#$WORK/}; moving it to the pack root"
-  shopt -s dotglob
-  mv "$LO_ROOT"/* "$LO_OUT"/
-  shopt -u dotglob
-  rmdir "$LO_ROOT" 2>/dev/null || true
-fi
+note "installed: $LO_INSTALL ($(find "$LO_INSTALL" -type f | wc -l | tr -d ' ') files)"
+mkdir -p "$LO_OUT"
+cp -a "$LO_INSTALL"/. "$LO_OUT"/
 [ -f "$LO_OUT/program/soffice.com" ] || die "program/soffice.com is not at the pack root"
 [ -d "$LO_OUT/share" ] || die "share/ is not at the pack root — not a LibreOffice tree"
 note "$(find "$LO_OUT" -type f | wc -l | tr -d ' ') files, $(du -sb "$LO_OUT" | cut -f1) B before the strip"
-
-# Top-level inventory: an administrative install lays out *everything* the MSI
-# can place, which is not the same set as an installed program directory. Print
-# it, because the next decision (`Fonts/`) is made from these numbers.
 for d in "$LO_OUT"/*/; do
   [ -d "$d" ] || continue
   printf '    %-14s %6s files %12s B\n' "$(basename "$d")" \
     "$(find "$d" -type f | wc -l | tr -d ' ')" "$(du -sb "$d" | cut -f1)"
 done
-
-# `Fonts/` is the MSI's copy of the fonts the Windows installer drops into
-# C:\Windows\Fonts — not something LibreOffice loads from a program directory
-# (it reads fonts from the OS, and its own `share/fonts/truetype` for the
-# document-embedded set). Two reasons it does not belong in the pack:
-#   * it duplicates ~5,500 files of payload the engine never opens, and
-#   * it carries the five GPL-2.0 Culmus families, which the licence decision
-#     (t_20fae747) strips everywhere else — shipping them here would put GPL
-#     font software back into a PDF that embeds them.
-# An installed app has those fonts from the OS, so dropping the tree keeps the
-# pack equivalent to the installed layout.
+# Licence tripwire: `Fonts/` never appears in an installed tree, but if a future
+# MSI puts the system-font payload inside the program directory it carries the
+# five GPL-2.0 Culmus families the decision t_20fae747 strips everywhere else.
 if [ -d "$LO_OUT/Fonts" ]; then
-  note "dropping Fonts/ ($(find "$LO_OUT/Fonts" -type f | wc -l | tr -d ' ') files, $(du -sb "$LO_OUT/Fonts" | cut -f1) B)"
+  note "dropping Fonts/ ($(find "$LO_OUT/Fonts" -type f | wc -l | tr -d ' ') files) — OS font payload, not engine data"
   rm -rf "$LO_OUT/Fonts"
   if [ -d "$LO_OUT/Fonts" ]; then die "could not remove the MSI font payload"; fi
 fi
+# The pack must be the version the inventory names, and it must actually run.
+# `soffice.com` is the console launcher the app spawns; its exit code is not
+# evidence, the printed version is.
+LO_VER_OUT="$("$LO_OUT/program/soffice.com" --headless --norestore --version \
+  -env:UserInstallation="file:///$(cygpath -m "$WORK/lo-probe")" 2>&1 | tr -d '\r')"
+note "version: $(printf '%s' "$LO_VER_OUT" | head -1)"
+printf '%s' "$LO_VER_OUT" | grep -q "$LO_VERSION" || die "LibreOffice does not report $LO_VERSION: $LO_VER_OUT"
 
 # ------------------------------------------------------------------ 5. strip
 step "5/9 strip the content the licence decision removed (t_20fae747)"
@@ -294,7 +286,7 @@ step "6/9 dependency closure: every imported DLL resolves inside the pack or is 
 # must be either a file in the same pack directory or a library Windows itself
 # ships. Anything else is a file the user's machine may not have — the failure
 # mode is `The code execution cannot proceed because <x>.dll was not found`.
-SYSTEM_DLL_RE='^(api-ms-win-.*|ext-ms-win-.*|kernel32|kernelbase|user32|gdi32|advapi32|shell32|shlwapi|ole32|oleaut32|comctl32|comdlg32|ws2_32|wsock32|psapi|version|bcrypt|ncrypt|ntdll|rpcrt4|crypt32|secur32|wintrust|imm32|winmm|msimg32|opengl32|glu32|dwmapi|dwrite|d3d11|dxgi|dxva2|uxtheme|dnsapi|iphlpapi|mpr|netapi32|userenv|wldap32|wevtapi|mswsock|msvcrt|ucrtbase|vcruntime140|vcruntime140_1|msvcp140.*|concrt140|mfc140.*|oleacc|setupapi|cfgmgr32|winspool.drv|hid|powrprof|dbghelp|dbgeng|imagehlp|winhttp|wininet|urlmon|normaliz|sechost|profapi|cryptbase|msasn1|gdiplus|wtsapi32)$'
+SYSTEM_DLL_RE='^(api-ms-win-.*|ext-ms-win-.*|kernel32|kernelbase|user32|gdi32|gdiplus|advapi32|shell32|shlwapi|ole32|oleaut32|comctl32|comdlg32|ws2_32|wsock32|psapi|version|bcrypt|bcryptprimitives|ncrypt|ntdll|rpcrt4|crypt32|secur32|wintrust|imm32|winmm|msimg32|opengl32|glu32|dwmapi|dwrite|d2d1|d3d11|dxgi|dxva2|uxtheme|dnsapi|iphlpapi|mpr|netapi32|userenv|wldap32|wevtapi|mswsock|msvcrt|ucrtbase|vcruntime140|vcruntime140_1|msvcp140.*|concrt140|mfc140.*|oleacc|setupapi|cfgmgr32|winspool.drv|hid|powrprof|dbghelp|dbgeng|imagehlp|winhttp|wininet|urlmon|normaliz|sechost|profapi|cryptbase|msasn1|wtsapi32|avrt|usp10|avicap32|msacm32|winusb|winscard|d3d9)$'
 
 closure_fail=0
 closure_assumed=""
@@ -307,6 +299,8 @@ closure_check_tree() { # <dir> — every .exe/.dll directly in <dir> must resolv
     while IFS= read -r dll; do
       [ -n "$dll" ] || continue
       base="$(printf '%s' "$dll" | tr '[:upper:]' '[:lower:]')"
+      # The allow-list is written without the `.dll` suffix; compare on the stem.
+      base="${base%.dll}"
       if printf '%s' "$base" | grep -qE "$SYSTEM_DLL_RE"; then
         closure_assumed="${closure_assumed}${base} "
         continue
