@@ -1,0 +1,26 @@
+host       sat12-jr307-798547de-add6-42d6-a414-506cfac77599-8606958DCBFB.local
+uname -m   x86_64
+sw_vers    15.7.9 (24G830)
+rosetta    not translated / no sysctl
+verify-pins: PASS EZ-Convert-0.0.1-macos-universal.dmg
+  sha256 cea0d01e3581160e3cbf4ce04ba94343849f9f288eb978d0af11accaa833c982
+  pin    app-dmg.sha256
+volume EZ-Convert-0.0.1-macos-universal.dmg:
+total 1856
+drwxr-xr-x@ 5 runner  staff     238 Nov  2 05:32 .
+drwxr-xr-x  8 runner  staff     256 Nov  2 06:00 ..
+-rw-r--r--@ 1 runner  staff  944161 Nov  2 05:32 .VolumeIcon.icns
+lrwxr-xr-x  1 runner  staff      13 Nov  2 05:32 Applications -> /Applications
+drwxr-xr-x  3 runner  staff     102 Nov  2 05:32 EZ Convert.app
+installed app bundle:
+total 8
+drwxr-xr-x  3 runner  staff    96 Nov  2 05:32 _CodeSignature
+drwxr-xr-x  6 runner  staff   192 Nov  2 05:32 .
+drwxr-xr-x  3 runner  staff    96 Nov  2 05:32 ..
+-rw-r--r--  1 runner  staff  1058 Nov  2 05:32 Info.plist
+drwxr-xr-x  3 runner  staff    96 Nov  2 05:32 MacOS
+drwxr-xr-x  3 runner  staff    96 Nov  2 05:32 Resources
+lipo: x86_64 arm64
+codesign --verify --strict: OK
+installed size:  12M
+Contents/Resources carries no engine payload: OK
