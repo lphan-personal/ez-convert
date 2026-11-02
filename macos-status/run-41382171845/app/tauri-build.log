@@ -1,0 +1,92 @@
+        Info Looking up installed tauri packages to check mismatched versions...
+[1m[92m    Updating[0m crates.io index
+[1m[92m   Compiling[0m ez-convert v0.0.1 (/Users/runner/work/ez-convert/ez-convert/src-tauri)
+[1m[33mwarning[0m[1m: unused import: `ALL_TARGETS`[0m
+  [1m[94m--> [0msrc/model/matrix.rs:20:26
+   [1m[94m|[0m
+[1m[94m20[0m [1m[94m|[0m     ALL_CANONICAL_TYPES, ALL_TARGETS,
+   [1m[94m|[0m                          [1m[33m^^^^^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+[1m[33mwarning[0m[1m: constant `OPUS_RATES` is never used[0m
+   [1m[94m--> [0msrc/engine/ffmpeg.rs:100:7
+    [1m[94m|[0m
+[1m[94m100[0m [1m[94m|[0m const OPUS_RATES: &[u32] = &[48000, 24000];
+    [1m[94m|[0m       [1m[33m^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+[1m[33mwarning[0m[1m: constant `EV_V8` is never used[0m
+  [1m[94m--> [0msrc/model/matrix.rs:89:7
+   [1m[94m|[0m
+[1m[94m89[0m [1m[94m|[0m const EV_V8: EvidenceId = EvidenceId {
+   [1m[94m|[0m       [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: constant `EV_C2_META` is never used[0m
+   [1m[94m--> [0msrc/model/matrix.rs:424:7
+    [1m[94m|[0m
+[1m[94m424[0m [1m[94m|[0m const EV_C2_META: EvidenceId = EvidenceId {
+    [1m[94m|[0m       [1m[33m^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: constant `EV_C2_TAGS` is never used[0m
+   [1m[94m--> [0msrc/model/matrix.rs:481:7
+    [1m[94m|[0m
+[1m[94m481[0m [1m[94m|[0m const EV_C2_TAGS: EvidenceId = EvidenceId {
+    [1m[94m|[0m       [1m[33m^^^^^^^^^^[0m
+
+[1m[33mwarning[0m: `ez-convert` (lib) generated 5 warnings (run `cargo fix --lib -p ez-convert` to apply 1 suggestion)
+[1m[92m    Finished[0m `release` profile [optimized] target(s) in 1m 10s
+[1m[92m   Compiling[0m ez-convert v0.0.1 (/Users/runner/work/ez-convert/ez-convert/src-tauri)
+[1m[33mwarning[0m[1m: unused import: `ALL_TARGETS`[0m
+  [1m[94m--> [0msrc/model/matrix.rs:20:26
+   [1m[94m|[0m
+[1m[94m20[0m [1m[94m|[0m     ALL_CANONICAL_TYPES, ALL_TARGETS,
+   [1m[94m|[0m                          [1m[33m^^^^^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+[1m[33mwarning[0m[1m: constant `OPUS_RATES` is never used[0m
+   [1m[94m--> [0msrc/engine/ffmpeg.rs:100:7
+    [1m[94m|[0m
+[1m[94m100[0m [1m[94m|[0m const OPUS_RATES: &[u32] = &[48000, 24000];
+    [1m[94m|[0m       [1m[33m^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+[1m[33mwarning[0m[1m: constant `EV_V8` is never used[0m
+  [1m[94m--> [0msrc/model/matrix.rs:89:7
+   [1m[94m|[0m
+[1m[94m89[0m [1m[94m|[0m const EV_V8: EvidenceId = EvidenceId {
+   [1m[94m|[0m       [1m[33m^^^^^[0m
+
+[1m[33mwarning[0m[1m: constant `EV_C2_META` is never used[0m
+   [1m[94m--> [0msrc/model/matrix.rs:424:7
+    [1m[94m|[0m
+[1m[94m424[0m [1m[94m|[0m const EV_C2_META: EvidenceId = EvidenceId {
+    [1m[94m|[0m       [1m[33m^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: constant `EV_C2_TAGS` is never used[0m
+   [1m[94m--> [0msrc/model/matrix.rs:481:7
+    [1m[94m|[0m
+[1m[94m481[0m [1m[94m|[0m const EV_C2_TAGS: EvidenceId = EvidenceId {
+    [1m[94m|[0m       [1m[33m^^^^^^^^^^[0m
+
+[1m[33mwarning[0m: `ez-convert` (lib) generated 5 warnings (run `cargo fix --lib -p ez-convert` to apply 1 suggestion)
+[1m[92m    Finished[0m `release` profile [optimized] target(s) in 56.52s
+       Built application at: /Users/runner/work/ez-convert/ez-convert/src-tauri/target/universal-apple-darwin/release/ez-convert
+    Bundling EZ Convert.app (/Users/runner/work/ez-convert/ez-convert/src-tauri/target/universal-apple-darwin/release/bundle/macos/EZ Convert.app)
+     Signing with identity "-"
+Signing with identity "-"
+Signing /Users/runner/work/ez-convert/ez-convert/src-tauri/target/universal-apple-darwin/release/bundle/macos/EZ Convert.app/Contents/MacOS/ez-convert
+/Users/runner/work/ez-convert/ez-convert/src-tauri/target/universal-apple-darwin/release/bundle/macos/EZ Convert.app/Contents/MacOS/ez-convert: replacing existing signature
+Signing with identity "-"
+Signing /Users/runner/work/ez-convert/ez-convert/src-tauri/target/universal-apple-darwin/release/bundle/macos/EZ Convert.app
+/Users/runner/work/ez-convert/ez-convert/src-tauri/target/universal-apple-darwin/release/bundle/macos/EZ Convert.app: replacing existing signature
+        Warn skipping app notarization, no APPLE_ID & APPLE_PASSWORD & APPLE_TEAM_ID or APPLE_API_KEY & APPLE_API_ISSUER & APPLE_API_KEY_PATH environment variables found
+    Bundling EZ Convert_0.0.1_universal.dmg (/Users/runner/work/ez-convert/ez-convert/src-tauri/target/universal-apple-darwin/release/bundle/dmg/EZ Convert_0.0.1_universal.dmg)
+     Running bundle_dmg.sh
+    Finished 2 bundles at:
+        /Users/runner/work/ez-convert/ez-convert/src-tauri/target/universal-apple-darwin/release/bundle/macos/EZ Convert.app (11.78 MiB)
+        /Users/runner/work/ez-convert/ez-convert/src-tauri/target/universal-apple-darwin/release/bundle/dmg/EZ Convert_0.0.1_universal.dmg (6.01 MiB)
+
