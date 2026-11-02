@@ -211,6 +211,24 @@ pub fn ensure(app: &AppHandle) -> Option<WebviewWindow> {
     }
 }
 
+/// Hands the placement to the page.
+///
+/// Not `app.emit`: the Tauri event API is a `core:` plugin command and this app grants
+/// no capability for it, so a listener in the page never receives anything (measured:
+/// the first probe run got its placement only through the `overlay_ready` handshake).
+/// `evaluateJavaScript`/`eval` from Rust is native injection, not subject to the page's
+/// CSP, and needs no permission — so the window is called directly.
+fn dispatch(window: &WebviewWindow, payload: &crate::shell::summon::SummonPayload) {
+    match serde_json::to_string(payload) {
+        Ok(json) => {
+            let _ = window.eval(format!(
+                "window.__wheelSummon && window.__wheelSummon({json});"
+            ));
+        }
+        Err(error) => eprintln!("wheel overlay: cannot serialise the placement: {error}"),
+    }
+}
+
 /// Builds the overlay at startup so the first summon is a position + show + paint,
 /// not a webview construction.
 pub fn install(app: &AppHandle) {
@@ -293,6 +311,7 @@ pub fn present(app: &AppHandle, payload: &crate::shell::summon::SummonPayload) -
     shape_window(&window);
     // `focusable(false)` + `show()` = order front without becoming key.
     let _ = window.show();
+    dispatch(&window, payload);
     start_watcher(app.clone());
     Some(window)
 }
@@ -306,6 +325,10 @@ pub fn present(app: &AppHandle, payload: &crate::shell::summon::SummonPayload) -
 pub fn dismiss(app: &AppHandle, reason: Dismissal) {
     WATCHING.store(false, Ordering::SeqCst);
     let _ = app.emit(EVENT_DISMISS, reason.as_str());
+    // ...and straight into the page, for the same reason `dispatch` exists.
+    if let Some(window) = app.get_webview_window(WHEEL_LABEL) {
+        let _ = window.eval("window.__wheelDismiss && window.__wheelDismiss();");
+    }
     let generation = SUMMONS.load(Ordering::SeqCst);
     let forward = app.clone();
     std::thread::spawn(move || {
@@ -456,6 +479,22 @@ pub fn window_at_point_is_ours(window: &WebviewWindow, x: i32, y: i32) -> Option
     }
 }
 
+/// Windows: the `WS_EX_NOACTIVATE` bit is actually set on the overlay.
+pub fn window_is_non_activating(window: &WebviewWindow) -> Option<bool> {
+    #[cfg(windows)]
+    {
+        window
+            .hwnd()
+            .ok()
+            .map(|hwnd| win32::is_non_activating(hwnd.0 as isize))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = window;
+        None
+    }
+}
+
 // ---- platform shaping primitives (hand-rolled FFI, as in `screen.rs`) ----
 
 #[cfg(windows)]
@@ -498,6 +537,14 @@ mod win32 {
                 style | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
             );
         }
+    }
+
+    /// Read the style back, so "the overlay cannot take the foreground" is a measured
+    /// property rather than a claim about a call that may have failed.
+    pub fn is_non_activating(hwnd: Handle) -> bool {
+        // SAFETY: plain value call on a live window handle.
+        let style = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) };
+        style & WS_EX_NOACTIVATE != 0
     }
 
     #[repr(C)]

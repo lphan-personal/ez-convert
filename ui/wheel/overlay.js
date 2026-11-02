@@ -102,11 +102,22 @@
   }
 
   if (event && event.listen) {
-    event.listen('wheel://summon', function (message) {
-      summon(message && message.payload);
-    });
-    event.listen('wheel://dismiss', dismissed);
+    // Kept as a bonus for a build that grants `core:event`, but not relied on: this app
+    // grants no capability for the event API, so the listeners below would never fire
+    // (measured — the probe got its placement only through the handshake at the bottom).
+    // Rust calls `__wheelSummon`/`__wheelDismiss` directly instead.
+    try {
+      event.listen('wheel://summon', function (message) {
+        summon(message && message.payload);
+      }).catch(function () {});
+      event.listen('wheel://dismiss', dismissed).catch(function () {});
+    } catch (e) { /* older webview, or no permission: the direct calls cover it */ }
   }
+
+  // The two entry points Rust uses (`shell/overlay.rs::dispatch`). A plain global
+  // function: native injection from the host does not need a permission.
+  root.__wheelSummon = summon;
+  root.__wheelDismiss = dismissed;
 
   // Esc: Rust watches the key globally (the window is deliberately non-activating),
   // but when the overlay does have the keyboard this is the immediate path.

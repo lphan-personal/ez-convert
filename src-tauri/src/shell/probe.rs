@@ -75,6 +75,8 @@ struct WindowFacts {
     scale_factor: Option<f64>,
     /// What the window server thinks the click-through shape is.
     region_type: Option<i32>,
+    /// Windows: `WS_EX_NOACTIVATE` is set, i.e. the overlay cannot take the foreground.
+    non_activating: Option<bool>,
     ignores_mouse_events: Option<bool>,
 }
 
@@ -219,6 +221,7 @@ fn measure(app: &AppHandle) -> Facts {
             outer_size: window.outer_size().ok().map(|size| [size.width, size.height]),
             scale_factor: window.scale_factor().ok(),
             region_type: crate::shell::overlay::region_type(window),
+            non_activating: crate::shell::overlay::window_is_non_activating(window),
             ignores_mouse_events: crate::shell::overlay::ignores_mouse_events(window),
         },
         None => WindowFacts {
@@ -231,6 +234,7 @@ fn measure(app: &AppHandle) -> Facts {
             outer_size: None,
             scale_factor: None,
             region_type: None,
+            non_activating: None,
             ignores_mouse_events: None,
         },
     };
@@ -353,6 +357,13 @@ fn measure(app: &AppHandle) -> Facts {
     {
         checks.insert("window-region-is-ellipse".into(), window_facts.region_type == Some(3));
         checks.insert("corner-belongs-to-another-window".into(), corner_window_is_ours == Some(false));
+        // On a runner with no console there is no foreground window to steal, so
+        // `is_focused()` is not a meaningful signal there. What is meaningful, and
+        // asserted, is the style bit that makes the window unactivatable at all.
+        checks.insert(
+            "window-non-activating".into(),
+            window_facts.non_activating == Some(true),
+        );
     }
     #[cfg(target_os = "macos")]
     {
@@ -378,7 +389,10 @@ fn measure(app: &AppHandle) -> Facts {
         "size-matches-wheel",
         "always-on-top",
         "undecorated",
-        "overlay-not-key",
+        // `overlay-not-key` is recorded on Windows but not asserted: a runner with no
+        // console has no foreground window, so the reading says more about the session
+        // than about the window. `window-non-activating` replaces it, and
+        // `main-window-keeps-focus` still covers the user-visible property.
         "main-window-keeps-focus",
         "rendered-within-150ms",
         "cursor-at-wheel-or-clamped",
@@ -386,6 +400,7 @@ fn measure(app: &AppHandle) -> Facts {
         "click-through-sampled",
         "window-region-is-ellipse",
         "corner-belongs-to-another-window",
+        "window-non-activating",
     ]
     .into_iter()
     .map(|name| name.to_string())
