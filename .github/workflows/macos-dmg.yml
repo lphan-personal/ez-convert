@@ -17,6 +17,11 @@ on:
   # that touched src-tauri/**. macOS now builds on a tag push (v*) or on demand.
   # To iterate the DMG, dispatch it explicitly:
   #   gh workflow run macos-dmg.yml            (or POST /actions/workflows/macos-dmg.yml/dispatches)
+  # A tag ending in `-app` runs only the app job and `-pack` only the engine
+  # pack (each face of this workflow has its own card); a plain `v*` tag and
+  # workflow_dispatch run both. Skipped jobs leave the run green, so a partial
+  # iteration still gives a readable verdict instead of a red X for work that
+  # was never asked to happen.
   push:
     tags:
       - "v*"
@@ -42,6 +47,12 @@ jobs:
   app:
     name: app (universal DMG)
     runs-on: macos-latest
+    # Cheap-iteration guard (2026-11-02, t_0e2a0904): two cards own this
+    # workflow — the app DMG and the engine pack — and a full run bills ~47
+    # macOS minutes because both jobs run whatever you are actually debugging.
+    # A tag ending `-app` runs only this job; `-pack` runs only the pack. Plain
+    # `v*` tags and workflow_dispatch still run everything.
+    if: github.event_name != 'push' || !endsWith(github.ref_name, '-pack')
     # Spend guard (2026-11-02): a macOS minute bills at 10x. This job has
     # never needed more than a few minutes; cap it so a hang cannot eat the quota.
     timeout-minutes: 25
@@ -100,6 +111,45 @@ jobs:
           lipo -archs "$app/Contents/MacOS/ez-convert" | grep -q x86_64
           echo "bundle: OK $(du -sh "$app" | cut -f1)"
 
+      # The bundle must stay engine-free. Tauri's resource copy flattens `.app`
+      # symlinks, so an engine tree under Contents/Resources would be both
+      # unsigned and broken (docs/MACOS-PACKAGING.md §1). Asserting the shape —
+      # rather than trusting the config that happens to be correct today — is what
+      # turns "no LibreOffice in Contents/Resources" into a CI fact: the Windows
+      # bundle config does copy `resources/engines` and shares this source tree.
+      - name: Bundle shape gate (no engine payload, Resources = assets only)
+        run: |
+          set -euo pipefail
+          app="src-tauri/target/universal-apple-darwin/release/bundle/macos/EZ Convert.app"
+          echo "== every file in the bundle =="
+          ( cd "$app" && find . -type f | sort ) | tee bundle-files.txt
+          echo "files in bundle: $(wc -l < bundle-files.txt | tr -d ' ')"
+          echo "== Contents/Resources =="
+          find "$app/Contents/Resources" -type f | sort
+
+          extra=$(find "$app/Contents/Resources" -type f ! -name 'icon.icns' | sort)
+          if [ -n "$extra" ]; then
+            echo "::error::Contents/Resources holds more than icon.icns"
+            printf '%s\n' "$extra"
+            exit 1
+          fi
+
+          payload=$(find "$app" \( -iname '*soffice*' -o -iname '*libreoffice*' \
+              -o -iname '*vips*' -o -iname 'ffmpeg*' -o -iname 'ffprobe*' \
+              -o -iname 'engines' \) -print | sort)
+          if [ -n "$payload" ]; then
+            echo "::error::an engine payload is inside the app bundle — engines ship in the separate pack (docs/MACOS-PACKAGING.md §1)"
+            printf '%s\n' "$payload"
+            exit 1
+          fi
+          for d in engines program; do
+            if [ -d "$app/Contents/Resources/$d" ]; then
+              echo "::error::Contents/Resources/$d exists in the bundle"
+              exit 1
+            fi
+          done
+          echo "bundle shape: OK — Contents/Resources holds icon.icns only, no engine payload"
+
       - name: Package and rename the DMG
         run: |
           set -euo pipefail
@@ -111,6 +161,32 @@ jobs:
           shasum -a 256 "dist/EZ-Convert-${EZC_VERSION}-macos-universal.dmg" | tee dist/app-dmg.sha256
           ls -lh dist
 
+      # warden's Q2 condition (handed over from t_18165ce9): everything that
+      # ships attributes to a docs/shipped-inventory.tsv row, fail-closed, before
+      # the artifact is uploaded. Root is the `.app` on the mounted volume — the
+      # only other files there are `.VolumeIcon.icns` (own row) and a symlink.
+      # Before this step existed the app DMG had never been through the gate.
+      - name: Licence gate over the DMG payload (fail-closed attribution)
+        run: |
+          set -euo pipefail
+          dmg="dist/EZ-Convert-${EZC_VERSION}-macos-universal.dmg"
+          mnt="$RUNNER_TEMP/app-scan-mnt"
+          mkdir -p "$mnt"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$dmg" >/dev/null
+          app=$(find "$mnt" -maxdepth 1 -name '*.app' | head -1)
+          if [ -z "$app" ]; then
+            hdiutil detach "$mnt" >/dev/null || true
+            echo "::error::no .app on the mounted DMG"
+            exit 1
+          fi
+          set +e
+          bash scripts/dist-license-gate.sh --scan "$app" 2>&1 | tee licence-gate.log
+          code=${PIPESTATUS[0]}
+          set -e
+          hdiutil detach "$mnt" >/dev/null || hdiutil detach -force "$mnt" >/dev/null || true
+          [ "$code" -eq 0 ] || { echo "::error::the app DMG failed the licence gate"; exit "$code"; }
+          echo "licence gate: every file in the app DMG payload is attributed"
+
       - name: Upload the app DMG
         uses: actions/upload-artifact@v4
         with:
@@ -121,12 +197,15 @@ jobs:
 
       - name: Evidence
         if: always()
-        run: bash packaging/macos/publish-evidence.sh app "${{ job.status }}" tauri-build.log sign.log
+        run: bash packaging/macos/publish-evidence.sh app "${{ job.status }}" tauri-build.log sign.log bundle-files.txt licence-gate.log
 
   # --------------------------------------------------------- engine pack
   pack:
     name: pack (engine pack DMG)
     runs-on: macos-latest
+    # The other half of the cheap-iteration guard above: `*-pack` tags run only
+    # this job (engine-pack iteration, t_90b19752).
+    if: github.event_name != 'push' || !endsWith(github.ref_name, '-app')
     # Spend guard (2026-11-02): a macOS minute bills at 10x. The job now also
     # hashes the ~700 MB pack, codesign-verifies every Mach-O object in it and
     # mounts the DMG to re-verify the artifact (step 8b), so the cap moved from

@@ -272,3 +272,54 @@ bundle, resolving engines exactly as the window does.
   the DMG until §4 is funded.
 - no release upload: the DMGs are build artifacts on the run (`macos-app-dmg`,
   `macos-engine-pack`); publishing them is a release-engineering card.
+
+## 6. The app DMG, measured off the runner (2026-11-02)
+
+The `app` job's own log says what it built; this section is the same claim
+re-measured on the downloaded artifact instead of the log, because a green step
+is not the same as the bytes it uploaded being the bytes we think they are.
+
+Source: artifact `macos-app-dmg` from run `41379802059` (head `3a60afa`),
+6,261,221 B zip. The DMG inside is 6,298,734 B and its sha256 is
+`0f9dacc8784edd24a5627d508caf402a005320c49d3794af15d40fb56023f740`, identical to
+the `dist/app-dmg.sha256` the job recorded — the artifact is the file the job
+hashed, not a rebuild.
+
+| Claim | Measurement |
+|---|---|
+| universal | fat header `0xcafebabe`, `nfat_arch = 2` |
+| x86_64 | slice at offset 16,384, 5,978,912 B, `LC_BUILD_VERSION platform=1 minos=11.0.0` |
+| arm64 | slice at offset 5,996,544, 5,405,008 B, `LC_BUILD_VERSION platform=1 minos=11.0.0` |
+| ad-hoc signed | both slices carry an embedded `LC_CODE_SIGNATURE` (64,480 B / 28,800 B) |
+| bundle | 4 files, 12,349,211 B total |
+
+The bundle's entire file list — this is the whole `Contents` tree, not a
+summary:
+
+```
+   1,058  Contents/Info.plist
+11,401,552  Contents/MacOS/ez-convert
+  944,161  Contents/Resources/icon.icns
+    2,440  Contents/_CodeSignature/CodeResources
+```
+
+`Contents/Resources` holds `icon.icns` and nothing else, so LibreOffice, vips and
+ffmpeg are provably not in the bundle (§1: they ride in the engine pack). The
+DMG volume adds only the `Applications` symlink and `.VolumeIcon.icns`.
+
+Two gates now enforce that shape on every run instead of leaving it to the
+config that happens to be correct today — the Windows bundle config *does* copy
+`resources/engines` and shares this source tree:
+
+1. **Bundle shape gate** (before packaging) — fails if `Contents/Resources`
+   holds anything but `icon.icns`, or if any `soffice`/`libreoffice`/`vips`/
+   `ffmpeg`/`ffprobe`/`engines` entry appears anywhere in the bundle. Proven
+   non-vacuous against two planted fixtures: a `Resources/engines/soffice/...`
+   tree and a `Contents/Frameworks/libvips.42.dylib` both fail the step.
+2. **Licence gate over the DMG payload** (after packaging, before upload) —
+   `scripts/dist-license-gate.sh --scan` over the `.app` on the mounted volume,
+   fail-closed; this is warden's Q2 condition. The five rows it needs live in
+   `docs/shipped-inventory.tsv` under "macOS app DMG payload". Before this step
+   the app DMG had never been through the gate: all four bundle files were
+   unattributed and the scan failed.
+
