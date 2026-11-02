@@ -1,0 +1,155 @@
+
+=== card t_0e2a0904 — app DMG: universal build on the Actions macOS runner ===
+captured: 2026-11-02T03:17:44Z UTC
+host: Linux agent (no macOS toolchain; Mach-O read from the bytes)
+
+=== 1. the run and the job (GitHub Actions API) ===
+
+$ python3 gh_runs.py runs 3 | head -3
+41382171845  macos-dmg    in_progress None      20f4f72d  2026-11-02T03:16:19Z
+41382170170  build        queued    None      20f4f72d  2026-11-02T03:16:18Z
+41381599797  macos-dmg    completed success   ac2fb8f3  2026-11-02T03:10:20Z
+
+$ python3 gh_runs.py jobs 41381599797 | grep -E '^job|Bundle shape|Licence gate|Verify the bundle|Upload the app DMG|tauri build|Sign inside-out' 
+job 125073395324  app (universal DMG)          completed success   started=2026-11-02T03:10:22Z
+    7  tauri build (universal)                    completed success
+    8  Sign inside-out (ad-hoc for v1)            completed success
+    9  Verify the bundle and both architectures   completed success
+    10 Bundle shape gate (no engine payload, Resources = assets only) completed success
+    12 Licence gate over the DMG payload (fail-closed attribution) completed success
+    13 Upload the app DMG                         completed success
+job 125073397020  pack (engine pack DMG)       completed skipped   started=2026-11-02T03:10:21Z
+job 125074218931  evidence (publish to macos-status) completed success   started=2026-11-02T03:13:14Z
+job 125074219641  install-test (DMG install + real conversions) completed skipped   started=2026-11-02T03:13:12Z
+
+=== 2. the job's own log: the words CI printed (lipo, bundle shape, licence gate) ===
+
+$ grep -aE '^2026.*(x86_64 arm64|bundle: OK|files in bundle|bundle shape: OK|scan: [0-9]+ files attributed|licence gate: every file|e8ac81f2)' app-job.log
+2026-11-02T03:13:01.2898230Z [36;1mecho "bundle: OK $(du -sh "$app" | cut -f1)"[0m
+2026-11-02T03:13:01.3635090Z x86_64 arm64
+2026-11-02T03:13:01.3893330Z bundle: OK  12M
+2026-11-02T03:13:01.3932730Z [36;1mecho "files in bundle: $(wc -l < bundle-files.txt | tr -d ' ')"[0m
+2026-11-02T03:13:01.3939110Z [36;1mecho "bundle shape: OK — Contents/Resources holds icon.icns only, no engine payload"[0m
+2026-11-02T03:13:01.4315020Z files in bundle: 4
+2026-11-02T03:13:01.4426650Z bundle shape: OK — Contents/Resources holds icon.icns only, no engine payload
+2026-11-02T03:13:01.5575230Z e8ac81f21eff646dc53e3256843dcd526f86415ac867f30814953208562c6361  dist/EZ-Convert-0.0.1-macos-universal.dmg
+2026-11-02T03:13:01.5864580Z [36;1mecho "licence gate: every file in the app DMG payload is attributed"[0m
+2026-11-02T03:13:05.1724990Z scan: 4 files attributed, 0 failures
+2026-11-02T03:13:05.2113680Z licence gate: every file in the app DMG payload is attributed
+
+=== 3. the artifact, downloaded and hashed (same bytes the job hashed) ===
+
+$ ls -l app2/
+total 6156
+-rw-r--r-- 1 hermes hermes 6299142 Nov  2 03:13 EZ-Convert-0.0.1-macos-universal.dmg
+-rw-r--r-- 1 hermes hermes     108 Nov  2 03:13 app-dmg.sha256
+
+$ sha256sum app2/*.dmg
+e8ac81f21eff646dc53e3256843dcd526f86415ac867f30814953208562c6361  app2/EZ-Convert-0.0.1-macos-universal.dmg
+
+$ cat app2/app-dmg.sha256
+e8ac81f21eff646dc53e3256843dcd526f86415ac867f30814953208562c6361  dist/EZ-Convert-0.0.1-macos-universal.dmg
+
+$ ls -l app2.zip
+-rw-r--r-- 1 hermes hermes 6261050 Nov  2 03:15 app2.zip
+
+=== 4. universal? read the fat header of the extracted binary (Linux stand-in for lipo -info) ===
+
+$ python3 macho_report.py 'dmg2/EZ Convert/EZ Convert.app/Contents/MacOS/ez-convert'
+file: dmg2/EZ Convert/EZ Convert.app/Contents/MacOS/ez-convert (11401552 B)
+header: FAT_MAGIC 0xcafebabe — universal binary, 2 architectures
+  arch[0]: x86_64   cputype=0x01000007 subtype=3 offset=16384 size=5978912 align=2^14
+  x86_64: Mach-O 64-bit, 30 load commands, embedded code signature 64480 B (ad-hoc or better)
+      LC_BUILD_VERSION platform=1 minos=11.0.0
+  arch[1]: arm64    cputype=0x0100000c subtype=0 offset=5996544 size=5405008 align=2^14
+  arm64: Mach-O 64-bit, 30 load commands, embedded code signature 28800 B (ad-hoc or better)
+      LC_BUILD_VERSION platform=1 minos=11.0.0
+ARCHS: x86_64 arm64
+universal: YES (arm64 + x86_64)
+
+=== 5. bundle contents: no LibreOffice, no engine payload, Resources = icon.icns ===
+
+$ python3 bundle_inventory.py 'dmg2/EZ Convert/EZ Convert.app'
+bundle: dmg2/EZ Convert/EZ Convert.app
+
+== every file in the bundle ==
+       1058  Contents/Info.plist
+   11401552  Contents/MacOS/ez-convert
+     944161  Contents/Resources/icon.icns
+       2440  Contents/_CodeSignature/CodeResources
+  4 files, 12349211 bytes
+
+== Contents/Resources ==
+  Contents/Resources/icon.icns
+PASS Contents/Resources holds assets only (expected <= ['Contents/Resources/icon.icns']): 1 file(s): ['icon.icns']
+
+== no engine payload in the bundle ==
+PASS no LibreOffice / vips / ffmpeg payload anywhere in the bundle: 0 matches for ['libreoffice', 'soffice', 'ffmpeg', 'ffprobe', 'libvips', 'vips']
+PASS no LibreOffice.app nested inside the bundle
+
+== Mach-O shape ==
+PASS exactly one main binary at Contents/MacOS/ez-convert: ['Contents/MacOS/ez-convert']
+PASS Contents/_CodeSignature/CodeResources present
+PASS Contents/Info.plist present
+
+RESULT: PASS
+
+=== 6. the DMG volume root (nothing else ships) ===
+
+$ find 'dmg2/EZ Convert' -maxdepth 2 | sort
+dmg2/EZ Convert
+dmg2/EZ Convert/.HFS+ Private Directory Data
+dmg2/EZ Convert/.VolumeIcon.icns
+dmg2/EZ Convert/Applications
+dmg2/EZ Convert/EZ Convert.app
+dmg2/EZ Convert/EZ Convert.app/Contents
+dmg2/EZ Convert/[HFS+ Private Data]
+   (the `Applications` entry is a symlink and `[HFS+ Private Data]` / `.HFS+ Private
+    Directory Data` are create-dmg's HFS bookkeeping directories; the only regular
+    files on the volume are .VolumeIcon.icns and the four bundle files listed above)
+
+=== 7. licence gate over the shipped payload (warden Q2 condition) ===
+
+$ ( cd /opt/data/profiles/wright/cache/scratch/t_0e2a0904 && bash scripts/dist-license-gate.sh --scan '/opt/data/profiles/wright/cache/scratch/ghadm/dmg2/EZ Convert/EZ Convert.app' ); echo exit=$?
+scan: 4 files attributed, 0 failures
+exit=0
+
+$ ( cd /opt/data/profiles/wright/cache/scratch/t_0e2a0904 && bash scripts/dist-license-gate.sh --check-inventory ); echo exit=$?
+inventory: 106 rows checked, 0 failures, 0 warnings
+exit=0
+
+=== 8. the gate the card asked for, proven non-vacuous (two planted fixtures) ===
+fixture neg1 = the real bundle + Contents/Resources/engines/soffice/program/soffice
+fixture neg2 = the real bundle + Contents/Frameworks/libvips.42.dylib
+
+$ bash shape_neg1.sh 2>&1 | tail -4; echo 'exit(neg1)='$?
+neg1/Contents/Resources/engines/soffice/program/soffice
+neg1/Contents/Resources/icon.icns
+::error::Contents/Resources holds more than icon.icns
+neg1/Contents/Resources/engines/soffice/program/soffice
+exit(neg1)=1
+
+$ bash shape_neg2.sh 2>&1 | tail -4; echo 'exit(neg2)='$?
+== Contents/Resources ==
+neg2/Contents/Resources/icon.icns
+::error::an engine payload is inside the app bundle — engines ship in the separate pack (docs/MACOS-PACKAGING.md §1)
+neg2/Contents/Frameworks/libvips.42.dylib
+exit(neg2)=1
+
+$ bash shape_gate.sh 2>&1 | tail -3; echo 'exit(real-bundle)='$?
+== Contents/Resources ==
+dmgout/EZ Convert/EZ Convert.app/Contents/Resources/icon.icns
+bundle shape: OK — Contents/Resources holds icon.icns only, no engine payload
+exit(real-bundle)=0
+
+=== 9. what is NOT proven here ===
+- install-test did not run: it needs both the app DMG and the engine pack, and the
+  engine pack job is card t_90b19752 (skipped on this tag by design). So "installs
+  and converts from /Applications on a real Mac" is NOT proven by this card.
+- the ad-hoc signature is verified structurally (LC_CODE_SIGNATURE present in both
+  slices) and by the job's `codesign --verify --strict`; it was not re-verified on a
+  macOS machine after download.
+- the 4-file bundle was measured on the artifact; `codesign -dv` details (authority,
+  flags) are not observable from Linux.
+
+--- end of transcript ---
