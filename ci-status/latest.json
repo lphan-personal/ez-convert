@@ -1,18 +1,18 @@
 {
-  "run_id": 41377802843,
-  "run_number": 66,
+  "run_id": 41378043976,
+  "run_number": 68,
   "run_attempt": 1,
-  "run_url": "https://github.com/lphan-personal/ez-convert/actions/runs/41377802843",
+  "run_url": "https://github.com/lphan-personal/ez-convert/actions/runs/41378043976",
   "event": "push",
   "ref": "main",
-  "sha": "afdb011644b43c16f389623839ce8cf240dcd09e",
+  "sha": "eb0176a2a9eed745a0991d411fd2cfef0429aaac",
   "trigger_inputs": {"spike_id": ""},
   "results": {
     "build_matrix_3_os": "cancelled",
-    "license_assert": "success",
-    "policy_check": "success",
+    "license_assert": "cancelled",
+    "policy_check": "cancelled",
     "e2e": "cancelled",
     "spike": "skipped"
   },
-  "published_at": "2026-11-02T02:31:24Z"
+  "published_at": "2026-11-02T02:33:07Z"
 }
