@@ -160,22 +160,54 @@ check_symlinks() { # <pack-root>
 
 # ------------------------------------------------------------------- smoke runs
 check_exec() { # <pack-root>
-  local root="$1" out
+  local root="$1" out code first buildconf
   [ "$SKIP_EXEC" = "1" ] && { note "engine smoke runs skipped (--skip-exec)"; return; }
 
-  out="$("$root/engines/vips/vips" --version 2>&1)" \
-    && pass "pack vips runs: $out" || fail "pack vips does not run: $out"
-  out="$("$root/engines/ffmpeg/ffmpeg" -version 2>&1 | head -1)" \
-    && pass "pack ffmpeg runs: $out" || fail "pack ffmpeg does not run: $out"
-  if "$root/engines/ffmpeg/ffmpeg" -buildconf 2>/dev/null | grep -qE -- '--enable-gpl|--enable-nonfree'; then
+  # Exit status, not just output: an engine that cannot execute on this host
+  # still prints something ("Bad CPU type in executable") and a non-empty
+  # string is not a smoke test. Found on a real Intel Mac (macos-15-intel):
+  # the old `[ -n "$out" ]` shape reported "PASS pack soffice runs" over that
+  # error line (docs/MACOS-PACKAGING.md §7).
+  code=0
+  out="$("$root/engines/vips/vips" --version 2>&1)" || code=$?
+  first="$(printf '%s\n' "${out:-}" | head -1)"
+  if [ "$code" -eq 0 ] && [ -n "$first" ]; then
+    pass "pack vips runs: $first"
+  else
+    fail "pack vips does not run (exit $code): $first"
+  fi
+
+  code=0
+  out="$("$root/engines/ffmpeg/ffmpeg" -version 2>&1)" || code=$?
+  first="$(printf '%s\n' "${out:-}" | head -1)"
+  if [ "$code" -eq 0 ] && [ -n "$first" ]; then
+    pass "pack ffmpeg runs: $first"
+  else
+    fail "pack ffmpeg does not run (exit $code): $first"
+  fi
+
+  code=0
+  buildconf="$("$root/engines/ffmpeg/ffmpeg" -buildconf 2>/dev/null)" || code=$?
+  if [ "$code" -ne 0 ] || [ -z "${buildconf//[[:space:]]/}" ]; then
+    # A licence probe that cannot run (or says nothing) proves nothing; say so
+    # instead of PASSing on an empty grep.
+    note "shipped-ffmpeg licence probe skipped: no buildconf output (exit $code)"
+  elif printf '%s' "$buildconf" | grep -qE -- '--enable-gpl|--enable-nonfree'; then
     fail "shipped ffmpeg advertises GPL components"
   else
     pass "shipped ffmpeg is not GPL"
   fi
+
   # soffice from inside its bundle is the symlink test with consequences: it
   # loads ../Resources and ../Frameworks or it aborts with a UNO DeploymentException.
-  out="$("$root/engines/soffice/LibreOffice.app/Contents/MacOS/soffice" --headless --version 2>&1 | head -1)"
-  [ -n "$out" ] && pass "pack soffice runs: $out" || fail "pack soffice does not run"
+  code=0
+  out="$("$root/engines/soffice/LibreOffice.app/Contents/MacOS/soffice" --headless --version 2>&1)" || code=$?
+  first="$(printf '%s\n' "${out:-}" | head -1)"
+  if [ "$code" -eq 0 ] && [ -n "$first" ]; then
+    pass "pack soffice runs: $first"
+  else
+    fail "pack soffice does not run (exit $code): $first"
+  fi
 }
 
 # ------------------------------------------------------- the app stays engine-free

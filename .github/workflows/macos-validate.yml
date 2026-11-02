@@ -47,6 +47,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Unit-test the verifier's smoke runs (must FAIL when an engine cannot execute)
+        run: bash scripts/test-verify-engine-pack.sh
+
       - name: Download the shipped DMGs (no rebuild)
         uses: actions/download-artifact@v4
         with:
@@ -128,7 +131,7 @@ jobs:
           fi
           # Proof that the next run is really translated, not merely labelled.
           arch -x86_64 /usr/bin/uname -m | tee -a rosetta.log
-          arch -x86_64 /bin/sh -c 'echo proc_translated(child)=$(sysctl -n sysctl.proc_translated)' | tee -a rosetta.log
+          echo "proc_translated(child)=$(arch -x86_64 /bin/sh -c 'sysctl -n sysctl.proc_translated')" | tee -a rosetta.log
 
       - name: Convert with the app's x86_64 slice under Rosetta (recorded, classified)
         run: |
@@ -244,7 +247,7 @@ jobs:
             echo "::error::too few checks passed on Intel ($passes) - the pack is not structurally intact"
             exit 1
           fi
-          unexplained="$(grep '^FAIL  ' verify-pack.log | grep -vE 'runs|not GPL' || true)"
+          unexplained="$(grep '^FAIL  ' verify-pack.log | grep -vE 'does not run|not GPL' || true)"
           if [ -n "$unexplained" ]; then
             echo "::error::unexplained verification failures on Intel:"
             printf '%s\n' "$unexplained"

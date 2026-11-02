@@ -221,6 +221,12 @@ jobs:
       - name: Unit-test the pack manifest (fail-closed mutations)
         run: bash scripts/test-pack-manifest.sh
 
+      - name: Unit-test the verifier's smoke runs (an engine that cannot execute must FAIL)
+        # Regression: on a real Intel Mac the arm64-only pack made soffice print
+        # "Bad CPU type in executable" and the check still printed PASS. Runs on
+        # the runner's bash against fake engine trees (no Darwin APIs needed).
+        run: bash scripts/test-verify-engine-pack.sh
+
       # Build dependencies for the LGPL ffmpeg (no GPL library is installed):
       # libvpx BSD, aom BSD, opus BSD, libvorbis BSD, lame LGPL-2.1. pkgconf is
       # how configure finds them; the build is arm64 so nasm is not needed.
