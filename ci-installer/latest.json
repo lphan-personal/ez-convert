@@ -1,0 +1,18 @@
+{
+  "job_status": "success",
+  "run_id": 41506163113,
+  "run_url": "https://github.com/lphan-personal/ez-convert/actions/runs/41506163113",
+  "sha": "a07f462a8bff4ddce14bfc5899bafc94c2b5a625",
+  "artifact_name": "ez-convert-windows-nsis",
+  "artifact_id": "13171396455",
+  "artifact_url": "https://github.com/lphan-personal/ez-convert/actions/runs/41506163113/artifacts/13171396455",
+  "file": "EZ Convert_0.0.1_x64-setup.exe",
+  "size_bytes": "219983879",
+  "sha256": "3b6fafb8dfe01b5b61fce66d17860e9c671d7c2430a3e022dbb009e3a21baff1",
+  "installed_bin": "/c/Users/runneradmin/AppData/Local/EZ Convert/ez-convert.exe",
+  "installed_bin_sha256": "e3d16075519785c72bfdf42caf5f8e4bc82cd2dcd43a1a95532274693847c1d0",
+  "installed_overlay_ok": "true",
+  "installed_overlay_checks": "15/15",
+  "installed_overlay_evidence": "ci-installer/41506163113/overlay/",
+  "published_at": "2026-11-02T19:08:49Z"
+}

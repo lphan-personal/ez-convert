@@ -1,0 +1,4 @@
+measuring /c/Users/runneradmin/AppData/Local/EZ Convert/ez-convert.exe (sha256 e3d16075519785c72bfdf42caf5f8e4bc82cd2dcd43a1a95532274693847c1d0)
+INSTALLED_OVERLAY ok=true checks=15/15
+INSTALLED_OVERLAY binary=/c/Users/runneradmin/AppData/Local/EZ Convert/ez-convert.exe sha256=e3d16075519785c72bfdf42caf5f8e4bc82cd2dcd43a1a95532274693847c1d0
+INSTALLED_OVERLAY window-region-is-ellipse=pass corner-belongs-to-another-window=pass window-non-activating=pass
