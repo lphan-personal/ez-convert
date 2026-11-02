@@ -74,6 +74,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Liveness marker: pushed as soon as the job starts, before any build work.
+      # Without it, a job that dies mid-run is indistinguishable from a run that
+      # never started — which is exactly how 17 hours of silence looked on this
+      # repo (see evidence/p1-ci-pipeline.md).
+      - name: Record job start to ci-start-${{ matrix.os }}
+        env:
+          OS_SLUG: ${{ matrix.os }}
+        run: |
+          set -eo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p ci-start
+          printf '{"os":"%s","run_id":%s,"run_url":"%s/%s/actions/runs/%s","sha":"%s","started_at":"%s"}\n' \
+            "$OS_SLUG" "$GITHUB_RUN_ID" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" \
+            "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > ci-start/latest.json
+          git checkout -B "ci-start-${OS_SLUG}"
+          git add -f ci-start
+          git commit -q -m "ci-start: ${OS_SLUG} run ${GITHUB_RUN_ID}" || echo "nothing to commit"
+          git push --force origin "ci-start-${OS_SLUG}"
+
       - name: Install Tauri 2 Linux system dependencies
         if: runner.os == 'Linux'
         run: |
