@@ -455,6 +455,12 @@ jobs:
       - name: Engine tests without the shell
         run: bash scripts/test-engine.sh
 
+      # The engine pack's version/checksum manifest is pure python, so it is
+      # tested here (ubuntu, seconds) and again as the first step of the macOS
+      # pack job — before that job spends billed macOS minutes.
+      - name: Engine pack manifest (seal/verify fails closed)
+        run: bash scripts/test-pack-manifest.sh
+
       # The matrix and the evidence index are generated; drift fails the test
       # above, and this step prints the diff to make the fix obvious.
       - name: Generated docs are in sync

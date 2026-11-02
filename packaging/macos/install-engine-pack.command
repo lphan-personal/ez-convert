@@ -34,7 +34,10 @@ fi
 
 mkdir -p "$packroot"
 if [ -d "$dest" ]; then
-  backup="$dest.replaced-$(date +%Y%m%d-%H%M%S)"
+  # The backup goes BESIDE the pack root, not inside it: the pack root has to
+  # contain exactly the pack, or `scripts/verify-engine-pack.sh --pack` would
+  # (rightly) report the old tree as files the manifest never described.
+  backup="$(dirname "$packroot")/$(basename "$packroot").replaced-$(date +%Y%m%d-%H%M%S)"
   echo "existing pack moved to $backup"
   mv "$dest" "$backup"
 fi
@@ -44,8 +47,15 @@ fi
 ditto "$payload/engines" "$dest"
 ditto "$payload/licenses" "$packroot/licenses"
 cp "$payload/MANIFEST.sha256" "$packroot/MANIFEST.sha256"
+# The version + checksum manifest travels with the pack: the app and support
+# read pack id/version/arch from here (docs/MACOS-PACKAGING.md §2.1).
+cp "$payload/MANIFEST.json" "$packroot/MANIFEST.json"
 
+pack_id="$(sed -n 's/^ *"id": "\([^"]*\)".*/\1/p' "$payload/MANIFEST.json" | head -1)"
+pack_version="$(sed -n '/^ *"pack": {/,/^ *},/s/^ *"version": "\([^"]*\)".*/\1/p' "$payload/MANIFEST.json" | head -1)"
+pack_arch="$(sed -n 's/^ *"arch": "\([^"]*\)".*/\1/p' "$payload/MANIFEST.json" | head -1)"
 printf 'installed: %s\n' "$dest"
+printf 'pack:      %s version %s (%s)\n' "${pack_id:-unknown}" "${pack_version:-unknown}" "${pack_arch:-unknown}"
 for probe in vips/vips ffmpeg/ffmpeg soffice/program/soffice; do
   if [ -f "$dest/$probe" ]; then
     printf '  present  %s\n' "$probe"

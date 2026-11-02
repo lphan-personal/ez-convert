@@ -133,6 +133,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The manifest logic is pure python and runs anywhere: test it here, in
+      # seconds, before a ~20-minute billed macOS build depends on it.
+      - name: Unit-test the pack manifest (fail-closed mutations)
+        run: bash scripts/test-pack-manifest.sh
+
       # Build dependencies for the LGPL ffmpeg (no GPL library is installed):
       # libvpx BSD, aom BSD, opus BSD, libvorbis BSD, lame LGPL-2.1. pkgconf is
       # how configure finds them; the build is arm64 so nasm is not needed.
@@ -151,6 +156,22 @@ jobs:
         run: |
           set -o pipefail
           EZC_WORK="$RUNNER_TEMP/ezc-pack" bash scripts/mac-engine-pack.sh --out dist 2>&1 | tee pack.log
+
+      - name: Assert the published pins are next to the DMG
+        # The DMG carries MANIFEST.json + MANIFEST.sha256 inside; the sidecar and
+        # .sha256 beside it are what a download is checked against. Uploading the
+        # DMG alone would ship the artifact without its pins.
+        run: |
+          set -euo pipefail
+          ls -l dist
+          dmg=$(find dist -name 'EZ-Convert-Engine-Pack-*.dmg' | head -1)
+          [ -n "$dmg" ] || { echo "::error::no engine-pack DMG in dist"; exit 1; }
+          for pin in "$dmg.sha256" "$dmg.manifest.json"; do
+            [ -f "$pin" ] || { echo "::error::missing $(basename "$pin")"; exit 1; }
+          done
+          grep -q '"version":' "$dmg.manifest.json" || { echo "::error::sidecar has no version"; exit 1; }
+          grep -q '"sha256":' "$dmg.manifest.json" || { echo "::error::sidecar has no digest"; exit 1; }
+          echo "pins: $(basename "$dmg"), $(basename "$dmg").sha256, $(basename "$dmg").manifest.json"
 
       - name: Upload the engine pack
         uses: actions/upload-artifact@v4
@@ -211,6 +232,17 @@ jobs:
           hdiutil detach "$mnt" >/dev/null
           ls -la "$HOME/Library/Application Support/app.ezconvert.desktop/engines" | tee -a install-pack.log
 
+      - name: Verify the installed pack and that the app carries no engines
+        # The acceptance for the external pack: the installed tree matches its
+        # version/checksum manifest, keeps every symlink, keeps a valid ad-hoc
+        # signature on every Mach-O object and runs all three engines — and the
+        # app bundle itself carries no engine tree.
+        run: |
+          set -o pipefail
+          bash scripts/verify-engine-pack.sh \
+            --pack "$HOME/Library/Application Support/app.ezconvert.desktop" \
+            --app "/Applications/EZ Convert.app" --expect-arch arm64 2>&1 | tee verify-pack.log
+
       - name: The installed app must find the engines and convert
         run: |
           set -o pipefail
@@ -230,7 +262,7 @@ jobs:
 
       - name: Evidence
         if: always()
-        run: bash packaging/macos/publish-evidence.sh install-test "${{ job.status }}" install.log install-pack.log diag.log
+        run: bash packaging/macos/publish-evidence.sh install-test "${{ job.status }}" install.log install-pack.log verify-pack.log diag.log
 
   # ------------------------------------------------------------- evidence
   evidence:

@@ -9,7 +9,9 @@ is documented in §4 and is a configuration change, not a redesign.
 | Artifact | Contents | Size (runner-measured) |
 |---|---|---|
 | `EZ-Convert-0.0.1-macos-universal.dmg` | `EZ Convert.app`, universal (arm64 + x86_64) | ~12 MB |
-| `EZ-Convert-Engine-Pack-arm64.dmg` | `engines/vips`, `engines/ffmpeg`, `engines/soffice` + licences + manifest | ~700 MB |
+| `EZ-Convert-Engine-Pack-arm64.dmg` | `engines/vips`, `engines/ffmpeg`, `engines/soffice` + licences + `MANIFEST.sha256` + `MANIFEST.json` | ~700 MB |
+| `EZ-Convert-Engine-Pack-arm64.dmg.sha256` | digest of the published DMG | 1 line |
+| `EZ-Convert-Engine-Pack-arm64.dmg.manifest.json` | pack id/version/arch, artifact digest, `MANIFEST.json` digest | 1 file |
 
 The app bundle contains **no engines**. On macOS every engine ships in the pack,
 for three reasons that are all properties of Tauri's macOS bundler:
@@ -61,6 +63,61 @@ Windows (`program/`) packs. That is what lets `scripts/strip-engine-pack.py` and
 `scripts/dist-license-gate.sh --scan` work unchanged on all three platforms.
 `scripts/mac-engine-pack.sh` detects the real layout and fails loudly with the
 `Contents` listing if TDF ships something else.
+
+## 2.1 The pack manifest (version + checksum)
+
+Two files travel inside the pack, at its root next to `engines/`:
+
+| File | Answers |
+|---|---|
+| `MANIFEST.sha256` | *are these the bytes that were built?* — one `sha256  ./path` line per file, `shasum -a 256 -c`-compatible |
+| `MANIFEST.json` | *which pack is this?* — id, pack version, arch, install root, per-engine version + entry point + file count, source digests (LibreOffice image, ffmpeg buildconf), and the **symlink inventory** |
+
+They cover each other. The order in `scripts/pack-manifest.py seal` is what keeps
+that from being circular:
+
+1. hash every file except the two manifests → `MANIFEST.sha256`;
+2. `checksums.files_list_sha256` = sha256 of that list as written;
+3. write `MANIFEST.json` carrying that value;
+4. append `MANIFEST.json`'s own hash line to `MANIFEST.sha256`.
+
+`verify` reproduces it exactly: remove the `MANIFEST.json` line, re-hash the
+remaining bytes and compare with `files_list_sha256`; then check every listed file
+(the manifest itself included) and every file on disk that is *not* listed; then
+compare the recorded symlink inventory with the tree. A flattened `.app` — what
+Tauri's resource copy or a dereferencing `cp -R` produces — is a failure, not a
+cosmetic difference.
+
+A DMG cannot contain its own digest, so the published bytes are pinned beside it:
+
+```
+EZ-Convert-Engine-Pack-arm64.dmg
+EZ-Convert-Engine-Pack-arm64.dmg.sha256          # the digest
+EZ-Convert-Engine-Pack-arm64.dmg.manifest.json   # name, bytes, sha256, pack id/version/arch,
+                                                 # + sha256 of the MANIFEST.json inside
+```
+
+The installer checks `MANIFEST.sha256` before copying and carries `MANIFEST.json`
+into the install root, so the installed pack still says what it is. To check a
+pack the way the app uses it (macOS):
+
+```bash
+# an installed pack, plus proof the app bundle carries no engines
+bash scripts/verify-engine-pack.sh \
+  --pack "$HOME/Library/Application Support/app.ezconvert.desktop" \
+  --app "/Applications/EZ Convert.app" --expect-arch arm64
+
+# a downloaded DMG, before installing anything (mounts read-only)
+bash scripts/verify-engine-pack.sh --dmg EZ-Convert-Engine-Pack-arm64.dmg --expect-arch arm64
+```
+
+That verifier checks the sidecar digest against the artifact, the manifest pair
+against the tree, the symlink inventory (with `engines/soffice/Resources` as the
+named spot check), `codesign --verify` on **every** Mach-O object in the pack, and
+that `vips`, `ffmpeg` and `soffice` actually run from inside the pack — then, with
+`--app`, that `Contents/Resources` holds no engine tree. `scripts/mac-engine-pack.sh`
+runs it on the DMG it just built (step 8b), so a pack that does not survive
+`hdiutil create` fails in the build, not in the user's hands.
 
 ## 3. Ad-hoc signing (v1)
 
@@ -191,7 +248,12 @@ on Apple Silicon with no developer tools:
    installed binary (both slices present);
 3. mount the pack DMG, run `Install Engine Pack.command` exactly as a user
    would (it verifies `MANIFEST.sha256` before copying);
-4. run the installed app's own binary:
+4. re-verify the **installed** tree with
+   `scripts/verify-engine-pack.sh --pack … --app "…"`: the manifest pair, the
+   symlink inventory, `codesign --verify` on every Mach-O object, all three
+   engines running from the installed location, and no engine tree under the
+   app's `Contents/Resources`;
+5. run the installed app's own binary:
    `"/Applications/EZ Convert.app/Contents/MacOS/ez-convert" --diagnostics --fixtures <repo>/fixtures`
    — one real conversion per engine family (png→jpg, wav→mp3, mp4→webm,
    docx→pdf) through `engine::convert` / `engine::doc`, with "exit 0 is not

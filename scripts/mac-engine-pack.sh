@@ -14,7 +14,9 @@
 #   engines/soffice/{program,share,help,...}                    LibreOffice, stripped
 #   licenses/                                                   notices + provenance
 #   MANIFEST.sha256                                             every file, hashed
+#   MANIFEST.json                                               version + engine set
 #   "EZ Convert Engine Pack.dmg"                                the payload
+#   <dmg>.sha256, <dmg>.manifest.json                           published pins
 #
 # Every engine is signed ad-hoc inside-out (nested objects first, outer bundle
 # last). With a Developer ID the same order holds with `--options runtime
@@ -178,6 +180,7 @@ VIPS_PREFIX="$(brew --prefix vips)"
 VIPS_SRC="$VIPS_PREFIX"
 [ -d "$VIPS_SRC/lib" ] || VIPS_SRC="$(brew --prefix)"
 note "vips $("$VIPS_PREFIX/bin/vips" --version) from $VIPS_PREFIX"
+VIPS_VERSION="$("$VIPS_PREFIX/bin/vips" --version | awk '{print $2}')"
 
 VIPS_OUT="$PACK/engines/vips"
 mkdir -p "$VIPS_OUT/lib"
@@ -467,9 +470,22 @@ fi
 cp "$REPO_ROOT/packaging/macos/install-engine-pack.command" "$STAGE/Install Engine Pack.command" && chmod +x "$STAGE/Install Engine Pack.command"
 cp "$REPO_ROOT/packaging/macos/README-pack.txt" "$STAGE/README.txt"
 
-( cd "$PACK" && find . -type f ! -name MANIFEST.sha256 -print0 > "$WORK/filelist.txt" \
+( cd "$PACK" && find . -type f ! -name MANIFEST.sha256 ! -name MANIFEST.json -print0 > "$WORK/filelist.txt" \
   && xargs -0 shasum -a 256 < "$WORK/filelist.txt" > MANIFEST.sha256 )
 note "manifest: $(wc -l < "$PACK/MANIFEST.sha256" | tr -d ' ') files"
+
+# The version + checksum manifest (scripts/pack-manifest.py). MANIFEST.sha256
+# answers "are these the bytes that were built?"; MANIFEST.json answers "which
+# pack is this, which engines at which versions, which arch, and where does it
+# install?" — the two cross-reference each other (see that script's header).
+# The engine versions are the ones this run actually used, not constants.
+LO_SHA="$(awk '{print $1}' "$WORK/downloads/libreoffice.sha256")"
+python3 "$REPO_ROOT/scripts/pack-manifest.py" seal --pack "$PACK" --arch "$ARCH" \
+  --pack-version "${PACK_VERSION:-1.0.0}" \
+  --engine "soffice=$LO_VERSION" --engine "ffmpeg=$FFMPEG_VERSION" --engine "vips=$VIPS_VERSION" \
+  --source "libreoffice-dmg=sha256:$LO_SHA" \
+  --source "ffmpeg-buildconf=file:$WORK/downloads/ffmpeg-buildconf.txt"
+python3 "$REPO_ROOT/scripts/pack-manifest.py" verify --pack "$PACK" --expect-arch "$ARCH"
 
 # The payload IS the pack root: engines/, licenses/ and MANIFEST.sha256 at the
 # top of it. (Earlier this nested $PACK under payload/engines, which installed
@@ -499,5 +515,19 @@ hdiutil create -volname "EZ Convert Engine Pack" -srcfolder "$STAGE" -fs HFS+ -f
 # shellcheck disable=SC2086
 codesign --force --sign "$SIGN_IDENTITY" $SIGN_OPTIONS "$DMG" || { echo "DMG signing failed: $DMG" >&2; exit 1; }
 shasum -a 256 "$DMG" | tee "$OUT/EZ-Convert-Engine-Pack-${ARCH}.dmg.sha256"
+# A DMG cannot contain its own digest, so the published bytes are pinned beside
+# it: name, bytes, sha256, the pack id/version/arch, and the digest of the
+# MANIFEST.json inside. That is the file a download is checked against before
+# anything is mounted.
+python3 "$REPO_ROOT/scripts/pack-manifest.py" seal-artifact \
+  --dmg "$DMG" --pack-manifest "$PACK/MANIFEST.json"
 note "$(du -h "$DMG" | cut -f1) → $DMG"
+
+# 8b. Verify the artifact the way it will be used: mount it read-only, check the
+# sidecar digest, then the manifest pair, the symlink inventory, every Mach-O
+# signature and all three engines running from inside the image. A pack that
+# builds but does not survive `hdiutil create` is not a shipped pack.
+step "8b/8 verify the artifact as a user receives it"
+bash "$REPO_ROOT/scripts/verify-engine-pack.sh" --dmg "$DMG" --expect-arch "$ARCH" \
+  | tee "$WORK/downloads/verify-pack.txt"
 printf 'engine pack: OK arch=%s dmg=%s bytes=%s\n' "$ARCH" "$DMG" "$(stat -f%z "$DMG")"

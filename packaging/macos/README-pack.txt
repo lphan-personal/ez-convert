@@ -31,6 +31,14 @@ Licence texts and the exact build record (ffmpeg configure output, LibreOffice
 image digest, the list of stripped files, and the licence-gate scan) are in
 licenses/. The app never links these engines: each one is a separate process.
 
+MANIFEST.json names the pack (id, version, architecture), the version of every
+engine, the install root, and the SHA-256 of MANIFEST.sha256 — MANIFEST.sha256
+in turn covers MANIFEST.json. The installer checks the hashes before copying
+anything; to re-check an installed pack on macOS:
+
+  bash scripts/verify-engine-pack.sh --pack \
+    "$HOME/Library/Application Support/app.ezconvert.desktop"
+
 The pack is signed ad-hoc for now. With an Apple Developer ID it will be signed
 with a Developer ID Application certificate, with hardened runtime and a secure
 timestamp, and notarized — docs/MACOS-PACKAGING.md §4 has the exact order.
