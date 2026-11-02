@@ -343,6 +343,7 @@ jobs:
   license-assert:
     name: license-assert (bundled binaries must be GPL/AGPL-clean)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -368,6 +369,7 @@ jobs:
   policy-check:
     name: policy-check (R1-R3 deny-list, R6 licence drift)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -449,6 +451,10 @@ jobs:
   e2e:
     name: e2e (one run per advertised direction)
     runs-on: ubuntu-latest
+    # Free-tier minutes are the budget. Run 59's e2e leg sat in one step for
+    # 90+ minutes with no cap, and because `report` needs it, the whole run's
+    # verdict never reached ci-status. Every job here carries a cap now.
+    timeout-minutes: 30
     defaults:
       run:
         shell: bash
@@ -517,6 +523,7 @@ jobs:
     name: spike (${{ inputs.spike_id }})
     if: github.event_name == 'workflow_dispatch' && inputs.spike_id != 'none'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -564,6 +571,7 @@ jobs:
     needs: [build, license-assert, policy-check, e2e, spike]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
     env:

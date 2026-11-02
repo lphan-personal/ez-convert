@@ -1,7 +1,11 @@
-# P1 — the Windows/macOS CI pipeline, and why no job has run since 2026-11-01T07:13Z
+# P1 — the Windows/macOS CI pipeline, the 2026-11-01 blackout, and the green run that closed it
 
-Owner: smith (card `t_648a071a`). Status at time of writing: **pipeline built and committed,
-blocked on the account being able to start a job** (see §4).
+Owner: smith (card `t_648a071a`). Status at time of writing: **done** — green `build
+(windows-latest)` and `build (macos-latest)` on run
+[41367754978](https://github.com/lphan-personal/ez-convert/actions/runs/41367754978)
+(sha `9cd3686f`), both unsigned artifacts downloaded and their digests re-verified here. §4 keeps
+the blackout record because it is the reason the evidence is branch-published; §6 is the green-run
+proof and §7 the fix it forced.
 
 ## 1. What the pipeline does now (`.github/workflows/build.yml`, commit `7b7bef1`)
 
@@ -51,13 +55,25 @@ for this account's token, so every job publishes its own evidence to a branch:
   the shipped sidecars live in `docs/shipped-inventory.tsv` and are gated by
   `scripts/dist-license-gate.sh` in the `license-assert` job.
 
-## 3. Free-tier cost of a run (estimate, stated as an estimate)
+## 3. Free-tier cost of a run (measured on run 59, plus the multiplier arithmetic)
 
-Public billing data is not readable with this token, so this is arithmetic from the matrix
-shape, not a measurement: ubuntu ≈ 1× and windows ≈ 2× against macOS ≈ **10×** the wall-clock
-minutes. A ~6 min ubuntu leg + ~10 min windows leg + ~10 min macOS leg bills roughly
-`6 + 20 + 100 ≈ 126` minutes per push, of which ~80% is macOS. On the 2,000-minute free
-allowance for a private repo that is ~16 pushes/month.
+Wall-clock per job on run `41367754978` (all jobs start within a second of 00:34:02Z):
+
+| job | wall clock | billed multiplier (private repo) |
+|-----|-----------|----------------------------------|
+| `license-assert` | 29 s | 1× |
+| `policy-check` | 20 s | 1× |
+| `build (ubuntu-latest)` | 1 min 49 s | 1× |
+| `build (macos-latest)` | 2 min 24 s | 10× → 24 min |
+| `build (windows-latest)` | 12 min 18 s | 2× → 25 min |
+
+So a push with the platforms green costs ≈ **51 billed minutes** — the macOS 10× multiplier and the
+cold-ish Windows leg dominate, not the Linux legs. That is ~40 pushes against the 2,000-minute
+private-repo allowance; `Swatinem/rust-cache@v2` keeps it from growing with repeat pushes.
+
+The cost that actually threatened the budget was not the matrix: run 59's `e2e` leg sat in one step
+from 00:34:43Z and was still running at 02:10Z (**95+ minutes at 1×**) with no `timeout-minutes`
+anywhere outside the build matrix — see §7.
 
 ## 4. The blackout: runs are created, jobs never start
 
@@ -86,18 +102,89 @@ is the observable shape of the account-level Actions allowance/billing refusing 
 repo, macOS billed at 10×, 24 runs burned on the first day of the month). It is *not* a YAML
 problem — the workflow parses, and the failure predates this card by 17 hours.
 
-## 5. What closes this card
+## 5. What closed this card
 
-A green run in the Actions UI with `build (windows-latest)` and `build (macos-latest)` green,
-and the artifacts `ez-convert-Windows-unsigned` / `ez-convert-macOS-unsigned` downloadable.
-The moment jobs run again, `ci-start-*`, `ci-evidence-*`, `ci-artifacts-*` and `ci-status` all
-update by themselves and the run URL is in every one of them.
+A green run in the Actions UI with `build (windows-latest)` and `build (macos-latest)` green, and
+the artifacts `ez-convert-Windows-unsigned` / `ez-convert-macOS-unsigned` downloadable. That
+happened on run 59 — §6 has the per-step and per-digest evidence.
 
-Owner actions that unblock it (any one):
+The blackout ended by itself: GitHub began assigning runners again at ~00:34Z on 2026-11-02 and the
+first commit it ran (the `9cd3686f` typo fix) went green on all three OSes. The owner actions that
+*would* have unblocked it remain the lever for the next time the allowance runs out:
 
 1. GitHub → Settings → Billing → Actions: raise the spending limit / add included minutes.
 2. Make the repo public (standard runners are free for public repos) — a disclosure decision,
    not an infrastructure one; R1-R6 policy applies.
-3. Accept a cheaper matrix: macOS only on release/dispatch, Ubuntu+Windows on every push
-   (~40 billed minutes per push instead of ~126). This contradicts the card's acceptance as
-   written (both platforms on a green run), so it needs the owner's call.
+3. Accept a cheaper matrix: macOS only on release/dispatch, Ubuntu+Windows on every push.
+
+None of the three was needed, and none is applied: the pipeline still runs both platforms on every
+push, as the card asked.
+
+## 6. The green run: `41367754978` (run 59), sha `9cd3686f`
+
+Run: <https://github.com/lphan-personal/ez-convert/actions/runs/41367754978>
+Event `push` on `main`, attempt 1, created 2026-11-02T00:33:10Z.
+
+| job | html_url | conclusion | wall clock |
+|-----|----------|-----------|------------|
+| `build (windows-latest)` | …/job/125031674371 | **success** | 12 min 18 s |
+| `build (macos-latest)` | …/job/125031674100 | **success** | 2 min 24 s |
+| `build (ubuntu-latest)` | …/job/125031674130 | success | 1 min 49 s |
+| `license-assert` | …/job/125031674190 | success | 29 s |
+| `policy-check` | …/job/125031674118 | success | 20 s |
+| `e2e` | …/job/125031673943 | still running at 02:10Z | uncapped — §7 |
+
+Every step on both shipping platforms succeeded, in this order: job-start marker → Rust toolchain
+→ cargo cache → `cargo build` → `cargo test` → pinned Tauri CLI → licence scan → licence **selftest**
+→ `cargo tauri build --no-bundle --ci` → stage + manifest → upload → artifact record → evidence.
+
+**The licence assertion, on the runners** (from each job's own log, and from the
+`license-selftest.log` the job ships inside the artifact):
+
+```text
+selftest 1/2: GPL build must be REJECTED
+FAIL vendor/ffmpeg/gpl/ffmpeg: enable-gpl/nonfree is non-zero — not shippable
+       --enable-gpl
+OK   vendor/ffmpeg/lgpl/ffmpeg: LGPL-only configuration
+license-assert: 2 bundled ffmpeg checked, 1 rejected
+selftest 1/2: PASS (gate exited 1 on a GPL build)
+selftest 2/2: LGPL build must be ACCEPTED
+OK   vendor/ffmpeg/lgpl/ffmpeg: LGPL-only configuration
+license-assert: 1 bundled ffmpeg checked, 0 rejected
+selftest 2/2: PASS (gate exited 0 on an LGPL build)
+```
+
+That is the card's "demonstrated failing on a deliberately bad ffmpeg", executed on Windows and on
+macOS. **Honest limit:** the accompanying `--scan` step prints `no bundled ffmpeg under [vendor/ffmpeg
+src-tauri/binaries binaries resources/ffmpeg] — nothing to gate yet (skeleton stage)` — a CI checkout
+carries no engine binaries, so the scan is vacuous there and the *selftest* is what makes the gate
+non-vacuous. The real sidecars are gated by `scripts/dist-license-gate.sh --check-inventory` in the
+`license-assert` job (also green in this run) against `docs/shipped-inventory.tsv`.
+
+**Artifacts, downloaded and re-hashed here** (not just asserted):
+
+| artifact | id | zip bytes | file | file bytes | sha256 |
+|---|---|---|---|---|---|
+| `ez-convert-Windows-unsigned` | 13108112038 | 2 082 168 | `ez-convert-windows-x86_64.exe` | 4 698 624 | `5da491368bd0c816af0408e403b2dffa4705b42ecc86c44889d48acdf2f24b66` |
+| `ez-convert-macOS-unsigned` | 13107514457 | 2 177 233 | `ez-convert-macos-arm64` | 5 418 352 | `0ad2299cfd86347c1baf79bfb51f626503c508b8ea970952e40dda2d3bcf7805` |
+
+Both `GET …/actions/artifacts/<id>/zip` returned HTTP 200; each zip contains the binary, a
+`manifest.json` (`signed: false`, `bundle: false`, tauri-cli 2.12.4, rustc 1.99.1, run id/url, sha)
+and `SHA256SUMS.txt`. The recomputed binary digest and size equal the manifest in both cases, so the
+artifact is the binary the job staged. Each platform's own record is on its branch:
+`ci-artifacts-windows-latest/latest.json` and `ci-artifacts-macos-latest/latest.json`.
+
+Not green, stated plainly: the run's overall conclusion is still `in_progress` because the `e2e` job
+(another card's suite) had not finished after 95 minutes; the `report` job needs it, so `ci-status`
+still holds run 58's verdict. `macos-dmg.yml` is a separate workflow and a separate card.
+
+## 7. Fix forced by the run: no job outside the matrix had a time cap
+
+Only `build` carried `timeout-minutes` (30). `e2e`, `license-assert`, `policy-check`, `spike` and
+`report` had none, and run 59 proved the consequence: one step of `e2e` ran, uncapped, for 95+
+minutes on a 1× runner, which also means `report` (needs: e2e) could not publish a verdict for the
+run at all. Every job now has a cap — `build` 30, `e2e` 30, `policy-check` 30, `spike` 30,
+`license-assert` 20, `report` 15 — verified by parsing the file (`yaml.safe_load`, six jobs, none
+without a cap). Pushed as a docs-and-timeout commit with `[skip ci]` so it costs no matrix minutes;
+it takes effect on the next ordinary push. The e2e job itself is another card's to fix (why it takes
+that long / whether it hangs), and it is reported on this card rather than changed here.
