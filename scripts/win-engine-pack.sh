@@ -527,7 +527,15 @@ note "notices: licenses/THIRD-PARTY-NOTICES.md is byte-identical to docs/license
 
 TICK0=$SECONDS
 tick "manifest over the shipped tree"
-( cd "$PACK" && find . -type f ! -name MANIFEST.sha256 -print0 \
+# The manifest and the zip must describe the same set of files, or the verify
+# step below fails on rows that were never archived. The zip drops dot-named
+# files (`-x '*/.*'`, deliberate: nothing hidden belongs in a user's install),
+# and LibreOffice ships two of them (.../nlpsolver/help/.dir,
+# .../wiki-publisher/help/.dir) — run 41436064703 caught the mismatch as 8,380
+# manifest rows vs 8,378 archived files. Exclude them here with a *basename*
+# predicate: `find .` prefixes every path with "./", so a `-path '*/.*'` test
+# would also drop ./README.txt.
+( cd "$PACK" && find . -type f ! -name MANIFEST.sha256 ! -name '.*' -print0 \
   | xargs -0 sha256sum > MANIFEST.sha256 )
 note "manifest: $(wc -l < "$PACK/MANIFEST.sha256" | tr -d ' ') files"
 
