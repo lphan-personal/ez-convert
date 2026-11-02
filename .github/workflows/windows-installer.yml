@@ -1,0 +1,221 @@
+name: windows-installer
+
+# The Windows face of a release: an unsigned, per-user NSIS installer built on a
+# GitHub-hosted Windows runner.
+#
+# Why this is its own workflow and not a job in build.yml: the matrix runs
+# `tauri build --no-bundle --ci` on every push, deliberately, because bundling
+# costs minutes and downloads two upstream payloads (the NSIS toolchain and the
+# WebView2 offline installer, ~127 MB). Bundling here happens on demand, once
+# per release, and the resulting .exe is the file users download.
+#
+# What this installer is NOT: it carries no conversion engines. `bundle.active`
+# comes from `src-tauri/tauri.windows.conf.json` (targets `nsis`,
+# `installMode: currentUser`, WebView2 `offlineInstaller`, VC runtime bundled);
+# the engine payload lives in `src-tauri/tauri.bundle.windows.conf.json` and is
+# only passed when the pack is staged into the tree. A release therefore ships
+# the installer *and* `windows-engine-pack-x86_64.zip`, and the pairing is what
+# is acceptance-tested (docs/PACKAGING-WINDOWS.md "Acceptance"): unpack the pack
+# into `%LOCALAPPDATA%\EZ Convert\`, then `ez-convert.exe --diagnostics
+# --fixtures <dir>` must print `SUMMARY families=4 pass=4 fail=0`.
+#
+# Nothing here is code-signed: there is no certificate in CI. The installer is
+# documented as unsigned in the release body (SmartScreen More info -> Run
+# anyway, docs/DISTRIBUTION.md).
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: "Free-form note recorded in the run manifest"
+        required: false
+        default: ""
+
+concurrency:
+  group: windows-installer-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  installer:
+    name: installer (windows-latest, NSIS, unsigned, engine-free)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # Same pinned, digest-verified Tauri CLI as the build matrix: a swapped
+      # tool binary fails here, not after a 400 MB installer is produced.
+      - name: Install the Tauri CLI (pinned prebuilt, build-time tool)
+        env:
+          TAURI_CLI_VER: 2.12.4
+        run: |
+          set -euo pipefail
+          asset="x86_64-pc-windows-msvc.zip"
+          sum="3e8687fb184bd7f10ebd8642f7715f79f4a605c0694c142a21507e8a24dc0f8b"
+          curl -fsSL -o cli.zip \
+            "https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v${TAURI_CLI_VER}/cargo-tauri-${asset}"
+          if command -v sha256sum >/dev/null 2>&1; then
+            echo "${sum}  cli.zip" | sha256sum -c -
+          else
+            echo "${sum}  cli.zip" | shasum -a 256 -c -
+          fi
+          export CLI_ZIP="$PWD/cli.zip" CLI_DIR="$HOME/.cargo/bin"
+          mkdir -p "$CLI_DIR"
+          if ! pwsh -NoProfile -NonInteractive \
+              -Command 'Expand-Archive -LiteralPath $env:CLI_ZIP -DestinationPath $env:CLI_DIR -Force'; then
+            tar -xf "$CLI_ZIP" -C "$CLI_DIR"
+          fi
+          chmod +x "$CLI_DIR/cargo-tauri" 2>/dev/null || true
+          cargo tauri --version
+
+      # Guard before the build, for the same reason build.yml has it: if an
+      # engine payload ever reappears in the platform overlay, the bundler would
+      # need staged files this job does not create, and every Windows build
+      # would fail at cargo-build time.
+      - name: The platform overlay must stay payload-free
+        run: |
+          set -eo pipefail
+          cfg=src-tauri/tauri.windows.conf.json
+          if grep -qE '"(externalBin|resources)"' "$cfg"; then
+            echo "::error::$cfg declares externalBin/resources; the payload belongs in tauri.bundle.windows.conf.json"
+            exit 1
+          fi
+          grep -q '"nsis"' "$cfg" || { echo "::error::$cfg lost its nsis target"; exit 1; }
+          for d in src-tauri/binaries src-tauri/resources; do
+            if [ -e "$d" ]; then
+              echo "::error::$d must not exist in this job (engines ship as a separate pack)"
+              exit 1
+            fi
+          done
+          echo "payload-free windows build, nsis target present"
+
+      # No --config: the Windows platform overlay is merged automatically, so
+      # this is exactly what a user-facing build is (bundle.active true,
+      # targets nsis). No --no-bundle: that is the flag the matrix uses.
+      - name: tauri build (NSIS installer)
+        working-directory: src-tauri
+        run: |
+          set -o pipefail
+          cargo tauri build --ci 2>&1 | tee tauri-build.log
+
+      - name: Stage + assert the installer
+        id: stage
+        env:
+          TAURI_CLI_VER: 2.12.4
+          NOTE_INPUT: ${{ inputs.note }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          exe=$(find src-tauri/target/release/bundle/nsis -maxdepth 1 -name '*.exe' | head -1 || true)
+          [ -n "$exe" ] || { echo "::error::no NSIS installer was produced"; ls -la src-tauri/target/release/bundle 2>/dev/null || true; exit 1; }
+          name=$(basename "$exe")
+          cp "$exe" "artifacts/$name"
+          size=$(wc -c < "artifacts/$name" | tr -d ' ')
+          magic=$(head -c 2 "artifacts/$name")
+          [ "$magic" = "MZ" ] || { echo "::error::$name is not a PE executable (magic '$magic')"; exit 1; }
+          # Sanity band. The installer is the app shell plus the WebView2
+          # offline installer (~127 MB) and the VC runtime: ~130-200 MB. An
+          # engine-carrying installer is ~490 MB, so a big file here would mean
+          # an engine payload leaked into the app bundle.
+          if [ "$size" -lt 100000000 ] || [ "$size" -gt 300000000 ]; then
+            echo "::error::$name is $size B, outside the engine-free band 100-300 MB"
+            exit 1
+          fi
+          if command -v sha256sum >/dev/null 2>&1; then
+            sum=$(sha256sum "artifacts/$name" | cut -d' ' -f1)
+          else
+            sum=$(shasum -a 256 "artifacts/$name" | cut -d' ' -f1)
+          fi
+          # The note is a workflow input, so it is sanitised before it goes into
+          # JSON: quotes and backslashes are stripped, never pasted raw.
+          note=$(printf '%s' "${NOTE_INPUT:-}" | tr -d '"\\' | tr -d '\r\n')
+          echo "$sum  $name" > artifacts/SHA256SUMS.txt
+          {
+            echo "{"
+            echo "  \"os\": \"Windows\","
+            echo "  \"file\": \"$name\","
+            echo "  \"size_bytes\": $size,"
+            echo "  \"sha256\": \"$sum\","
+            echo "  \"bundle\": \"nsis\","
+            echo "  \"install_mode\": \"currentUser\","
+            echo "  \"signed\": false,"
+            echo "  \"engines_in_installer\": false,"
+            echo "  \"engine_pack\": \"windows-engine-pack-x86_64.zip (separate release asset)\","
+            echo "  \"tauri_cli\": \"$TAURI_CLI_VER\","
+            echo "  \"rustc\": \"$(rustc --version)\","
+            echo "  \"run_id\": ${GITHUB_RUN_ID},"
+            echo "  \"run_url\": \"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\","
+            echo "  \"sha\": \"${GITHUB_SHA}\","
+            echo "  \"note\": \"$note\""
+            echo "}"
+          } > artifacts/manifest.json
+          cat artifacts/manifest.json
+          echo "INSTALLER_FILE=$name" >> "$GITHUB_ENV"
+          echo "INSTALLER_SIZE=$size" >> "$GITHUB_ENV"
+          echo "INSTALLER_SHA=$sum" >> "$GITHUB_ENV"
+
+      - name: Upload the installer
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ez-convert-windows-nsis
+          path: |
+            artifacts/**
+            src-tauri/tauri-build.log
+          if-no-files-found: error
+          retention-days: 30
+
+      # Evidence readable with Contents scope alone (this account's token can
+      # see the Actions API, but a branch record survives artifact expiry).
+      - name: Publish the build record to ci-windows-installer
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          ARTIFACT_NAME: ez-convert-windows-nsis
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        run: |
+          set -eo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p ci-installer
+          {
+            echo "{"
+            echo "  \"job_status\": \"$JOB_STATUS\","
+            echo "  \"run_id\": ${GITHUB_RUN_ID},"
+            echo "  \"run_url\": \"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\","
+            echo "  \"sha\": \"${GITHUB_SHA}\","
+            echo "  \"artifact_name\": \"$ARTIFACT_NAME\","
+            echo "  \"artifact_id\": \"${ARTIFACT_ID}\","
+            echo "  \"artifact_url\": \"${ARTIFACT_URL}\","
+            echo "  \"file\": \"${INSTALLER_FILE:-}\","
+            echo "  \"size_bytes\": \"${INSTALLER_SIZE:-}\","
+            echo "  \"sha256\": \"${INSTALLER_SHA:-}\","
+            echo "  \"published_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\""
+            echo "}"
+          } > "ci-installer/${GITHUB_RUN_ID}.json"
+          cp "ci-installer/${GITHUB_RUN_ID}.json" ci-installer/latest.json
+          cat ci-installer/latest.json
+          git checkout -B ci-windows-installer
+          git add -f ci-installer
+          git commit -m "ci-installer: $JOB_STATUS in run ${GITHUB_RUN_ID}" || echo "nothing to commit"
+          git push --force origin ci-windows-installer
