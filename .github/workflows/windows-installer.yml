@@ -333,7 +333,7 @@ jobs:
           # wrote, so the record cannot claim a pass the job did not make.
           overlay_ok="$(grep -o 'INSTALLED_OVERLAY ok=[a-z]*' installed-overlay.log 2>/dev/null | tail -1 | cut -d= -f2 || true)"
           [ -n "$overlay_ok" ] || overlay_ok="unknown"
-          overlay_checks="$(grep -o 'INSTALLED_OVERLAY checks=[0-9]*/15' installed-overlay.log 2>/dev/null | tail -1 | cut -d= -f2 || true)"
+          overlay_checks="$(grep -o 'checks=[0-9]*/15' installed-overlay.log 2>/dev/null | tail -1 | cut -d= -f2 || true)"
           [ -n "$overlay_checks" ] || overlay_checks="unknown"
           git checkout -B ci-windows-installer
           mkdir -p "ci-installer/${GITHUB_RUN_ID}/overlay"
