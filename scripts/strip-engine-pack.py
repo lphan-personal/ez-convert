@@ -92,6 +92,10 @@ def collect(pack: str) -> list[tuple[str, str, int]]:
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(add_help=True)
     ap.add_argument("--pack", required=True)
+    ap.add_argument("--program", help="launcher that proves this is a LibreOffice tree; "
+                                      "default <pack>/program/soffice. The macOS pack passes "
+                                      "<LibreOffice.app>/Contents/MacOS/soffice while --pack "
+                                      "is the bundle's Contents/Resources")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--manifest")
     args = ap.parse_args(argv[1:])
@@ -101,7 +105,11 @@ def main(argv: list[str]) -> int:
     # (and `soffice.exe`) on Windows. The strip set is path-identical on both,
     # so the Windows pack is a valid input for the same decision.
     launchers = ("soffice", "soffice.com", "soffice.exe")
-    if not any(os.path.isfile(os.path.join(pack, "program", name)) for name in launchers):
+    if args.program:
+        ok = os.path.isfile(args.program)
+    else:
+        ok = any(os.path.isfile(os.path.join(pack, "program", name)) for name in launchers)
+    if not ok:
         print(f"strip-engine-pack: refusing to run: {pack} does not look like a "
               f"LibreOffice engine pack (no program/soffice)", file=sys.stderr)
         return 1

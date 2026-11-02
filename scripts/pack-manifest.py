@@ -61,7 +61,7 @@ PACK_NAME = "EZ Convert Engine Pack"
 # paths itself (src-tauri/src/engine/proc.rs); recording them here is what makes
 # the manifest checkable against the tree instead of a prose claim.
 ENGINE_ENTRIES = {
-    "soffice": "engines/soffice/program/soffice",
+    "soffice": "engines/soffice/LibreOffice.app/Contents/MacOS/soffice",
     "ffmpeg": "engines/ffmpeg/ffmpeg",
     "vips": "engines/vips/vips",
 }

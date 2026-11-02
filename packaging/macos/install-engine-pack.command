@@ -56,7 +56,7 @@ pack_version="$(sed -n '/^ *"pack": {/,/^ *},/s/^ *"version": "\([^"]*\)".*/\1/p
 pack_arch="$(sed -n 's/^ *"arch": "\([^"]*\)".*/\1/p' "$payload/MANIFEST.json" | head -1)"
 printf 'installed: %s\n' "$dest"
 printf 'pack:      %s version %s (%s)\n' "${pack_id:-unknown}" "${pack_version:-unknown}" "${pack_arch:-unknown}"
-for probe in vips/vips ffmpeg/ffmpeg soffice/program/soffice; do
+for probe in vips/vips ffmpeg/ffmpeg soffice/LibreOffice.app/Contents/MacOS/soffice; do
   if [ -f "$dest/$probe" ]; then
     printf '  present  %s\n' "$probe"
   else

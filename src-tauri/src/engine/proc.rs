@@ -137,6 +137,29 @@ impl EnginePaths {
             lib_dir: absolute_env_dir("EZC_ENGINE_LIB_DIR"),
             plugin_dir: absolute_env_dir("EZC_VIPS_PLUGIN_DIR"),
         };
+        // On macOS the pack keeps LibreOffice as the `.app` TDF ships: its
+        // bootstrap resolves data relative to the executable *inside* the bundle
+        // (`../Resources`, `../Frameworks`), and a flattened copy aborts with a
+        // UNO DeploymentException on the first conversion (CI run 41384142116).
+        // `engines/soffice/program` stays a compatibility symlink, so the path
+        // above still resolves on macOS — but when the real bundle path exists,
+        // spawn that one.
+        #[cfg(target_os = "macos")]
+        {
+            let bundled = root
+                .join("engines")
+                .join("soffice")
+                .join("LibreOffice.app")
+                .join("Contents")
+                .join("MacOS")
+                .join("soffice");
+            if bundled.is_file() {
+                if let Some(dir) = bundled.parent() {
+                    paths.soffice_dir = dir.to_path_buf();
+                }
+                paths.soffice = bundled;
+            }
+        }
         // ffmpeg/ffprobe ship as Tauri `externalBin` sidecars (ARCHITECTURE §18):
         // the bundler strips the `-<triple>` suffix and drops them next to the
         // app executable, not under `engines/`. Accept both layouts — the

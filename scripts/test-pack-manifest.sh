@@ -29,13 +29,17 @@ bad()  { FAILED=$((FAILED + 1)); printf 'FAIL  %s\n' "$*" >&2; }
 
 make_pack() { # <dir>
   local d="$1"
-  mkdir -p "$d/engines/soffice/program" "$d/engines/soffice/share" \
+  # The macOS pack keeps LibreOffice as the .app TDF ships; `program` is a
+  # compatibility symlink to Contents/MacOS, exactly as mac-engine-pack.sh builds it.
+  mkdir -p "$d/engines/soffice/LibreOffice.app/Contents/MacOS" \
+           "$d/engines/soffice/LibreOffice.app/Contents/Resources/share" \
            "$d/engines/ffmpeg" "$d/engines/vips/lib" "$d/licenses"
-  printf 'launcher\n' > "$d/engines/soffice/program/soffice"; chmod +x "$d/engines/soffice/program/soffice"
-  printf 'merged\n'   > "$d/engines/soffice/program/libmergedlo.dylib"
-  printf 'rc\n'       > "$d/engines/soffice/fundamentalrc"
-  ln -s . "$d/engines/soffice/Resources"
-  ln -s ../Resources/fundamentalrc "$d/engines/soffice/program/fundamentalrc"
+  printf 'launcher\n' > "$d/engines/soffice/LibreOffice.app/Contents/MacOS/soffice"
+  chmod +x "$d/engines/soffice/LibreOffice.app/Contents/MacOS/soffice"
+  printf 'merged\n'   > "$d/engines/soffice/LibreOffice.app/Contents/MacOS/libmergedlo.dylib"
+  printf 'rc\n'       > "$d/engines/soffice/LibreOffice.app/Contents/Resources/fundamentalrc"
+  ln -s ../Resources/fundamentalrc "$d/engines/soffice/LibreOffice.app/Contents/MacOS/fundamentalrc"
+  ln -s "LibreOffice.app/Contents/MacOS" "$d/engines/soffice/program"
   printf 'ffmpeg\n'  > "$d/engines/ffmpeg/ffmpeg"
   printf 'ffprobe\n' > "$d/engines/ffmpeg/ffprobe"
   printf 'vips\n'    > "$d/engines/vips/vips"
@@ -82,7 +86,7 @@ else ok "verify rejects a mismatched --expect-arch"; fi
 if grep -q '"version": "26.8.2"' "$WORK/good/MANIFEST.json"; then
   ok "engine versions are recorded in MANIFEST.json"
 else bad "engine version missing from MANIFEST.json"; fi
-if grep -q '"path": "engines/soffice/Resources",' "$WORK/good/MANIFEST.json"; then
+if grep -q '"path": "engines/soffice/program",' "$WORK/good/MANIFEST.json"; then
   ok "symlink inventory is recorded"
 else bad "symlink inventory missing"; fi
 
@@ -92,11 +96,11 @@ printf 'X' >> "$WORK/byte-flip/engines/vips/lib/libvips.dylib"
 expect_fail "a flipped byte fails" "$WORK/byte-flip" "checksum mismatch"
 
 cp -a "$WORK/good" "$WORK/flattened"
-rm -f "$WORK/flattened/engines/soffice/Resources"; : > "$WORK/flattened/engines/soffice/Resources"
+rm -f "$WORK/flattened/engines/soffice/program"; : > "$WORK/flattened/engines/soffice/program"
 expect_fail "a symlink replaced by a file fails" "$WORK/flattened" "symlink gone"
 
 cp -a "$WORK/good" "$WORK/retargeted"
-ln -sfn /tmp "$WORK/retargeted/engines/soffice/Resources"
+ln -sfn /tmp "$WORK/retargeted/engines/soffice/program"
 expect_fail "a retargeted symlink fails" "$WORK/retargeted" "symlink retargeted"
 
 cp -a "$WORK/good" "$WORK/extra"
@@ -112,7 +116,8 @@ sed -i.bak 's/"version": "1.0.0"/"version": "9.9.9"/' "$WORK/json-edited/MANIFES
 expect_fail "an edited MANIFEST.json fails" "$WORK/json-edited" "does not match its line"
 
 cp -a "$WORK/good" "$WORK/moved"
-mv "$WORK/moved/engines/soffice/program/soffice" "$WORK/moved/engines/soffice/program/soffice.moved"
+mv "$WORK/moved/engines/soffice/LibreOffice.app/Contents/MacOS/soffice" \
+   "$WORK/moved/engines/soffice/LibreOffice.app/Contents/MacOS/soffice.moved"
 expect_fail "a missing engine entry point fails" "$WORK/moved" "listed but missing"
 
 # Seal refuses a pack whose engine has no entry point (fail closed, not "record

@@ -143,10 +143,18 @@ check_symlinks() { # <pack-root>
   n="$(find "$root" -type l 2>/dev/null | wc -l | tr -d ' ')"
   [ "$n" -gt 0 ] && pass "$n symlinks present after unpack" \
     || fail "no symlinks in the unpacked pack (they were flattened)"
-  if [ -L "$root/engines/soffice/Resources" ]; then
-    pass "engines/soffice/Resources is a symlink -> $(readlink "$root/engines/soffice/Resources")"
+  # LibreOffice ships as the real `.app`, so its own symlinks (Contents/MacOS
+  # entries pointing into ../Resources and ../Frameworks) are the ones that must
+  # survive; `program` is our compatibility link to Contents/MacOS.
+  if [ -L "$root/engines/soffice/program" ]; then
+    pass "engines/soffice/program is a symlink -> $(readlink "$root/engines/soffice/program")"
   else
-    fail "engines/soffice/Resources is not a symlink (LibreOffice cannot find ../Resources)"
+    fail "engines/soffice/program is not a symlink (the app's flat path would miss)"
+  fi
+  if [ -x "$root/engines/soffice/LibreOffice.app/Contents/MacOS/soffice" ]; then
+    pass "LibreOffice.app/Contents/MacOS/soffice is executable"
+  else
+    fail "LibreOffice.app/Contents/MacOS/soffice is missing or not executable"
   fi
 }
 
@@ -164,9 +172,9 @@ check_exec() { # <pack-root>
   else
     pass "shipped ffmpeg is not GPL"
   fi
-  # soffice through its symlinks is the symlink test with consequences: it loads
-  # ../Resources and ../Frameworks or it dies.
-  out="$("$root/engines/soffice/program/soffice" --headless --version 2>&1 | head -1)"
+  # soffice from inside its bundle is the symlink test with consequences: it
+  # loads ../Resources and ../Frameworks or it aborts with a UNO DeploymentException.
+  out="$("$root/engines/soffice/LibreOffice.app/Contents/MacOS/soffice" --headless --version 2>&1 | head -1)"
   [ -n "$out" ] && pass "pack soffice runs: $out" || fail "pack soffice does not run"
 }
 

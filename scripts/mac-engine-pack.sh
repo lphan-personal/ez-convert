@@ -94,70 +94,57 @@ trap 'hdiutil detach "$MNT" >/dev/null 2>&1 || true' EXIT
 LO_APP="$MNT/LibreOffice.app"
 [ -d "$LO_APP" ] || { echo "no LibreOffice.app in the image: $(ls "$MNT")" >&2; exit 1; }
 
-# Normalise the mac .app into the pack layout the engine layer already knows:
-# engines/soffice/program (launchers + binaries) and engines/soffice/{share,...}
-# from Contents/Resources. scripts/strip-engine-pack.py and the licence gate
-# both expect that shape, and it is the same shape as the Windows/Linux packs.
+# The pack keeps the .app exactly as TDF builds it. LibreOffice resolves its data
+# relative to the executable *inside* the bundle (`@executable_path/../Frameworks`,
+# `../Resources`), and a flattened copy — program/ = Contents/MacOS, Resources
+# content at the pack root, `Resources -> .` — starts, then aborts with a UNO
+# DeploymentException on the first conversion (CI run 41384142116: png->jpg and
+# wav->mp3 converted fine, soffice died with `Abort trap: 6` and an empty log).
+# Shipping the bundle intact is also what this card asked for: an external pack
+# that preserves the `.app` and its symlinks.
 #
-# Measured layout of LibreOffice 26.8.2 MacOS aarch64 (CI run 41375947322, the
-# `Contents` listing in pack.log): Contents/MacOS holds the executables
-# (`soffice`, `unopkg`, `gengal`, `xpdfimport`, ...) plus symlinks into
-# `../Resources` and `../Frameworks`; there is **no** `soffice.bin` and no
-# `Contents/Resources/program`. So the flat layout is built by putting MacOS in
-# `program/`, Resources' *contents* at the pack root, and Frameworks beside
-# them — with `Resources` linked back to the root, because LibreOffice finds its
-# data by a path relative to the executable: `../Resources/fundamentalrc`
-# (cppuhelper/source/bootstrap.cxx), `../Resources/java/libreoffice.jar` and
-# `../Frameworks` (desktop/scripts/unoinfo-mac.sh). Renaming MacOS to program/
-# keeps `../Frameworks` correct; the `Resources` link keeps the other one.
-CONTENTS="$LO_APP/Contents"
+# Measured layout of LibreOffice 26.8.2 MacOS aarch64: Contents/MacOS holds the
+# executables (`soffice`, `unopkg`, `gengal`, `xpdfimport`, ...) plus symlinks into
+# `../Resources` and `../Frameworks`; there is no `soffice.bin`; data lives in
+# Contents/Resources, libraries in Contents/Frameworks.
 mkdir -p "$PACK/engines/soffice"
-if [ -f "$CONTENTS/MacOS/soffice" ] || [ -L "$CONTENTS/MacOS/soffice" ]; then
-  note "layout: program = Contents/MacOS, data = Contents/Resources (flat at the pack root)"
-  ditto "$CONTENTS/MacOS" "$PACK/engines/soffice/program"
-  ditto "$CONTENTS/Resources" "$PACK/engines/soffice"
-  ln -sfn . "$PACK/engines/soffice/Resources"
-  note "Resources -> . (so program/../Resources/<x> resolves)"
-elif [ -d "$CONTENTS/Resources/program" ]; then
-  note "layout: program = Contents/Resources/program"
-  ditto "$CONTENTS/Resources" "$PACK/engines/soffice"
-  ditto "$CONTENTS/Resources/program" "$PACK/engines/soffice/program"
-else
-  echo "unrecognised LibreOffice.app layout; Contents listing:" >&2
-  ls -la "$CONTENTS" "$CONTENTS/MacOS" 2>&1 | head -40 >&2
-  exit 1
-fi
-# The app is not just MacOS + Resources: the dylibs live in Contents/Frameworks
-# (libmergedlo.dylib and the UNO libraries) and `../Frameworks` must resolve
-# from program/, which it does once the directory is copied beside it.
-for extra in Frameworks PlugIns Helpers Library; do
-  if [ -d "$CONTENTS/$extra" ]; then
-    ditto "$CONTENTS/$extra" "$PACK/engines/soffice/$extra"
-    note "carried Contents/$extra ($(find "$CONTENTS/$extra" -type f | wc -l | tr -d ' ') files)"
-  fi
-done
+note "layout: LibreOffice.app preserved (Contents/{MacOS,Resources,Frameworks,...})"
+ditto "$LO_APP" "$PACK/engines/soffice/LibreOffice.app"
+
+# Compatibility symlink, not a copy: `engines/soffice/program/soffice` is the path
+# the Windows/Linux packs and the tooling use, and it must keep resolving. The
+# app itself prefers the real bundle path on macOS (engine::proc::from_root), so
+# LibreOffice still runs from inside the bundle.
+ln -sfn "LibreOffice.app/Contents/MacOS" "$PACK/engines/soffice/program"
 
 # The launcher the engine layer spawns (ARC §6.2.1: console launcher, not .bin).
-[ -x "$PACK/engines/soffice/program/soffice" ] || {
-  echo "no executable engines/soffice/program/soffice after normalisation:" >&2
-  ls -la "$PACK/engines/soffice/program" | head -30 >&2
+[ -x "$PACK/engines/soffice/LibreOffice.app/Contents/MacOS/soffice" ] || {
+  echo "no executable LibreOffice.app/Contents/MacOS/soffice after packaging:" >&2
+  ls -la "$PACK/engines/soffice/LibreOffice.app/Contents/MacOS" 2>&1 | head -30 >&2
   exit 1
 }
+note "symlinks preserved: $(find "$PACK/engines/soffice/LibreOffice.app" -type l | wc -l | tr -d ' ') in the bundle"
 hdiutil detach "$MNT" >/dev/null 2>&1 || true
 trap - EXIT
 note "$(find "$PACK/engines/soffice" -type f | wc -l | tr -d ' ') files, $(du -sh "$PACK/engines/soffice" | cut -f1)"
 
 # ------------------------------------------------------------------- 2. strip
 step "2/8 strip the content the licence decision removed (t_20fae747)"
-python3 "$REPO_ROOT/scripts/strip-engine-pack.py" --pack "$PACK/engines/soffice" \
+# The strip runs against the bundle's Resources tree (that is where share/,
+# gallery and help live in the .app); --program only relaxes the tool's
+# "is this really a LibreOffice tree" guard.
+LO_RES="$PACK/engines/soffice/LibreOffice.app/Contents/Resources"
+LO_BIN="$PACK/engines/soffice/LibreOffice.app/Contents/MacOS"
+python3 "$REPO_ROOT/scripts/strip-engine-pack.py" --pack "$LO_RES" --program "$LO_BIN/soffice" \
   --manifest "$WORK/downloads/strip-manifest.tsv"
 note "$(wc -l < "$WORK/downloads/strip-manifest.tsv" | tr -d ' ') paths removed"
 # The gate's per-group rows are written against the Windows/Linux pack paths
 # (`share/fonts/truetype/DavidCLM-*`), while the macOS pack nests LibreOffice
-# under `engines/soffice/`, so the failure-closed "not-shipped" check cannot see
-# a survivor here. Assert the removal directly instead: a strip that silently
-# did nothing must not pass as a licence decision.
-for gone in "$PACK/engines/soffice/share/gallery" "$PACK/engines/soffice/gallery" "$PACK/engines/soffice/help"; do
+# under `engines/soffice/LibreOffice.app/Contents/Resources`, so the
+# failure-closed "not-shipped" check cannot see a survivor here. Assert the
+# removal directly instead: a strip that silently did nothing must not pass as a
+# licence decision.
+for gone in "$LO_RES/share/gallery" "$LO_RES/gallery" "$LO_RES/help"; do
   # The directory itself may survive the removal (the strip removes files, not
   # empty parents); what must be gone is every file under it.
   if [ -d "$gone" ] && [ -n "$(find "$gone" -type f -print -quit 2>/dev/null)" ]; then
@@ -165,7 +152,7 @@ for gone in "$PACK/engines/soffice/share/gallery" "$PACK/engines/soffice/gallery
     exit 1
   fi
 done
-survivor="$(find "$PACK/engines/soffice" \( -name 'DavidCLM-*' -o -name 'FrankRuehlCLM-*' \
+survivor="$(find "$LO_RES" \( -name 'DavidCLM-*' -o -name 'FrankRuehlCLM-*' \
   -o -name 'MiriamCLM-*' -o -name 'MiriamMonoCLM-*' -o -name 'NachlieliCLM-*' \) -print -quit)"
 [ -z "$survivor" ] || { echo "strip incomplete: GPL-2.0 Culmus font still shipped: $survivor" >&2; exit 1; }
 note "strip verified: gallery, help and the five Culmus families are gone"
@@ -179,7 +166,7 @@ note "strip verified: gallery, help and the five Culmus families are gone"
 step "2b/8 smoke LibreOffice before the long engines are built"
 LO_PROFILE="file://$WORK/smoke/lo-early"
 mkdir -p "$WORK/smoke"
-"$PACK/engines/soffice/program/soffice" --headless --norestore \
+"$LO_BIN/soffice" --headless --norestore \
   -env:UserInstallation="$LO_PROFILE" --convert-to pdf --outdir "$WORK/smoke" \
   "$REPO_ROOT/fixtures/sample.docx" >"$WORK/smoke/soffice-early.log" 2>&1 || true
 if [ ! -s "$WORK/smoke/sample.pdf" ]; then
@@ -188,7 +175,7 @@ if [ ! -s "$WORK/smoke/sample.pdf" ]; then
   echo "--- engines/soffice layout ---" >&2
   ls -la "$PACK/engines/soffice" >&2
   echo "--- program/ (first 20) ---" >&2
-  ls -la "$PACK/engines/soffice/program" 2>&1 | head -20 >&2
+  ls -la "$LO_BIN" 2>&1 | head -20 >&2
   echo "--- probes ---" >&2
   for probe in program/soffice program/soffice.bin fundamentalrc Resources \
                registry/main.xcd share/registry/main.xcd program/services; do
@@ -198,7 +185,7 @@ if [ ! -s "$WORK/smoke/sample.pdf" ]; then
     else printf '  %-24s MISSING\n' "$probe" >&2; fi
   done
   echo "--- what the launcher links ---" >&2
-  otool -L "$PACK/engines/soffice/program/soffice" 2>&1 | head -8 >&2 || true
+  otool -L "$LO_BIN/soffice" 2>&1 | head -8 >&2 || true
   echo "--- bootstrap files that mention BRAND_BASE_DIR ---" >&2
   grep -rl "BRAND_BASE_DIR" "$PACK/engines/soffice" 2>/dev/null | head -5 >&2 || true
   exit 1
@@ -533,11 +520,21 @@ find "$PACK/engines" -type f -print0 \
 [ -s "$WORK/macho.txt" ] || { echo "no Mach-O files found under $PACK/engines" >&2; exit 1; }
 while IFS= read -r f; do sign "$f"; done < "$WORK/macho.txt"
 note "$(wc -l < "$WORK/macho.txt" | tr -d ' ') Mach-O files signed"
+# Nested bundles after their contents, outer last (docs/MACOS-PACKAGING.md §3).
+# The LibreOffice .app keeps its own seal this way, so `codesign --verify` on the
+# bundle is meaningful for anything that later inspects it.
+find "$PACK/engines" -mindepth 1 -type d \( -name '*.framework' -o -name '*.app' -o -name '*.appex' \) -print 2>/dev/null \
+  | awk -F/ '{print NF" "$0}' | sort -rn -k1,1 | cut -d' ' -f2- > "$WORK/bundles.txt" || true
+while IFS= read -r bundle; do
+  [ -n "$bundle" ] || continue
+  sign "$bundle"
+done < "$WORK/bundles.txt"
+[ -s "$WORK/bundles.txt" ] && note "$(wc -l < "$WORK/bundles.txt" | tr -d ' ') nested bundles signed"
 # The launcher the app spawns is `program/soffice` (ARC §6.2.1: the console
 # launcher, never `soffice.bin`). The Windows/Linux packs have a `soffice.bin`;
 # this one does not — measured on the 26.8.2 MacOS build, where Contents/MacOS
 # holds the launchers and there is no `program/soffice.bin` at all.
-for probe in "$PACK/engines/vips/vips" "$PACK/engines/ffmpeg/ffmpeg" "$PACK/engines/soffice/program/soffice"; do
+for probe in "$PACK/engines/vips/vips" "$PACK/engines/ffmpeg/ffmpeg" "$LO_BIN/soffice"; do
   [ -f "$probe" ] || { echo "missing probe $probe" >&2; exit 1; }
   codesign --verify "$probe" || { echo "unsigned nested object: $probe" >&2; exit 1; }
 done
@@ -558,12 +555,12 @@ note "image png->jpg $(stat -f%z "$WORK/smoke/image.jpg") B"
 [ -s "$WORK/smoke/audio.mp3" ] || { echo "ffmpeg produced no audio output" >&2; exit 1; }
 note "audio wav->mp3 $(stat -f%z "$WORK/smoke/audio.mp3") B"
 
-"$PACK/engines/soffice/program/soffice" --headless --norestore --terminate_after_init >/dev/null 2>&1 || true
-"$PACK/engines/soffice/program/soffice" --headless --norestore \
+"$LO_BIN/soffice" --headless --norestore --terminate_after_init >/dev/null 2>&1 || true
+"$LO_BIN/soffice" --headless --norestore \
   -env:UserInstallation="file://$WORK/smoke/lo-profile" \
   --convert-to pdf --outdir "$WORK/smoke" "$FIX/sample.docx" >/dev/null 2>&1 || true
 [ -s "$WORK/smoke/sample.pdf" ] || { echo "LibreOffice produced no PDF (checking its own words)" >&2
-  "$PACK/engines/soffice/program/soffice" --headless --norestore -env:UserInstallation="file://$WORK/smoke/lo-profile2" --convert-to pdf --outdir "$WORK/smoke" "$FIX/sample.docx" 2>&1 | tail -20 >&2
+  "$LO_BIN/soffice" --headless --norestore -env:UserInstallation="file://$WORK/smoke/lo-profile2" --convert-to pdf --outdir "$WORK/smoke" "$FIX/sample.docx" 2>&1 | tail -20 >&2
   exit 1; }
 note "document docx->pdf $(stat -f%z "$WORK/smoke/sample.pdf") B"
 

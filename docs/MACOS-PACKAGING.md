@@ -36,7 +36,8 @@ different platform with a different bundler, and the asymmetry is deliberate
 ```
 engines/vips/{vips,vipsheader,lib/*.dylib,vips-modules-*}
 engines/ffmpeg/{ffmpeg,ffprobe,lib/*.dylib}
-engines/soffice/program/soffice        (console launcher, not soffice.bin)
+engines/soffice/LibreOffice.app/Contents/MacOS/soffice   (real bundle binary)
+engines/soffice/program -> LibreOffice.app/Contents/MacOS (compatibility link)
 ```
 
 The pack root is the directory **containing** `engines/`:
@@ -56,13 +57,20 @@ A pack never overrides an engine the bundle already provides, so the same
 binary resolves the Windows layout and the macOS layout without a platform
 branch in `engine/`.
 
-**LibreOffice layout normalisation.** The macOS build is an `.app`; the pack
-stores `Contents/MacOS` as `program/` and `Contents/Resources` at the pack root,
-which is the same shape as the Linux (`opt/libreoffice/{program,share}`) and
-Windows (`program/`) packs. That is what lets `scripts/strip-engine-pack.py` and
-`scripts/dist-license-gate.sh --scan` work unchanged on all three platforms.
-`scripts/mac-engine-pack.sh` detects the real layout and fails loudly with the
-`Contents` listing if TDF ships something else.
+**LibreOffice ships as the `.app` TDF builds.** `Contents/MacOS` holds the
+launchers, `Contents/Resources` the data and `Contents/Frameworks` the libraries;
+the bootstrap resolves both relative to the executable *inside* the bundle. A
+flattened copy (program/ = `Contents/MacOS`, Resources content at the pack root,
+`Resources -> .`) starts, converts nothing, and aborts with a UNO
+`DeploymentException` (`Abort trap: 6`, empty log — CI run 41384142116), so the
+bundle is copied with `ditto` and never unpacked. `engines/soffice/program` stays
+a symlink to `LibreOffice.app/Contents/MacOS` so the flat `program/soffice` path
+keeps resolving for tooling, and `engine::proc::from_root` prefers the real
+bundle path on macOS. The strip step therefore runs against
+`LibreOffice.app/Contents/Resources` (`scripts/strip-engine-pack.py --program`
+relaxes its layout guard) and the licence decision is asserted on the bundle's own
+paths (`Resources/share/gallery`, `Resources/gallery`, `Resources/help`, the five
+GPL Culmus families).
 
 ## 2.1 The pack manifest (version + checksum)
 
@@ -112,8 +120,8 @@ bash scripts/verify-engine-pack.sh --dmg EZ-Convert-Engine-Pack-arm64.dmg --expe
 ```
 
 That verifier checks the sidecar digest against the artifact, the manifest pair
-against the tree, the symlink inventory (with `engines/soffice/Resources` as the
-named spot check), `codesign --verify` on **every** Mach-O object in the pack,
+against the tree, the symlink inventory (with `engines/soffice/program` and
+`LibreOffice.app/Contents/MacOS/soffice` as the named spot checks), `codesign --verify` on **every** Mach-O object in the pack,
 that no Mach-O object still references the build machine (`/opt/homebrew`,
 `/usr/local` — the pack has to run on a Mac with no Homebrew), and that `vips`,
 `ffmpeg` and `soffice` actually run from inside the pack — then, with `--app`,
