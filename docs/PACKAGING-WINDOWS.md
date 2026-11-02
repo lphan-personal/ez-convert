@@ -46,19 +46,19 @@ Windows build — the CI matrix's `cargo build` included. It carries the NSIS se
 nothing that must exist on disk.
 
 The engine payload lives in `src-tauri/tauri.bundle.windows.conf.json` and is passed
-explicitly, only by the packaging command:
+explicitly by the packaging command:
 
 | file | contents | read by |
 |---|---|---|
 | `tauri.windows.conf.json` | `bundle.targets: ["nsis"]`, `nsis.installMode: currentUser`, `webviewInstallMode`, `bundleVCRuntime` | every Windows build |
-| `tauri.bundle.windows.conf.json` | `bundle.externalBin: [ffmpeg, ffprobe]`, `bundle.resources: {engines, licenses}` | the packaging command only |
+| `tauri.bundle.windows.conf.json` | `bundle.externalBin: [ffmpeg, ffprobe]`, `bundle.resources: {engines, licenses}` | the packaging command |
 
 The split exists because `tauri-build` validates `externalBin`/`resources` paths at **cargo
 build** time. With the payload in the platform overlay, the CI matrix — which never stages
 engines — failed on every push with
 `resource path binaries\ffmpeg-x86_64-pc-windows-msvc.exe doesn't exist`
 (runs `41381217360`, `41381593048`). Keeping the platform overlay payload-free means the
-matrix builds the app with no engine staging, and only the packaging command opts into the
+matrix builds the app with no engine staging, while the packaging command opts into the
 payload. Staging stubs in CI would have made the matrix green while destroying the one thing
 it checks — that the declared payload paths are real.
 
