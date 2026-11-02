@@ -222,3 +222,61 @@ David Libre, `Frank Ruehl CLM` → Frank Ruhl Hofshi, `Miriam CLM` → Miriam Li
 CLM` → Liberation Mono and `Nachlieli CLM` → Alef. All five targets are OFL-1.1 rows already
 listed in the engine pack's own notices; no font is added and none of the stripped files is
 needed.
+
+---
+
+## 9. Microsoft Visual C++ runtime in the Windows install root
+
+The Windows NSIS installer sets `bundle.windows.bundleVCRuntime: true`
+(`docs/PACKAGING-WINDOWS.md`) and therefore copies eight Microsoft Visual C++ runtime DLLs
+into the install root (`%LOCALAPPDATA%\EZ Convert\`) next to `ez-convert.exe`. They are
+**unmodified** copies from the Visual Studio 2022 redistributable tree — at bundle time on
+the build VM (win11-dev) the redist root was `C:\p2_offdev\vcredist\`, so the payload is
+`C:\p2_offdev\vcredist\14.44.35211\x64\Microsoft.VC143.CRT\` (MSVC toolset 14.44.35211,
+`Microsoft.VC143.CRT` family). The documented purpose of bundling them is that "the WebView2
+loader and the sidecars must run without a separately installed VC++ redistributable"
+(`docs/PACKAGING-WINDOWS.md`). Nothing of ours is combined into the DLLs themselves, and no
+shipped executable of ours names them in its PE import table (measured on `ez-convert.exe`
+and `uninstall.exe`).
+
+| shipped file | size (B) | sha256 |
+|---|---|---|
+| `concrt140.dll` | 324,208 | `2405355f0a58067b258f8df33c327e3a3d716eaac5a3a5aebb757842d85bd376` |
+| `msvcp140.dll` | 557,728 | `0f885b509a685d2bbfa652fed26b5fb31d88fbdab0a978c641d1c7b8aa460aa9` |
+| `msvcp140_1.dll` | 35,952 | `bfad5aef4c63a669e3c140655cdfdf395b6c979b400a447bd5dcb65ed8826c3d` |
+| `msvcp140_2.dll` | 280,200 | `3ea06f0ee098b4823cb79599df3780e7f23cce52c19aac31d2a0d47efe33a5e9` |
+| `msvcp140_atomic_wait.dll` | 50,304 | `640b2aefced484d0368eea5bdd06addd0658a3a70a49256e560d6923b404a479` |
+| `msvcp140_codecvt_ids.dll` | 31,872 | `f2069a52880ec885ee7f0511186100eb7fada0411a2b4948fafea7735b878a18` |
+| `vcruntime140.dll` | 124,544 | `d5e4d9a3e835fa679450145d6a7d94e36573a509317111904d9b3712c30d9066` |
+| `vcruntime140_1.dll` | 49,792 | `1f2d41c4aa5db0bc33ebf7b66d72943a817d7ce6cbe880502a9403823633093f` |
+
+Sizes and digests are tool output measured on win11-dev (2026-11-02): `certutil -hashfile
+<file> SHA256` over the installed tree, cross-checked with `sha256sum` after copying the
+files out. The installed bytes are byte-identical to the copies in the redist directory,
+which is what demonstrates the "unmodified" condition below.
+
+**Redistribution terms.** These DLLs are Distributable Code of Visual Studio 2022. The
+"Distributable Code Files for Visual Studio 2022" — the `REDIST.txt` list referenced by the
+"Distributable Code" section of the Microsoft Software License Terms for Visual Studio
+Enterprise 2022, Visual Studio Professional 2022, Visual Studio Community 2022 — says
+(Microsoft Learn, *Visual Studio 2022 Redistribution*):
+
+> "If you have a validly licensed copy of such software, you may copy and distribute with
+> your program the unmodified form of the files listed below, subject to the License Terms
+> for the software."
+
+> "Subject to the License Terms for the software, you may copy and distribute with your
+> program any of the files within the following folder and its subfolders except as noted
+> below. You may not modify these files. \[VisualStudioFolder\]\VC\redist"
+
+> "Distribution of the Visual C++ Runtime Redistributable package, merge modules, and
+> individual binaries obtained from those pages is limited to licensed Visual Studio users
+> and is subject to its license terms."
+
+We distribute the DLLs exactly in that position: unmodified (the digests above pin the
+bytes), with our program, as part of its installation package. The `debug_nonredist`
+folders the same list excludes are not redistributed. The full terms are the Microsoft
+Software License Terms for Visual Studio 2022 (Visual Studio License Directory).
+Authority: <https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution>
+("Visual C++ Runtime Files") and
+<https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files>.

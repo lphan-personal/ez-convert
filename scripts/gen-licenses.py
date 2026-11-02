@@ -100,6 +100,13 @@ def render():
     lines.append("| LibreOffice (`soffice`) | MPL-2.0 | Separate-process sidecar. The TDF "
                  "release ships unmodified at the version pinned in `SPEC.md` §6; its "
                  "`NOTICE`/`LICENSE` files travel with the installer. |")
+    lines.append("| MSVC runtime (`concrt140`, `msvcp140*`, `vcruntime140*`) | Microsoft "
+                 "Visual C++ Redistributable terms (VS 2022 REDIST list: unmodified copies "
+                 "of the `VC\\redist` files, distributable with the program) | Copied "
+                 "unmodified into the Windows install root by "
+                 "`bundle.windows.bundleVCRuntime`; per-file pins in "
+                 "`docs/shipped-inventory.tsv`, terms in "
+                 "`docs/licenses/THIRD-PARTY-NOTICES.md` section 9. |")
     lines.append("")
     lines.append("The licence gate runs in CI on every push "
                  "(`license-assert` job) and fails the build on a GPL/nonfree ffmpeg.")
