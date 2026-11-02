@@ -1,0 +1,79 @@
+=== v1 signing-surface scan + policy scans (warden, t_7f7600ba, 2026-11-02T05:02:05Z)
+--- head:
+89744acb14b31599fef3e8fcb6d5b93acf07a9d4
+
+=== A. Developer ID / notarization / stapling / spctl / secrets references (whole tree, all file types)
+./evidence/p3-engine-pack-manifest.md :117:- **Ad-hoc signing.** Integrity, not identity: `spctl` still rejects the DMG and
+./evidence/p3-signing-audit-scans.txt :5:=== A. Developer ID / notarization / stapling / spctl / secrets references (whole tree, all file types)
+./packaging/macos/README-pack.txt :42:The pack is signed ad-hoc for now. With an Apple Developer ID it will be signed
+./packaging/macos/README-pack.txt :43:with a Developer ID Application certificate, with hardened runtime and a secure
+./packaging/macos/sign-app.sh :14:# Ad-hoc (`--sign -`) is the v1 identity: no Developer ID yet, so no hardened
+./packaging/macos/sign-app.sh :15:# runtime, no timestamp. With a Developer ID, set:
+./packaging/macos/sign-app.sh :16:#   EZC_SIGN_IDENTITY="Developer ID Application: NAME (TEAMID)"
+./packaging/macos/sign-app.sh :17:#   EZC_SIGN_OPTIONS="--options runtime --timestamp"
+./packaging/macos/sign-app.sh :19:# see the doc for the notarize + staple sequence.
+./docs/DISTRIBUTION.md :10:  then `Contents/MacOS/*`, then the bundle. **No Developer ID, no notarization.**
+./docs/DISTRIBUTION.md :29:Only if the stakeholder decides to publish. Then the order is: fund Developer ID →
+./docs/DISTRIBUTION.md :30:sign engine pack → notarize the DMG → staple → document the change.
+./docs/MACOS-PACKAGING.md :4:Actions macOS runner (`.github/workflows/macos-dmg.yml`); the Developer ID path
+./docs/MACOS-PACKAGING.md :163:## 4. When the $99/yr Developer ID is funded
+./docs/MACOS-PACKAGING.md :167:> Developer ID, no notarization, no store. Everything below is the *reference
+./docs/MACOS-PACKAGING.md :174:The `$99` Apple Developer Program gives a **Developer ID Application**
+./docs/MACOS-PACKAGING.md :177:Developer ID certificate"*).
+./docs/MACOS-PACKAGING.md :181:1. Export a **Developer ID Application** certificate + private key from the
+./docs/MACOS-PACKAGING.md :184:   `notarytool`.
+./docs/MACOS-PACKAGING.md :186:   `APPLE_CERT_P12` (base64), `APPLE_CERT_PASSWORD`, `APPLE_ID`,
+./docs/MACOS-PACKAGING.md :187:   `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`.
+./docs/MACOS-PACKAGING.md :195:security import cert.p12 -k build.keychain -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign
+./docs/MACOS-PACKAGING.md :197:ID="Developer ID Application: NAME (TEAMID)"
+./docs/MACOS-PACKAGING.md :198:OPTS="--options runtime --timestamp"
+./docs/MACOS-PACKAGING.md :215:# 3. the app: zip it (notarytool takes zip/pkg/dmg, not a bare .app), submit, staple
+./docs/MACOS-PACKAGING.md :217:xcrun notarytool submit "EZ Convert.zip" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+./docs/MACOS-PACKAGING.md :218:  --password "$APPLE_APP_PASSWORD" --wait
+./docs/MACOS-PACKAGING.md :219:xcrun stapler staple "EZ Convert.app"
+./docs/MACOS-PACKAGING.md :221:# 4. the DMG: build it from the stapled app, sign it, submit it, staple it
+./docs/MACOS-PACKAGING.md :224:xcrun notarytool submit "EZ-Convert-0.0.1-macos-universal.dmg" --apple-id "$APPLE_ID" \
+./docs/MACOS-PACKAGING.md :225:  --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+./docs/MACOS-PACKAGING.md :226:xcrun stapler staple "EZ-Convert-0.0.1-macos-universal.dmg"
+./docs/MACOS-PACKAGING.md :229:spctl -a -vvv -t exec "EZ Convert.app"
+./docs/MACOS-PACKAGING.md :230:spctl -a -vvv -t open --context context:primary-signature "EZ-Convert-0.0.1-macos-universal.dmg"
+./docs/MACOS-PACKAGING.md :233:Repeat 2–5 for the engine pack DMG (`spctl -t open` on the pack, and
+./docs/MACOS-PACKAGING.md :244:What changes in the workflow when the cert exists: `signingIdentity` in
+./docs/MACOS-PACKAGING.md :245:`src-tauri/tauri.macos.conf.json` becomes the Developer ID string,
+./docs/MACOS-PACKAGING.md :246:`hardenedRuntime` becomes `true`, the two `sign-*` steps take
+./docs/MACOS-PACKAGING.md :247:`EZC_SIGN_IDENTITY`/`EZC_SIGN_OPTIONS`, and the notarize+staple block from step 3
+./docs/MACOS-PACKAGING.md :281:- unsigned: Gatekeeper friction on first launch (§3), and `spctl` will reject
+./scripts/mac-engine-pack.sh :22:# last). With a Developer ID the same order holds with `--options runtime
+./scripts/mac-engine-pack.sh :501:# Identity is ad-hoc for v1 and a Developer ID when one is funded: the order is
+./src-tauri/tauri.macos.conf.json :12:      "hardenedRuntime": false,
+./src-tauri/tauri.macos.conf.json :13:      "signingIdentity": "-",
+
+=== B. Same, EXECUTABLE surface only (workflows, scripts, packaging) - what CI can actually run
+scripts/mac-engine-pack.sh:22:# last). With a Developer ID the same order holds with `--options runtime
+scripts/mac-engine-pack.sh:501:# Identity is ad-hoc for v1 and a Developer ID when one is funded: the order is
+packaging/macos/README-pack.txt:42:The pack is signed ad-hoc for now. With an Apple Developer ID it will be signed
+packaging/macos/README-pack.txt:43:with a Developer ID Application certificate, with hardened runtime and a secure
+packaging/macos/sign-app.sh:14:# Ad-hoc (`--sign -`) is the v1 identity: no Developer ID yet, so no hardened
+packaging/macos/sign-app.sh:15:# runtime, no timestamp. With a Developer ID, set:
+packaging/macos/sign-app.sh:16:#   EZC_SIGN_IDENTITY="Developer ID Application: NAME (TEAMID)"
+
+=== C. Ad-hoc identity values in effect
+12:      "hardenedRuntime": false,
+13:      "signingIdentity": "-",
+packaging/macos/sign-app.sh:28:IDENTITY="${EZC_SIGN_IDENTITY:--}"
+scripts/mac-engine-pack.sh:504:SIGN_IDENTITY="${EZC_SIGN_IDENTITY:--}"
+
+=== D. deny-list (policy v1 reference check)
+./evidence/p2-stage-manifest.tsv:2198:25113e48b2e06d1a1da95361aada5036ebba2526f7b21ae933a75d414ad50809  engines/soffice/share/config/soffice.cfg/cui/ui/fileextcheckdialog.ui
+./evidence/p2-stage-manifest.tsv:3921:c6605df06b139d2e358df9f01504e51444d0602df68be250fd31f96805d34f9a  engines/soffice/share/config/soffice.cfg/svx/ui/fileexporteddialog.ui
+./src-tauri/src/engine/tags.rs:17:use lofty::file::{AudioFile, TaggedFileExt};
+
+=== E. R2 file-type check
+no .cs/.xaml/.csproj in tree
+no .gitmodules (R1 ok)
+
+=== F. what v1 actually signs (script evidence)
+packaging/macos/sign-app.sh:40:  if ! out="$(codesign --force --sign "$IDENTITY" $OPTIONS "$target" 2>&1)"; then
+scripts/mac-engine-pack.sh:510:  if ! out="$(codesign --force --sign "$SIGN_IDENTITY" $SIGN_OPTIONS "$1" 2>&1)"; then
+scripts/mac-engine-pack.sh:626:codesign --force --sign "$SIGN_IDENTITY" $SIGN_OPTIONS "$DMG" || { echo "DMG signing failed: $DMG" >&2; exit 1; }
+.github/workflows/macos-dmg.yml:161:          codesign --force --sign - "dist/EZ-Convert-${EZC_VERSION}-macos-universal.dmg"

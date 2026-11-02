@@ -158,94 +158,31 @@ Ad-hoc signatures have **no timestamp and no hardened runtime**: they prove
 integrity, not identity, and Gatekeeper still requires the right-click → Open
 dance on first launch. That is the accepted v1 trade (Sequoia removed the
 Control-click shortcut for quarantined *unsigned* downloads, so this is a real
-friction, not a footnote).
+friction, not a footnote). The Developer ID variant of this order — hardened
+runtime, entitlements, secure timestamps, notarization, stapling — is
+`docs/MACOS-SIGNING.md`.
 
 ## 4. When the $99/yr Developer ID is funded
 
 > **NOT IN SCOPE FOR v1.** The stakeholder ruling of 2026-11-02
 > (`docs/DISTRIBUTION.md`) makes EZ Convert internal-only: ad-hoc signing, no
-> Developer ID, no notarization, no store. Everything below is the *reference
-> sequence* the card asked to be written down — the exact order that must be
-> followed **if** publishing is ever decided. It is not a plan of work, and CI
-> does not run any of it. The v1 consequence stays as §3 states: Gatekeeper
-> needs one right-click → Open (or `xattr -d com.apple.quarantine`), and the
+> Developer ID, no notarization, no store. The exact reference sequence —
+> parameterized commands, hardened runtime, entitlements, secure timestamps,
+> `codesign` verification, `notarytool submit --wait`, stapling to app and DMG,
+> `spctl` assessment, gotchas, and the v1 release audit — lives in
+> **`docs/MACOS-SIGNING.md`**, the single source of truth for the funded order.
+> CI runs none of it. The v1 consequence stays as §3 states: Gatekeeper needs
+> one right-click → Open (or `xattr -d com.apple.quarantine`), and the
 > engine-pack installer carries the same note.
 
-The `$99` Apple Developer Program gives a **Developer ID Application**
-certificate (not "Mac App Distribution", not "Apple Development" — either of
-those is rejected at notarization with *"The binary is not signed with a valid
-Developer ID certificate"*).
-
-Prerequisites, once:
-
-1. Export a **Developer ID Application** certificate + private key from the
-   Keychain as `.p12`.
-2. Create an app-specific password (or an App Store Connect API key) for
-   `notarytool`.
-3. Store, as repository secrets:
-   `APPLE_CERT_P12` (base64), `APPLE_CERT_PASSWORD`, `APPLE_ID`,
-   `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`.
-
-Then the exact sequence, per release (the numbers are the order; skipping one
-breaks the seal of everything above it):
-
-```bash
-# 0. toolchain: import the identity, keep it in a throwaway keychain
-security create-keychain -p "$KEYCHAIN_PW" build.keychain
-security import cert.p12 -k build.keychain -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign
-security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PW" build.keychain
-ID="Developer ID Application: NAME (TEAMID)"
-OPTS="--options runtime --timestamp"
-
-# 1. app: build without signing, then sign inside-out (order from §3)
-tauri build --target universal-apple-darwin --no-sign --config src-tauri/tauri.macos.conf.json
-find "EZ Convert.app/Contents" -type f -print0 | xargs -0 file | grep Mach-O | cut -d: -f1 \
-  | awk -F/ '{print NF" "$0}' | sort -rn | cut -d' ' -f2- |
-  while read -r f; do codesign --force --sign "$ID" $OPTS --entitlements entitlements.plist "$f"; done
-find "EZ Convert.app/Contents" -mindepth 1 \( -name '*.framework' -o -name '*.appex' -o -name '*.xpc' \) -type d \
-  | awk -F/ '{print NF" "$0}' | sort -rn | cut -d' ' -f2- |
-  while read -r b; do codesign --force --sign "$ID" $OPTS --entitlements entitlements.plist "$b"; done
-codesign --force --sign "$ID" $OPTS --entitlements entitlements.plist "EZ Convert.app"
-codesign --verify --deep --strict --verbose=2 "EZ Convert.app"     # 1b. must pass
-
-# 2. engine pack: same inside-out pass over engines/**, then the DMG
-EZC_SIGN_IDENTITY="$ID" EZC_SIGN_OPTIONS="$OPTS" scripts/mac-engine-pack.sh --out dist
-# (sign-app.sh takes the bundle as an argument: sign-app.sh "EZ Convert.app")
-
-# 3. the app: zip it (notarytool takes zip/pkg/dmg, not a bare .app), submit, staple
-ditto -c -k --keepParent "EZ Convert.app" "EZ Convert.zip"
-xcrun notarytool submit "EZ Convert.zip" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
-  --password "$APPLE_APP_PASSWORD" --wait
-xcrun stapler staple "EZ Convert.app"
-
-# 4. the DMG: build it from the stapled app, sign it, submit it, staple it
-hdiutil create -volname "EZ Convert" -srcfolder stage -ov -format UDZO "EZ-Convert-0.0.1-macos-universal.dmg"
-codesign --force --sign "$ID" $OPTS "EZ-Convert-0.0.1-macos-universal.dmg"
-xcrun notarytool submit "EZ-Convert-0.0.1-macos-universal.dmg" --apple-id "$APPLE_ID" \
-  --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
-xcrun stapler staple "EZ-Convert-0.0.1-macos-universal.dmg"
-
-# 5. gate before publish — both must pass
-spctl -a -vvv -t exec "EZ Convert.app"
-spctl -a -vvv -t open --context context:primary-signature "EZ-Convert-0.0.1-macos-universal.dmg"
-```
-
-Repeat 2–5 for the engine pack DMG (`spctl -t open` on the pack, and
-`codesign --verify --deep --strict` over the installed `engines/` tree).
-
-Entitlements: keep them empty unless a restricted capability is required. Tauri
-passes the app's entitlements to sidecars (tauri#16211), and a *restricted*
-entitlement inherited by a sidecar gets it `Killed: 9` while every signature and
-the notarization ticket still verify. Do **not** add
-`com.apple.security.cs.disable-library-validation` unless libvips is loading
-unsigned plugins — our plugins are signed with the same identity, so it is not
-needed.
-
-What changes in the workflow when the cert exists: `signingIdentity` in
-`src-tauri/tauri.macos.conf.json` becomes the Developer ID string,
-`hardenedRuntime` becomes `true`, the two `sign-*` steps take
-`EZC_SIGN_IDENTITY`/`EZC_SIGN_OPTIONS`, and the notarize+staple block from step 3
-and 4 is appended. Nothing else moves.
+In one line: import the Developer ID certificate into a throwaway keychain,
+sign inside-out with `--options runtime --timestamp`
+(`sign-app.sh` / `mac-engine-pack.sh` via `EZC_SIGN_IDENTITY`/`EZC_SIGN_OPTIONS`),
+rebuild the app DMG from the signed **and stapled** app, `notarytool submit
+--wait` + `stapler` on the app and both DMGs, then `spctl` each. The traps that
+make a naive port ship the wrong bytes — the DMG is bundled *before* the signing
+pass, `stapler staple` invalidates digest sidecars, entitlements belong on the
+main executable only — are sequenced around in `docs/MACOS-SIGNING.md` §5–§9.
 
 ## 5. What the runner proves (and what it cannot)
 

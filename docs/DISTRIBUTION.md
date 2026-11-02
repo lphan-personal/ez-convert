@@ -27,4 +27,5 @@ Both belong in the user guide (P4), stated plainly, not buried.
 ## Revisit condition
 
 Only if the stakeholder decides to publish. Then the order is: fund Developer ID →
-sign engine pack → notarize the DMG → staple → document the change.
+sign engine pack → notarize the DMG → staple → document the change. The exact
+sequence is written down in `docs/MACOS-SIGNING.md`.
