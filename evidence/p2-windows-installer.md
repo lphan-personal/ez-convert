@@ -1,6 +1,7 @@
 # P2 — Windows NSIS per-user installer with bundled engines
 
-Card: `t_466cc032`. Date: 2026-11-02. Build host: Debian 13 container (cross-compile with
+Card: `t_466cc032` (installer + acceptance) and `t_afcba8e2` (gate, `.gitignore`, CI
+payload split). Date: 2026-11-02. Build host: Debian 13 container (cross-compile with
 `cargo-xwin` + LLVM 18) → the installer is bundled on the `win11-dev` VM.
 Test host: `win11-dev`, Windows 11 Pro 10.0.26200, **no developer tools installed**.
 
@@ -49,15 +50,30 @@ nothing; 5,509 files left the tree in total (`evidence/engine-pack-strip-manifes
 
 Gate (`scripts/dist-license-gate.sh --scan`) over each shipped tree: vips dist root
 43/43 attributed, 0 failures; sidecar projection 2/2, 0 failures; soffice pack root
-8,327 attributed with **1 failure still open**:
-`program/python-core-*/lib/libffi-8.dll` — the gate still resolves the bare
-`libffi-8.dll` row from the vips dist first, so the LO build's pin is compared against
-the wrong hash even though a path-specific row now exists. The matcher needs to prefer
-the more specific pattern; that is a one-function change in `match_row`, not an
-inventory gap. (The `update-settings.ini` failure this scan surfaced *was* an inventory
-typo and is fixed: the re-run reports it clean.)
-Three Windows-pack rows were missing and were added: `license.txt`, `update-settings.ini`,
+8,327 attributed, **0 failures**. Re-staged from the shipping inputs on 2026-11-02
+(`--vips …/vipsdist --ffmpeg …/ff --lo-pack …/lo-pack`): `scan: 2 files attributed, 0
+failures` / `scan: 8327 … 0 failures` / `scan: 43 … 0 failures`, staged total 970.9 MiB.
+The `update-settings.ini` failure this scan surfaced *was* an inventory typo and is fixed;
+three Windows-pack rows were missing and were added: `license.txt`, `update-settings.ini`,
 and the pack's own `libffi-8.dll`.
+
+Two gate defects were fixed in `scripts/dist-license-gate.sh` to get there (both measured,
+both covered by new `--selftest` cases, `--selftest` ALL PASS, `--check-inventory` 101 rows
+0 failures):
+
+- `match_row` could not decide a row whose glob sits in a **non-final** segment, so the
+  soffice pack's `program/python-core-3.13.17/lib/libffi-8.dll` fell through to the bare
+  `libffi-8.dll` row (the vips dist pin) and reported sha256 drift. It now matches the
+  whole relative path and the longest pattern wins; before the fix the scan was
+  `8327 files attributed, 1 failures`, after it `8327 … 0 failures`.
+- `licenses/THIRD-PARTY-NOTICES.md` existed in two artifacts assembled at different times:
+  the shipping vips dist carries the pre-change snapshot (`fc485f87…`), a freshly staged
+  pack copies the committed bytes (`fb4d5357…`, the pin P3 `t_ebfd4c6b` set for the macOS
+  pack). A single-digest row cannot describe both, so a row may now record several
+  comma-separated digests and the file must match one of them. Both digests are recorded
+  in the inventory row with the reason. **Open, recorded rather than fixed:** the Windows
+  vips dist still ships the older copy of our own notice text — rebuilding the dist
+  collapses the row back to one digest.
 
 ## 3. Does Tauri sign `externalBin` sidecars on Windows? — YES (measured)
 
@@ -165,12 +181,52 @@ families as `MissingEngine`.
 - The installer now carries seven Microsoft VC-runtime DLLs (v14.44.35211). They have no
   `docs/shipped-inventory.tsv` row and no `THIRD-PARTY-NOTICES.md` entry yet — required
   before release (policy R6), recorded here rather than assumed.
-- `scripts/dist-license-gate.sh --scan` over the soffice pack still reports one failure:
-  `program/python-core-*/lib/libffi-8.dll` resolves the bare `libffi-8.dll` row from the
-  vips dist first; `match_row` must prefer the more specific pattern.
+- **CLOSED 2026-11-02 (`t_afcba8e2`):** the gate used to report one failure on the soffice
+  pack — `program/python-core-*/lib/libffi-8.dll` resolved the bare `libffi-8.dll` row and
+  drifted on sha256. `match_row` now decides a non-final-segment glob against the whole
+  path, so the specific row wins: `scan: 8327 files attributed, 0 failures` (§2). The same
+  re-run surfaced a second, separate drift (two snapshots of our own notices file) which is
+  closed by recording both digests — but the Windows vips dist still carries the older
+  notice text, so rebuilding that dist is still owed.
 - `pdfium` is not staged: the first-party `ezc-pdf` sidecar (`ARCHITECTURE.md` §17.2) does
   not exist yet, so there is no binary to package and the PDF routes stay unshipped. The
   staging script accepts `--pdfium` and the gate will reject it until its inventory row
   carries a sha256 pin.
 - Tauri signs the sidecars through `signCommand`, but no certificate was used, so the
   installer that ships must be built on a machine with a real signing identity.
+
+## 8. CI: the bundle payload moved out of the platform overlay
+
+`build (windows-latest)` was RED on every push once the payload landed, and not because of
+anything macOS-side: step 7 `cargo build` died in the **build script**, not the compiler —
+
+```
+error: failed to run custom build command for `ez-convert v0.0.1 (D:\a\ez-convert\ez-convert\src-tauri)`
+  cargo:rerun-if-changed=…\src-tauri\tauri.windows.conf.json
+  resource path `binaries\ffmpeg-x86_64-pc-windows-msvc.exe` doesn't exist
+##[error]Process completed with exit code 101.
+```
+
+Runs `41381217360` (head `067deb3`) and `41381593048` (head `ac2fb8f`) fail identically, and
+the later steps (licence assertion, Tauri app build, artifact upload) never ran — so the
+Windows artifact record for those heads is empty. Cause: `tauri-build` validates
+`externalBin`/`resources` paths at **cargo build** time, and the matrix never stages engines.
+
+Fix, chosen over stubbing files in CI: `tauri.windows.conf.json` keeps only the platform
+settings (NSIS `currentUser`, `webviewInstallMode`, `bundleVCRuntime`); the payload
+(`externalBin` + `resources`) lives in the new `src-tauri/tauri.bundle.windows.conf.json`,
+which only the packaging command passes:
+
+```
+tauri build --target x86_64-pc-windows-msvc --config src-tauri/tauri.bundle.windows.conf.json
+```
+
+A `build.yml` step now fails the matrix if `externalBin`/`resources` reappear in the platform
+overlay. Staging stubs would have made CI green while removing the only thing that job can
+check about the payload. The produced installer is unaffected: it was bundled from the merged
+config before the split, and the split only moves *where* the same keys are declared.
+
+## 9. Staged inputs are not committed
+
+`/src-tauri/binaries/` (260 MB) and `/src-tauri/resources/` (734 MB) are in `.gitignore`
+(commit `df7cdd1`), so the ~1 GB the staging script assembles never reaches a commit.

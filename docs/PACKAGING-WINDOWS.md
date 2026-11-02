@@ -39,6 +39,29 @@ its 32 DLL siblings and would scatter ~8,500 LibreOffice files into the install 
 vips is therefore launched by absolute path with its CWD set to its own directory
 (`engine/proc.rs`), the same rule as `ARCHITECTURE.md` §18.
 
+## Two config files: app vs. payload
+
+`src-tauri/tauri.windows.conf.json` is the **platform** overlay Tauri applies to every
+Windows build — the CI matrix's `cargo build` included. It carries the NSIS settings and
+nothing that must exist on disk.
+
+The engine payload lives in `src-tauri/tauri.bundle.windows.conf.json` and is passed
+explicitly, only by the packaging command:
+
+| file | contents | read by |
+|---|---|---|
+| `tauri.windows.conf.json` | `bundle.targets: ["nsis"]`, `nsis.installMode: currentUser`, `webviewInstallMode`, `bundleVCRuntime` | every Windows build |
+| `tauri.bundle.windows.conf.json` | `bundle.externalBin: [ffmpeg, ffprobe]`, `bundle.resources: {engines, licenses}` | the packaging command only |
+
+The split exists because `tauri-build` validates `externalBin`/`resources` paths at **cargo
+build** time. With the payload in the platform overlay, the CI matrix — which never stages
+engines — failed on every push with
+`resource path binaries\ffmpeg-x86_64-pc-windows-msvc.exe doesn't exist`
+(runs `41381217360`, `41381593048`). Keeping the platform overlay payload-free means the
+matrix builds the app with no engine staging, and only the packaging command opts into the
+payload. Staging stubs in CI would have made the matrix green while destroying the one thing
+it checks — that the declared payload paths are real.
+
 ## Engine staging
 
 `scripts/stage-engines.sh` assembles the bundle inputs. It is the only supported way to
@@ -86,7 +109,11 @@ the pinned `tauri-bundler` and by a build whose sign command logs every path it 
 
 ## Acceptance (what "done" means)
 
-1. Build with `tauri build --target x86_64-pc-windows-msvc` (or natively on Windows).
+1. Stage the engines (`scripts/stage-engines.sh`, above), then build with the payload
+   overlay: `tauri build --target x86_64-pc-windows-msvc --config
+   src-tauri/tauri.bundle.windows.conf.json` (or natively on Windows). Leaving the
+   `--config` off produces a bundle with no engines — the installer would then report every
+   family `MissingEngine`, which is why the acceptance run below is the gate, not the build.
 2. Install on a Windows 11 machine with **no developer tools** and no internet.
 3. Run `ez-convert.exe --diagnostics --fixtures <dir>` from the installed location. It
    resolves the engines the way the app does and converts one file per family (image,

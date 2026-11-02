@@ -144,6 +144,27 @@ jobs:
         with:
           workspaces: src-tauri
 
+      # The engine payload must NOT live in the platform overlay: `tauri-build`
+      # validates externalBin/resources paths at cargo build time, and this matrix
+      # never stages engines — every push failed here with
+      # `resource path binaries\ffmpeg-x86_64-pc-windows-msvc.exe doesn't exist`
+      # (runs 41381217360, 41381593048). The packaging command opts into the payload
+      # explicitly with --config src-tauri/tauri.bundle.windows.conf.json (see
+      # docs/PACKAGING-WINDOWS.md "Two config files: app vs. payload").
+      - name: The matrix config must not declare a bundle payload
+        run: |
+          set -eo pipefail
+          cfg=src-tauri/tauri.windows.conf.json
+          if grep -qE '"(externalBin|resources)"' "$cfg"; then
+            echo "::error::$cfg declares externalBin/resources, but this job stages no engines. Move it back to src-tauri/tauri.bundle.windows.conf.json."
+            exit 1
+          fi
+          grep -q '"externalBin"' src-tauri/tauri.bundle.windows.conf.json || {
+            echo "::error::the payload overlay src-tauri/tauri.bundle.windows.conf.json lost its externalBin list"
+            exit 1
+          }
+          echo "payload declared only in the bundle overlay (cargo build stays engine-free)"
+
       - name: cargo build
         working-directory: src-tauri
         run: |

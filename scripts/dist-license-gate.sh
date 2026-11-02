@@ -178,6 +178,17 @@ match_row() { # <relpath> -> sets M_* globals for the best (longest-pattern) mat
           esac
         fi ;;
     esac
+    # A glob in a NON-final segment — e.g. program/python-core-*/lib/libffi-8.dll —
+    # is decidable only against the whole relative path: the rules above test either
+    # the basename or a literal directory prefix, so such a row never matched and the
+    # file fell through to the shorter bare-basename row (`libffi-8.dll`, the vips
+    # dist's pin), which then reported a bogus sha256 drift. Match the full path here;
+    # the longest-pattern ranking below still prefers this row over the bare one.
+    if [ "$hit" -eq 0 ]; then
+      case "$pat" in
+        */*\**) case "$rel" in ${pat}) hit=1 ;; esac ;;
+      esac
+    fi
     if [ "$hit" -eq 1 ] && [ "${#pat}" -gt "$matched" ]; then
       matched="${#pat}"
       M_KIND="$kind"; M_COMP="$comp"; M_VER="$ver"; M_PAT="$pat"
@@ -209,11 +220,23 @@ scan_tree() {
       FAIL*) log "FAIL $rel :: ${C_VERDICT#FAIL }"; fails=$((fails + 1)) ;;
     esac
     if [ "$M_SHA" != "-" ] && [ -n "$M_SHA" ]; then
-      local actual
+      local actual hit_sha=0 cand
       actual="$(sha256sum "$f" | cut -d' ' -f1)"
       # Hex digests are case-insensitive; the inventory rows were written by
       # hand in upper case, `sha256sum` emits lower case.
-      if [ "${actual,,}" != "${M_SHA,,}" ]; then
+      #
+      # A row may record MORE THAN ONE acceptable digest, comma-separated. That is
+      # only legitimate when the same relative path exists in two artifacts that were
+      # assembled at different times — the notices pack: the shipping vips dist carries
+      # the snapshot it was built with, a freshly staged pack carries the committed
+      # bytes. Every alternative is a digest someone recorded deliberately, and the
+      # file must match one of them, so a contaminant still cannot slip through.
+      while IFS= read -r cand; do
+        cand="${cand//[[:space:]]/}"
+        [ -n "$cand" ] || continue
+        if [ "${actual,,}" = "${cand,,}" ]; then hit_sha=1; break; fi
+      done < <(printf '%s\n' "$M_SHA" | tr ',' '\n')
+      if [ "$hit_sha" -eq 0 ]; then
         log "FAIL $rel :: sha256 drift (inventory $M_SHA, on disk $actual)"
         fails=$((fails + 1))
       fi
@@ -344,7 +367,40 @@ EOF
   expect_fail "specific not-shipped row beats a broad shipped row" $?
   rm -rf "$tmp/pack"
 
-  # 8: the REAL inventory must pass classification
+  # 8: a row whose glob sits in a NON-final segment (program/python-core-*/lib/
+  #    libffi-8.dll) must be decidable against the whole path and must beat the
+  #    bare-basename row — the real failure mode: the LO pack's libffi-8.dll was
+  #    attributed to the vips dist's `libffi-8.dll` pin and reported sha256 drift.
+  mkdir -p "$tmp/pack2/program/python-core-3.13.17/lib"
+  printf 'lo libffi fixture' > "$tmp/pack2/program/python-core-3.13.17/lib/libffi-8.dll"
+  lo_sha="$(sha256sum "$tmp/pack2/program/python-core-3.13.17/lib/libffi-8.dll" | cut -d' ' -f1)"
+  cat > "$tmp/inv-midglob.tsv" <<EOF
+# fixture inventory: the bare-basename row pins the WRONG hash on purpose
+binary	fixture-vips	1.0	libffi-8.dll	MIT	https://example.invalid/vips	0000000000000000000000000000000000000000000000000000000000000000	shipped	vips dist
+data	fixture-lo	3.13	program/python-core-*/lib/libffi-8.dll	MIT	https://example.invalid/lo	${lo_sha}	shipped	LO pack
+EOF
+  INVENTORY="$tmp/inv-midglob.tsv" bash "${BASH_SOURCE[0]}" --scan "$tmp/pack2" >/dev/null 2>&1
+  expect_pass "mid-segment glob row beats the bare-basename row (the libffi shape)" $?
+  rm -rf "$tmp/pack2"
+
+  # 9: a row that records TWO deliberate digests (the notices-pack shape: one path
+  #    that legitimately exists in two artifacts assembled at different times) must
+  #    accept a file matching either one, and still reject a file matching neither.
+  mkdir -p "$tmp/pack3/licenses"
+  printf 'current notice fixture' > "$tmp/pack3/licenses/THIRD-PARTY-NOTICES.md"
+  cur_sha="$(sha256sum "$tmp/pack3/licenses/THIRD-PARTY-NOTICES.md" | cut -d' ' -f1)"
+  cat > "$tmp/inv-multi.tsv" <<EOF
+# fixture inventory: two recorded digests, the file on disk matches the second
+notice	fixture-notice	-	licenses/THIRD-PARTY-NOTICES.md	LicenseRef-own-work	-	0000000000000000000000000000000000000000000000000000000000000000,${cur_sha}	notice-text	multi-digest fixture
+EOF
+  INVENTORY="$tmp/inv-multi.tsv" bash "${BASH_SOURCE[0]}" --scan "$tmp/pack3" >/dev/null 2>&1
+  expect_pass "row with two recorded digests accepts the second" $?
+  printf 'tampered notice fixture' > "$tmp/pack3/licenses/THIRD-PARTY-NOTICES.md"
+  INVENTORY="$tmp/inv-multi.tsv" bash "${BASH_SOURCE[0]}" --scan "$tmp/pack3" >/dev/null 2>&1
+  expect_fail "file matching none of the recorded digests" $?
+  rm -rf "$tmp/pack3"
+
+  # 10: the REAL inventory must pass classification
   bash "${BASH_SOURCE[0]}" --check-inventory >/dev/null 2>&1
   expect_pass "real shipped-inventory.tsv" $?
 
