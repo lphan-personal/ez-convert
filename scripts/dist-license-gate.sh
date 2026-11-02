@@ -106,6 +106,12 @@ classify() {
 check_inventory() {
   local n=0 fails=0 warns=0 line kind comp ver path lic url sha status notes verdict
   while IFS=$'\t' read -r kind comp ver path lic url sha status notes; do
+    # A Windows checkout is CRLF unless .gitattributes says otherwise (it does,
+    # for *.tsv): a blank line then arrives as a lone "\r" and every field ends
+    # with one, which turns "blank" into "unknown kind" and breaks digest
+    # comparisons. Strip it here too, so the gate is correct for the *caller's*
+    # inventory as well — the same class of bug the Windows engine-pack job hit.
+    kind="${kind%$'\r'}"; lic="${lic%$'\r'}"; status="${status%$'\r'}"
     case "$kind" in ''|'#'*) continue ;; esac
     n=$((n + 1))
     if [ "$kind" != "app" ] && [ "$kind" != "binary" ] && [ "$kind" != "font" ] \
@@ -155,6 +161,10 @@ match_row() { # <relpath> -> sets M_* globals for the best (longest-pattern) mat
   base="${rel##*/}"
   M_KIND=""
   while IFS=$'\t' read -r kind comp ver path lic url sha status notes; do
+    # CRLF tolerance, as in check_inventory: `path` and `sha` decide attribution
+    # and digest equality, so a trailing "\r" on them fails a correct file.
+    kind="${kind%$'\r'}"; path="${path%$'\r'}"; lic="${lic%$'\r'}"
+    sha="${sha%$'\r'}"; status="${status%$'\r'}"
     case "$kind" in ''|'#'*) continue ;; esac
     row_pattern "$path"
     pat="$RP_PAT"
@@ -403,6 +413,13 @@ EOF
   # 10: the REAL inventory must pass classification
   bash "${BASH_SOURCE[0]}" --check-inventory >/dev/null 2>&1
   expect_pass "real shipped-inventory.tsv" $?
+
+  # 11: the same inventory with CRLF endings must classify identically. This is
+  #    the Windows checkout shape (blank lines arrive as a lone "\r"); the gate
+  #    failed 3 rows on it in the windows-engine-pack job before the fix.
+  sed 's/$/\r/' "$INVENTORY" > "$tmp/inv-crlf.tsv"
+  INVENTORY="$tmp/inv-crlf.tsv" bash "${BASH_SOURCE[0]}" --check-inventory >/dev/null 2>&1
+  expect_pass "CRLF inventory (Windows checkout)" $?
 
   log "selftest: $([ "$status" -eq 0 ] && echo ALL PASS || echo FAILURES PRESENT)"
   return "$status"
