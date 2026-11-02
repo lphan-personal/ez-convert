@@ -1,0 +1,117 @@
+name: windows-engine-pack
+
+# Windows engine pack (P2/P4): vips + ffmpeg + LibreOffice assembled, stripped,
+# licence-gated, smoke-converted and packaged as `windows-engine-pack-x86_64.zip`
+# on a GitHub-hosted Windows runner.
+#
+# Why CI and not the Windows test VM: `win11-dev` has no outbound network (no TCP
+# to 1.1.1.1/8.8.8.8/github, no DNS via any server — measured), so the pinned
+# engine downloads cannot happen there. `windows-latest` has network, is a clean
+# Windows machine every run, and the repo is public so the minutes are free.
+#
+# What the job proves, in order (all of it is asserted by
+# scripts/win-engine-pack.sh, and the log is the evidence):
+#   1  pinned inputs      vips dist tarball, BtbN ffmpeg zip, TDF LibreOffice MSI —
+#                         each verified by digest before it is unpacked
+#   2  vips               the S2-dist GPL-free build (43 files), runs from the pack,
+#                         config shows imagequant/poppler off and libheif on
+#   3  ffmpeg/ffprobe     LGPL autobuild, `-buildconf` has no --enable-gpl
+#   4  LibreOffice        MSI administrative extraction (the tree, not an install)
+#   5  strip              gallery, help and the five GPL-2.0 Culmus families gone,
+#                         asserted independently of the script that removed them
+#   6  closure            every PE import resolves to a file in the pack or to a
+#                         Windows system DLL; banned-import audit is separate
+#   7  licence gate       `dist-license-gate.sh --check-inventory` + `--scan` over
+#                         each engine tree against docs/shipped-inventory.tsv
+#   8  smoke              a REAL conversion per family, judged by its product:
+#                         png->jpg (+heic->jpg), wav->mp3, mp4->webm, docx->pdf and
+#                         docx->txt with the fixture's MARKER-ALPHA text intact
+#   9  package            MANIFEST.sha256, zip, then unzip elsewhere and re-verify
+#                         every digest; refuses to finish over 1 GiB
+
+on:
+  push:
+    branches: ["main", "winpack/**"]
+    paths:
+      - ".github/workflows/windows-engine-pack.yml"
+      - "scripts/win-engine-pack.sh"
+      - "scripts/dist-license-gate.sh"
+      - "scripts/strip-engine-pack.py"
+      - "packaging/windows/**"
+      - "docs/shipped-inventory.tsv"
+      - "fixtures/**"
+  workflow_dispatch:
+
+concurrency:
+  group: windows-engine-pack-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pack:
+    name: pack (windows-engine-pack-x86_64.zip)
+    runs-on: windows-latest
+    # Measured: ~10 min of downloads (375 MB MSI + 175 MB ffmpeg zip) plus the
+    # strip/zip of ~8,300 files. 120 min is a ceiling, not an expectation.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      # MSYS2 is where the shell, coreutils, binutils (objdump, for the PE import
+      # audit) and zip live. `python` is MSYS2's own build, so the strip script and
+      # the shell agree on path syntax (a Windows python would not understand /d/a/…).
+      - name: MSYS2 (bash, binutils, zip, python)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            base-devel
+            binutils
+            curl
+            python
+            unzip
+            zip
+
+      - name: Toolchain inventory
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          uname -a
+          for t in bash curl sha256sum objdump python3 cygpath unzip zip; do
+            printf '%-10s %s\n' "$t" "$(command -v "$t")"
+          done
+          python3 -V
+
+      # EZC_WORK points at a short path on purpose: the LibreOffice tree has deep
+      # relative paths and a long scratch prefix is how `zip` starts failing on
+      # Windows path-length limits that only appear once the tree exists.
+      - name: Build, strip, gate and package the engine pack
+        shell: msys2 {0}
+        run: |
+          set -o pipefail
+          export EZC_WORK="$(cygpath -u "$RUNNER_TEMP")/ezc-winpack"
+          mkdir -p "$EZC_WORK"
+          bash scripts/win-engine-pack.sh --out dist 2>&1 | tee pack.log
+
+      - name: Upload the engine pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-engine-pack
+          path: |
+            dist/windows-engine-pack-*.zip
+            dist/windows-engine-pack-*.zip.sha256
+            dist/build-report.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload the build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-engine-pack-log
+          path: pack.log
+          if-no-files-found: warn
+          retention-days: 30
