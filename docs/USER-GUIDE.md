@@ -402,10 +402,10 @@ These are current, measured limits — not bugs waiting to be discovered:
 11. **GIF input is first-frame only**, and GIF-to-GIF animation re-encoding is not offered.
 12. **No auto-update** — upgrade by reinstalling.
 13. **First image conversion after a fresh engine-pack unpack is slow** on a Defender-scanned
-    install: the scanner reads the whole vips tree (96.5 s measured warm-after-one-read,
-    120.6 s on the first touch). The engine cap is 300 s so this completes instead of being
-    killed; warm conversions are ~0.1 s. A very slow disk could still be noticeable, but no
-    longer fails.
+    install: the scanner reads the whole vips tree (96.5 s once it has seen the tree,
+    216.9 s on the genuine first touch). The engine cap is 600 s so this completes instead
+    of being killed; warm conversions are ~0.1 s. A very slow disk could still be
+    noticeable, but no longer fails.
 
 ---
 

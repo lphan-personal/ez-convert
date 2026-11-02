@@ -356,13 +356,14 @@ dev/CI only: the engine pack ships its plugins beside the sidecar and the OS loa
 
 - Wall-clock timeout per invocation, enforced by a monitor that kills the child and its
   process group (Windows: job object; POSIX: kill the pid, then sweep orphans by job id).
-- Defaults: `vips` 300 s, `ezc-pdf` 120 s, `resvg` 60 s, `soffice` 240 s (S3 used 240 s per
+- Defaults: `vips` 600 s, `ezc-pdf` 120 s, `resvg` 60 s, `soffice` 240 s (S3 used 240 s per
   run and its worst measured cold case was 1217 ms), `ffmpeg` no fixed cap but a stall
   detector (no progress line for 120 s ⇒ kill). The vips cap is not a performance claim: a
   Windows first run of a freshly unpacked pack has to survive an AV scan of the whole tree
-  (96.5 s warm-after-one-read, 120.6 s on the first touch — the old 120 s cap killed that
-  conversion on 2026-11-02). **All of these defaults are untested against large inputs** —
-  they are safety limits.
+  (96.5 s once the scanner has seen it, **216.9 s on the genuine first touch** — the old
+  120 s cap killed that conversion on 2026-11-02, found by the v1.0.1 Windows acceptance
+  run). **All of these defaults are untested against large inputs** — they are safety
+  limits.
 - stdout/stderr are captured to bounded buffers (1 MiB each, head + tail kept) and written to
   the job log. A pathological engine cannot exhaust the app's memory.
 
@@ -827,7 +828,7 @@ Rules, each with the measurement that forces it:
    `--vips-config`, and the e2e prints `SKIP` with the engine's own error instead of a pass.
 
 Timeouts and kills: `proc::run` gives ffmpeg a 120 s *stall* limit (no output for 120 s) and an
-1800 s wall-clock cap, vips 300 s, ffprobe 30 s. Those are safety limits, not measurements
+1800 s wall-clock cap, vips 600 s, ffprobe 30 s. Those are safety limits, not measurements
 (§6.0.3) — the only time the stall detector fired was the real `-b:a` hang above.
 
 ### 6.4 PDFium — PDF pages to raster (`PLANNED`, needs a decision recorded in §17)
