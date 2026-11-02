@@ -1,0 +1,20 @@
+
+=== 1/8 LibreOffice 26.8.2 (arm64)
+    download https://download.documentfoundation.org/libreoffice/stable/26.8.2/mac/aarch64/LibreOffice_26.8.2_MacOS_aarch64.dmg
+9f24fe83ab1ed5c95eb3df580119f32932f713e577feeac02bf619fb00749b55  /Users/runner/work/_temp/ezc-pack/downloads/LibreOffice_26.8.2_MacOS_aarch64.dmg
+    289M on disk
+    layout: program = Contents/MacOS, data = Contents/Resources (flat at the pack root)
+    Resources -> . (so program/../Resources/<x> resolves)
+    carried Contents/Frameworks (3580 files)
+    carried Contents/PlugIns (6 files)
+    carried Contents/Library (4 files)
+    17448 files, 802M
+
+=== 2/8 strip the content the licence decision removed (t_20fae747)
+strip-engine-pack: culmus       0 files          0 B
+strip-engine-pack: gallery      0 files          0 B
+strip-engine-pack: help      8082 files 43,179,151 B
+strip-engine-pack: manifest -> /Users/runner/work/_temp/ezc-pack/downloads/strip-manifest.tsv (8082 entries)
+strip-engine-pack: removed 8082 files
+    8082 paths removed
+strip incomplete: GPL-2.0 Culmus font still shipped: /Users/runner/work/_temp/ezc-pack/pack/engines/soffice/fonts/truetype/DavidCLM-Bold.otf
