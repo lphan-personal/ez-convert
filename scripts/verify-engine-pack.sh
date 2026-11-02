@@ -190,6 +190,29 @@ check_app() { # <app bundle>
   fi
 }
 
+# ------------------------------------------------------- no build-machine paths
+# The pack has to run on a Mac with no Homebrew installed: every Mach-O reference
+# must be a system library or something inside the pack. This is what stops a
+# "works on the build machine" ffmpeg or libvips from shipping.
+check_no_build_paths() { # <pack-root>
+  local root="$1" list leftovers total
+  list="$(mktemp)"; leftovers="$(mktemp)"
+  find "$root" -type f -print0 2>/dev/null | xargs -0 file 2>/dev/null | grep -E 'Mach-O' \
+    | sed -E 's/ \(for architecture [^)]*\)//g' | cut -d: -f1 | sort -u > "$list"
+  while IFS= read -r f; do
+    otool -L "$f" 2>/dev/null | tail -n +2 | awk '{print $1}' \
+      | grep -E '^/(opt/homebrew|usr/local)/' | sed "s|^|${f#"$root"/}: |" >> "$leftovers"
+  done < "$list"
+  total="$(wc -l < "$list" | tr -d ' ')"
+  if [ -s "$leftovers" ]; then
+    fail "$(wc -l < "$leftovers" | tr -d ' ') Mach-O reference(s) still point at the build machine"
+    head -20 "$leftovers" | sed 's/^/      /' >&2
+  else
+    pass "$total Mach-O objects reference only system or in-pack libraries"
+  fi
+  rm -f "$list" "$leftovers"
+}
+
 # ------------------------------------------------------------------------ main
 if [ -n "$DMG" ]; then
   [ -f "$DMG" ] || { echo "no such DMG: $DMG" >&2; exit 2; }
@@ -211,6 +234,7 @@ fi
 check_manifest "$PACK"
 check_symlinks "$PACK"
 check_signatures "$PACK"
+check_no_build_paths "$PACK"
 check_exec "$PACK"
 
 if [ -n "$APP" ]; then

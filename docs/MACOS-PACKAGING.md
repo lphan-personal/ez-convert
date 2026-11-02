@@ -35,7 +35,7 @@ different platform with a different bundler, and the asymmetry is deliberate
 
 ```
 engines/vips/{vips,vipsheader,lib/*.dylib,vips-modules-*}
-engines/ffmpeg/{ffmpeg,ffprobe}
+engines/ffmpeg/{ffmpeg,ffprobe,lib/*.dylib}
 engines/soffice/program/soffice        (console launcher, not soffice.bin)
 ```
 
@@ -113,9 +113,11 @@ bash scripts/verify-engine-pack.sh --dmg EZ-Convert-Engine-Pack-arm64.dmg --expe
 
 That verifier checks the sidecar digest against the artifact, the manifest pair
 against the tree, the symlink inventory (with `engines/soffice/Resources` as the
-named spot check), `codesign --verify` on **every** Mach-O object in the pack, and
-that `vips`, `ffmpeg` and `soffice` actually run from inside the pack — then, with
-`--app`, that `Contents/Resources` holds no engine tree. `scripts/mac-engine-pack.sh`
+named spot check), `codesign --verify` on **every** Mach-O object in the pack,
+that no Mach-O object still references the build machine (`/opt/homebrew`,
+`/usr/local` — the pack has to run on a Mac with no Homebrew), and that `vips`,
+`ffmpeg` and `soffice` actually run from inside the pack — then, with `--app`,
+that `Contents/Resources` holds no engine tree. `scripts/mac-engine-pack.sh`
 runs it on the DMG it just built (step 8b), so a pack that does not survive
 `hdiutil create` fails in the build, not in the user's hands.
 

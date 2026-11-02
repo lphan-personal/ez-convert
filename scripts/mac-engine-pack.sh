@@ -362,9 +362,12 @@ else
   note "lame $(brew list --versions lame | awk '{print $2}') header: $LAME_HDR"
   note "ffmpeg compile line gets -I$LAME_INCLUDE_ROOT (--extra-cflags)"
   EXTRA_CFLAGS="--extra-cflags=-I$LAME_INCLUDE_ROOT"
+  # ...and the library path: lame is keg-only, so `ld: library 'mp3lame' not
+  # found` is what run 41383311843 hit on the link half of the same probe.
+  EXTRA_LDFLAGS="--extra-ldflags=-L$LAME_PREFIX/lib"
   ( cd "$WORK/downloads/ffmpeg-src" && ./configure \
       --prefix="$WORK/downloads/ffmpeg" \
-      "$EXTRA_CFLAGS" \
+      "$EXTRA_CFLAGS" "$EXTRA_LDFLAGS" \
       --disable-gpl --disable-nonfree --disable-debug --disable-doc \
       --enable-libvpx --enable-libaom --enable-libopus --enable-libvorbis --enable-libmp3lame \
       --enable-videotoolbox --enable-audiotoolbox \
@@ -386,6 +389,80 @@ else
 fi
 mkdir -p "$PACK/engines/ffmpeg"
 cp "$WORK/downloads/ffmpeg/bin/ffmpeg" "$WORK/downloads/ffmpeg/bin/ffprobe" "$PACK/engines/ffmpeg/"
+
+# ffmpeg's external codecs come from Homebrew kegs, so both binaries link dylibs
+# by absolute path (/opt/homebrew/opt/lame/lib/..., libvpx, aom, opus, vorbis,
+# mpg123). Left alone, the pack would run only on the machine that built it.
+# Stage the closure into engines/ffmpeg/lib and re-point every reference at
+# @rpath, the same way the vips tree above is made relocatable — same helpers,
+# same post-condition: no build path may survive.
+FF_OUT="$PACK/engines/ffmpeg"
+mkdir -p "$FF_OUT/lib"
+FF_PROVENANCE="$WORK/downloads/ffmpeg-dylibs.tsv"
+printf '# staged dylib\tcopied from\n' > "$FF_PROVENANCE"
+
+ff_machos() {
+  find "$FF_OUT" -type f -print0 | xargs -0 file 2>/dev/null | grep -E 'Mach-O' \
+    | sed -E 's/ \(for architecture [^)]*\)//g' | cut -d: -f1 | sort -u
+}
+
+for _pass in 1 2 3 4 5 6; do
+  added=0
+  while IFS= read -r macho; do
+    while IFS= read -r dep; do
+      case "$dep" in
+        /usr/lib/*|/System/*|@loader_path/*|@executable_path/*|@rpath/*) continue ;;
+      esac
+      base="$(basename "$dep")"
+      [ -f "$FF_OUT/lib/$base" ] && continue
+      if [ ! -f "$dep" ]; then
+        echo "ffmpeg dependency not present on the build machine: $dep" >&2
+        echo "  linked by ${macho#"$PACK"/}" >&2
+        exit 1
+      fi
+      cp "$dep" "$FF_OUT/lib/$base"
+      chmod u+w "$FF_OUT/lib/$base"
+      printf '%s\t%s\n' "$base" "$dep" >> "$FF_PROVENANCE"
+      added=$((added + 1))
+    done < <(deps_of "$macho")
+  done < <(ff_machos)
+  [ "$added" -eq 0 ] && break
+done
+note "$(find "$FF_OUT/lib" -type f | wc -l | tr -d ' ') dylibs staged into engines/ffmpeg/lib"
+
+for lib in "$FF_OUT"/lib/*.dylib; do
+  [ -e "$lib" ] || continue
+  install_name_tool -id "@rpath/$(basename "$lib")" "$lib"
+done
+while IFS= read -r macho; do
+  rewrite "$macho" "@loader_path/lib" "@loader_path" "@executable_path/lib"
+done < <(ff_machos)
+
+ff_leftover=""
+ff_missing=""
+while IFS= read -r macho; do
+  while IFS= read -r dep; do
+    case "$dep" in
+      /opt/homebrew/*|/usr/local/*)
+        ff_leftover="${ff_leftover}${macho#"$PACK"/}: ${dep}"$'\n' ; continue ;;
+      /usr/lib/*|/System/*) continue ;;
+      @rpath/*)
+        base="$(basename "$dep")"
+        [ -f "$FF_OUT/lib/$base" ] || [ -f "$(dirname "$macho")/$base" ] \
+          || ff_missing="${ff_missing}${macho#"$PACK"/}: ${dep}"$'\n'
+        continue ;;
+      @loader_path/*)
+        rel="${dep#@loader_path/}"
+        [ -e "$(dirname "$macho")/$rel" ] || ff_missing="${ff_missing}${macho#"$PACK"/}: ${dep}"$'\n'
+        continue ;;
+      *) [ -f "$dep" ] || ff_missing="${ff_missing}${macho#"$PACK"/}: ${dep}"$'\n' ;;
+    esac
+  done < <(deps_of "$macho")
+done < <(ff_machos)
+[ -z "$ff_leftover" ] || { echo "ffmpeg relocation incomplete — absolute build paths still linked:" >&2; printf '%s' "$ff_leftover" >&2; exit 1; }
+[ -z "$ff_missing" ] || { echo "ffmpeg dependency closure incomplete:" >&2; printf '%s' "$ff_missing" >&2; exit 1; }
+note "ffmpeg closure: every reference resolves inside the pack"
+
 "$PACK/engines/ffmpeg/ffmpeg" -buildconf | tee "$WORK/downloads/ffmpeg-buildconf.txt" | head -3
 if "$PACK/engines/ffmpeg/ffmpeg" -buildconf | grep -qE -- '--enable-gpl|--enable-nonfree'; then
   echo "FATAL: ffmpeg build advertises --enable-gpl/--enable-nonfree" >&2
@@ -461,6 +538,7 @@ mkdir -p "$PACK/licenses"
 cp "$REPO_ROOT/docs/licenses/THIRD-PARTY-NOTICES.md" "$PACK/licenses/" 2>/dev/null || true
 cp "$WORK/downloads/ffmpeg-buildconf.txt" "$PACK/licenses/ffmpeg-buildconf.txt" || true
 cp "$WORK/downloads/libreoffice.sha256" "$PACK/licenses/libreoffice.sha256" || true
+cp "$WORK/downloads/ffmpeg-dylibs.tsv" "$PACK/licenses/ffmpeg-dylibs.tsv" || true
 cp "$WORK/downloads/strip-manifest.tsv" "$PACK/licenses/strip-manifest.tsv" || true
 cp "$WORK/downloads/licence-scan.txt" "$PACK/licenses/licence-scan.txt" || true
 if command -v brew >/dev/null; then
