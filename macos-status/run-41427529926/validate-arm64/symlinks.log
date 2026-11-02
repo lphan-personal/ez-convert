@@ -1,0 +1,5 @@
+installed symlinks: 24  (manifest declares 24)
+engines/soffice/program -> LibreOffice.app/Contents/MacOS
+engine binary through the link: -rwxr-xr-x  1 runner  staff  51472 Nov  2 09:59 /Users/runner/Library/Application Support/app.ezconvert.desktop/engines/soffice/program/soffice
+dangling symlinks: 0
+symlink inventory checked
