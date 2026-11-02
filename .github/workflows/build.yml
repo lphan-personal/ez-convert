@@ -13,8 +13,33 @@ name: build
 on:
   push:
     branches: [main]
+    # Cost control (decision A, 2026-11-02): prose-only commits must not rebuild
+    # three operating systems. Anything that can change shipped behaviour still
+    # runs the matrix - including the licence inventory, which the policy gate reads.
+    paths:
+      - "src-tauri/**"
+      - "ui/**"
+      - "scripts/**"
+      - "fixtures/**"
+      - ".github/workflows/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "package.json"
+      - "docs/LICENSES.md"
+      - "docs/shipped-inventory.tsv"
   pull_request:
     branches: [main]
+    paths:
+      - "src-tauri/**"
+      - "ui/**"
+      - "scripts/**"
+      - "fixtures/**"
+      - ".github/workflows/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "package.json"
+      - "docs/LICENSES.md"
+      - "docs/shipped-inventory.tsv"
   workflow_dispatch:
     inputs:
       spike_id:
@@ -62,6 +87,12 @@ jobs:
   build:
     name: build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    # Cost control (decision A, 2026-11-02): macOS bills at 10x the Linux rate
+    # ($0.08/min vs $0.008). Measured burn on this repo: macos-latest was 14% of
+    # the wall time but 49% of the billed minutes. Every push still builds Linux +
+    # Windows; macOS builds on workflow_dispatch and on tag pushes, and the full
+    # 3-OS matrix is the release evidence rather than the per-commit signal.
+    if: matrix.os != 'macos-latest' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     # Free-tier minutes are the budget: a hung runner must not burn an hour.
     # A cold run is ~8-12 min per platform including the release build.
     timeout-minutes: 30

@@ -12,15 +12,14 @@ name: macos-dmg
 # with the logs and a facts.json.
 
 on:
+  # Cost control (decision A, 2026-11-02): this workflow was the single largest
+  # Actions consumer - a macOS runner plus a long packaging budget on every push
+  # that touched src-tauri/**. macOS now builds on a tag push (v*) or on demand.
+  # To iterate the DMG, dispatch it explicitly:
+  #   gh workflow run macos-dmg.yml            (or POST /actions/workflows/macos-dmg.yml/dispatches)
   push:
-    branches: [main]
-    paths:
-      - ".github/workflows/macos-dmg.yml"
-      - "src-tauri/**"
-      - "scripts/mac-engine-pack.sh"
-      - "packaging/macos/**"
-      - "ui/**"
-      - "fixtures/**"
+    tags:
+      - "v*"
   workflow_dispatch:
 
 concurrency:
