@@ -52,14 +52,16 @@ sign_bundle() {
   # Every Mach-O regular file in the bundle, deepest first. Two traps here:
   #  * BSD `file` prints one extra line per architecture of a universal binary
   #    ("/path (for architecture x86_64): Mach-O ..."), which is not a path —
-  #    codesign then fails with "No such file or directory" (run 41375947322).
-  #    Strip the suffix and de-duplicate.
+  #    codesign then fails with "No such file or directory" (run 41376620641).
+  #    The parenthetical is removed *wherever* it appears: anchoring the pattern
+  #    at end-of-line matched nothing, because the line continues with the
+  #    description after the colon.
   #  * an empty grep match is exit 1, which pipefail would turn into a silent
   #    abort, hence `|| true` plus the explicit empty-list check below.
   find "$app" -type f -print0 \
     | xargs -0 file 2>/dev/null \
     | grep -E 'Mach-O' \
-    | sed -E 's/ \(for architecture [^)]*\)$//' \
+    | sed -E 's/ \(for architecture [^)]*\)//g' \
     | cut -d: -f1 \
     | sort -u \
     | awk -F/ '{print NF" "$0}' | sort -rn -k1,1 | cut -d' ' -f2- > "$work" || true

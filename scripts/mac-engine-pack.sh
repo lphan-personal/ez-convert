@@ -323,11 +323,12 @@ sign() { local out
   fi; }
 # 5a nested Mach-O files, deepest path first. BSD `file` emits one line per
 # architecture of a universal binary ("<path> (for architecture arm64): ..."):
-# those are not paths and codesign fails on them, so the suffix is stripped and
-# the list de-duplicated before anything is signed.
+# those are not paths and codesign fails on them, so the parenthetical is
+# removed wherever it appears (end-anchored matching misses it — the line
+# continues after the colon) and the list de-duplicated.
 find "$PACK/engines" -type f -print0 \
   | xargs -0 file 2>/dev/null | grep -E 'Mach-O' \
-  | sed -E 's/ \(for architecture [^)]*\)$//' | cut -d: -f1 | sort -u \
+  | sed -E 's/ \(for architecture [^)]*\)//g' | cut -d: -f1 | sort -u \
   | awk -F/ '{print NF" "$0}' | sort -rn -k1,1 | cut -d' ' -f2- > "$WORK/macho.txt" || true
 [ -s "$WORK/macho.txt" ] || { echo "no Mach-O files found under $PACK/engines" >&2; exit 1; }
 while IFS= read -r f; do sign "$f"; done < "$WORK/macho.txt"
