@@ -1,0 +1,25 @@
+PASS  verify: OK ezconvert-engine-pack-macos-arm64 version 1.0.0 arch arm64
+PASS  verify: 9304 files hashed, MANIFEST.json covered by the list
+PASS  verify: 24 symlinks intact
+PASS  verify: engine ffmpeg 8.1.1 at engines/ffmpeg/ffmpeg
+PASS  verify: engine soffice 26.8.2 at engines/soffice/LibreOffice.app/Contents/MacOS/soffice
+PASS  verify: engine vips 8.18.7 at engines/vips/vips
+PASS  24 symlinks present after unpack
+PASS  engines/soffice/program is a symlink -> LibreOffice.app/Contents/MacOS
+PASS  LibreOffice.app/Contents/MacOS/soffice is executable
+PASS  339 Mach-O objects verify (ad-hoc v1 signatures)
+PASS  339 Mach-O objects reference only system or in-pack libraries
+FAIL  pack vips does not run: scripts/verify-engine-pack.sh: line 166: /Users/runner/Library/Application Support/app.ezconvert.desktop/engines/vips/vips: Bad CPU type in executable
+FAIL  pack ffmpeg does not run: scripts/verify-engine-pack.sh: line 168: /Users/runner/Library/Application Support/app.ezconvert.desktop/engines/ffmpeg/ffmpeg: Bad CPU type in executable
+PASS  shipped ffmpeg is not GPL
+PASS  pack soffice runs: scripts/verify-engine-pack.sh: line 177: /Users/runner/Library/Application Support/app.ezconvert.desktop/engines/soffice/LibreOffice.app/Contents/MacOS/soffice: Bad CPU type in executable
+PASS  app bundle signature verifies (EZ Convert.app)
+PASS  app bundle carries no Contents/Resources/engines
+PASS  app bundle carries no Contents/Resources/LibreOffice.app
+PASS  app bundle carries no Contents/Resources/soffice
+PASS  app bundle carries no Contents/Resources/vips
+PASS  app bundle carries no Contents/Resources/ffmpeg
+
+verify-engine-pack: FAIL (2 check(s))
+verify exit=1
+PASS lines: 19
