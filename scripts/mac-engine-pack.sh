@@ -381,10 +381,13 @@ cp "$REPO_ROOT/packaging/macos/README-pack.txt" "$STAGE/README.txt"
   && xargs -0 shasum -a 256 < "$WORK/filelist.txt" > MANIFEST.sha256 )
 note "manifest: $(wc -l < "$PACK/MANIFEST.sha256" | tr -d ' ') files"
 
-ditto "$PACK" "$STAGE/engines-root"
+# The payload IS the pack root: engines/, licenses/ and MANIFEST.sha256 at the
+# top of it. (Earlier this nested $PACK under payload/engines, which installed
+# a second "engines" level inside app.ezconvert.desktop/engines and would have
+# left the app unable to find any engine — the layout the installer and
+# adopt_pack agree on is the one below.)
 mkdir -p "$STAGE/payload"
-mv "$STAGE/engines-root" "$STAGE/payload/engines"
-cp "$PACK/MANIFEST.sha256" "$STAGE/payload/MANIFEST.sha256"
+ditto "$PACK" "$STAGE/payload"
 
 # The gate then runs over the DMG root as well, not only the pack tree: the
 # three files the image adds over $PACK (readme, installer, manifest copy) must

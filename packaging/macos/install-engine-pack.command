@@ -17,7 +17,8 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
-dest="$HOME/Library/Application Support/app.ezconvert.desktop/engines"
+packroot="$HOME/Library/Application Support/app.ezconvert.desktop"
+dest="$packroot/engines"
 payload="$here/payload"
 
 [ -d "$payload/engines" ] || {
@@ -31,14 +32,18 @@ if ! ( cd "$payload" && shasum -a 256 -c MANIFEST.sha256 --quiet ); then
   exit 1
 fi
 
-mkdir -p "$(dirname "$dest")"
+mkdir -p "$packroot"
 if [ -d "$dest" ]; then
   backup="$dest.replaced-$(date +%Y%m%d-%H%M%S)"
   echo "existing pack moved to $backup"
   mv "$dest" "$backup"
 fi
 # ditto, not cp -R: the LibreOffice tree has symlinks and extended attributes.
+# payload/engines holds vips/, ffmpeg/ and soffice/, which is exactly what
+# app.ezconvert.desktop/engines must contain.
 ditto "$payload/engines" "$dest"
+ditto "$payload/licenses" "$packroot/licenses"
+cp "$payload/MANIFEST.sha256" "$packroot/MANIFEST.sha256"
 
 printf 'installed: %s\n' "$dest"
 for probe in vips/vips ffmpeg/ffmpeg soffice/program/soffice; do
