@@ -337,69 +337,34 @@ else
   # licence gate asserts on the shipped binary; --disable-nonfree keeps the
   # build redistributable.
   note "configure"
-  # ffmpeg's configure asks pkg-config for the package `libmp3lame >= 3.98.3`.
-  # What matters is that exact expression, not "is there some lame metadata":
-  # Homebrew's lame 4.0 ships a `lame.pc` whose package name is `lame`, so
-  # `pkg-config --exists lame` succeeds while configure's own probe still fails,
-  # and the fallback is a bare `-lmp3lame` compile with no include path (clang
-  # does not search /opt/homebrew/include) — run 41381174131 died on
-  # `fatal error: 'lame/lame.h' file not found` exactly there. 3.100 shipped no
-  # .pc at all (run 41379287298). Both are the same hole: describe the keg under
-  # the name ffmpeg asks for.
+  # FFmpeg 8.1 probes libmp3lame with a plain `require` — configure line 7325 of
+  # n8.1.1:
+  #   enabled libmp3lame && require "libmp3lame >= 3.98.3" lame/lame.h \
+  #                                    lame_set_VBR_quality -lmp3lame $libm_extralibs
+  # That is check_lib: no pkg-config, no cflags. So a .pc file cannot fix it — run
+  # 41382615266 had a correct libmp3lame.pc on PKG_CONFIG_PATH and still died on
+  # `fatal error: 'lame/lame.h' file not found` — and clang does not search
+  # /opt/homebrew/include. The keg's include root has to be on the compile line.
   #
-  # Two facts measured from the 4.0 bottle itself (arm64_tahoe, 41 members):
-  #   * include/lame/lame.h exists but the LAME_*_VERSION macros are gone, so the
-  #     version has to come from the keg's own lame.pc / brew metadata;
-  #   * Homebrew's lame.pc says `Cflags: -I${includedir}/lame`, which points one
-  #     level too deep for ffmpeg's `#include <lame/lame.h>`. The include root
-  #     written below is the header's grandparent, so the include resolves by
-  #     construction rather than by luck.
+  # Measured from the 4.0 bottle itself (arm64_tahoe): include/lame/lame.h exists,
+  # the LAME_*_VERSION macros are gone, and the keg's own lame.pc declares
+  # `Cflags: -I${includedir}/lame` — one level too deep for `#include <lame/lame.h>`.
+  # The include root below is the header's grandparent, so it resolves by
+  # construction rather than by luck.
   LAME_PREFIX="$(brew --prefix lame)"
-  note "lame pkgconfig: $(ls "$LAME_PREFIX/lib/pkgconfig" 2>/dev/null | tr '\n' ' ' || echo '<none>')"
-  if ! pkg-config --exists "libmp3lame >= 3.98.3" 2>/dev/null; then
-    LAME_HDR="$(find "$LAME_PREFIX/include" -name lame.h -print -quit 2>/dev/null || true)"
-    note "lame header: ${LAME_HDR:-<none>} (include: $(ls "$LAME_PREFIX/include" 2>/dev/null | tr '\n' ' '))"
-    LAME_VERSION=""
-    if [ -n "$LAME_HDR" ]; then
-      LAME_MAJOR="$(sed -nE 's/^#define[[:space:]]+LAME_MAJOR_VERSION[[:space:]]+([0-9]+).*/\1/p' "$LAME_HDR" | head -1)"
-      LAME_MINOR="$(sed -nE 's/^#define[[:space:]]+LAME_MINOR_VERSION[[:space:]]+([0-9]+).*/\1/p' "$LAME_HDR" | head -1)"
-      # 4.0 dropped the version macros; any release that still has them wins,
-      # because that is the header the compiler will read.
-      [ -n "$LAME_MAJOR" ] && LAME_VERSION="${LAME_MAJOR}.${LAME_MINOR:-0}"
-    fi
-    if [ -z "$LAME_VERSION" ] && [ -f "$LAME_PREFIX/lib/pkgconfig/lame.pc" ]; then
-      LAME_VERSION="$(sed -nE 's/^Version:[[:space:]]*(.+)$/\1/p' "$LAME_PREFIX/lib/pkgconfig/lame.pc" | head -1)"
-      note "lame version from the keg's lame.pc: ${LAME_VERSION:-<none>}"
-    fi
-    if [ -z "$LAME_VERSION" ]; then
-      LAME_VERSION="$(brew list --versions lame | awk '{print $2}' | head -1)"
-      note "lame version from brew metadata: ${LAME_VERSION:-<none>}"
-    fi
-    if [ -z "$LAME_VERSION" ] || [ -z "$LAME_HDR" ]; then
-      echo "cannot describe the installed lame keg (header=$LAME_HDR version=$LAME_VERSION);" >&2
-      echo "include tree: $(ls -R "$LAME_PREFIX/include" 2>&1 | head -20)" >&2
-      exit 1
-    fi
-    LAME_INCLUDE_ROOT="$(dirname "$(dirname "$LAME_HDR")")"
-    mkdir -p "$WORK/pc"
-    {
-      echo "prefix=$LAME_PREFIX"
-      echo "exec_prefix=\${prefix}"
-      echo "libdir=\${exec_prefix}/lib"
-      echo "includedir=$LAME_INCLUDE_ROOT"
-      echo "Name: libmp3lame"
-      echo "Description: MP3 encoding library (keg description written by mac-engine-pack.sh)"
-      echo "Version: $LAME_VERSION"
-      echo "Libs: -L\${libdir} -lmp3lame"
-      echo "Cflags: -I\${includedir}"
-    } > "$WORK/pc/libmp3lame.pc"
-    export PKG_CONFIG_PATH="$WORK/pc${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-    note "libmp3lame.pc synthesised: version $(pkg-config --modversion libmp3lame), $(pkg-config --cflags libmp3lame)"
-  else
-    note "libmp3lame $(pkg-config --modversion libmp3lame) found by pkg-config"
+  LAME_HDR="$(find "$LAME_PREFIX/include" -name lame.h -print -quit 2>/dev/null || true)"
+  if [ -z "$LAME_HDR" ]; then
+    echo "no lame.h under $LAME_PREFIX/include — the keg ships no headers to compile against:" >&2
+    ls -R "$LAME_PREFIX/include" 2>&1 | head -20 >&2
+    exit 1
   fi
+  LAME_INCLUDE_ROOT="$(dirname "$(dirname "$LAME_HDR")")"
+  note "lame $(brew list --versions lame | awk '{print $2}') header: $LAME_HDR"
+  note "ffmpeg compile line gets -I$LAME_INCLUDE_ROOT (--extra-cflags)"
+  EXTRA_CFLAGS="--extra-cflags=-I$LAME_INCLUDE_ROOT"
   ( cd "$WORK/downloads/ffmpeg-src" && ./configure \
       --prefix="$WORK/downloads/ffmpeg" \
+      "$EXTRA_CFLAGS" \
       --disable-gpl --disable-nonfree --disable-debug --disable-doc \
       --enable-libvpx --enable-libaom --enable-libopus --enable-libvorbis --enable-libmp3lame \
       --enable-videotoolbox --enable-audiotoolbox \
