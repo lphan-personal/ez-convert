@@ -1,0 +1,18 @@
+{
+  "run_id": 41438875456,
+  "run_number": 94,
+  "run_attempt": 1,
+  "run_url": "https://github.com/lphan-personal/ez-convert/actions/runs/41438875456",
+  "event": "push",
+  "ref": "main",
+  "sha": "c63a18476bfc8ccaf2ce51b633f67d0f05a8ca95",
+  "trigger_inputs": {"spike_id": ""},
+  "results": {
+    "build_matrix_3_os": "cancelled",
+    "license_assert": "cancelled",
+    "policy_check": "cancelled",
+    "e2e": "cancelled",
+    "spike": "skipped"
+  },
+  "published_at": "2026-11-02T11:43:47Z"
+}
