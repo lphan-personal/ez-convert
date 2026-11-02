@@ -8,6 +8,37 @@ while the tag says `v1.0.0`, which is why the file names carry `0.0.1`.
 
 ---
 
+## Unreleased — the next build carries the wheel overlay
+
+v1.0.0 shipped **without** a working overlay window: `summon()` looked up a window labelled
+`wheel` that nothing ever created, so the hotkey produced nothing, and the v1.0.0 notes said
+so. Both the window and the measurement now exist on `main` (`docs/OVERLAY.md`):
+
+- The wheel is a real, transparent, non-activating, always-on-top window built at runtime;
+  the square corners outside the disc are click-through (an elliptic window region on
+  Windows, an `ignoresMouseEvents` watcher on macOS), and summoning it never takes the key
+  window from the app the user is working in.
+- Measured on a real desktop by the app itself — the same summon path the hotkey, the tray
+  item and the `wheel_summon` command call — with the screen photographed and the ring's
+  rectangle checked against a blank-capture control
+  (`evidence/overlay/README.md`, `overlay-measure` run
+  [41491695772](https://github.com/lphan-personal/ez-convert/actions/runs/41491695772)):
+
+| platform | summon → visible | cold (first, pre-warm) | screenshot | asserted checks |
+|---|---|---|---|---|
+| macOS 15 arm64, 1024×768, scale 1 | 44 ms | 50 ms | ring visible in the crop | 15/15 |
+| Windows Server 2025 x64, 1024×768 | 45 ms | 62 ms | ring visible in the crop | 15/15 |
+
+- The claim that matters for a download is the **installed** one, so `macos-validate` now runs
+  `--overlay-probe` against `/Applications/EZ Convert.app/Contents/MacOS/ez-convert` and fails
+  the job unless every asserted check passes. A green `macos-validate` means the DMG's own
+  binary was re-measured after installation, not that a build tree was.
+- **Not yet in a published artifact.** Until the DMG and the NSIS installer built from this
+  state are published and that installed-build probe has run, the overlay is measured on
+  `main` — not shipped. This section will carry the installed-build numbers when it is.
+
+---
+
 ## What v1 is
 
 A local, offline file converter with two surfaces in one app: a radial overlay that appears
