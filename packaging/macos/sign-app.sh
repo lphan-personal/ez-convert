@@ -27,12 +27,21 @@ set -euo pipefail
 
 IDENTITY="${EZC_SIGN_IDENTITY:--}"
 OPTIONS="${EZC_SIGN_OPTIONS:-}"
-[ "$IDENTITY" = "-" ] && OPTIONS=""
+if [ "$IDENTITY" = "-" ]; then OPTIONS=""; fi
+
+# A failure here must name the object and quote codesign's own words. The first
+# version sent both to /dev/null, so run #3 showed "exit code 1" and nothing
+# else — no target, no reason.
+trap 'echo "sign-app: FAILED at line $LINENO: $BASH_COMMAND" >&2' ERR
 
 sign_one() {
-  local target="$1"
+  local target="$1" out
   # shellcheck disable=SC2086
-  codesign --force --sign "$IDENTITY" $OPTIONS "$target" >/dev/null 2>&1
+  if ! out="$(codesign --force --sign "$IDENTITY" $OPTIONS "$target" 2>&1)"; then
+    echo "codesign FAILED: $target" >&2
+    printf '%s\n' "$out" | sed 's/^/    /' >&2
+    return 1
+  fi
 }
 
 sign_bundle() {
@@ -40,12 +49,18 @@ sign_bundle() {
   [ -d "$app" ] || { echo "not a bundle: $app" >&2; return 1; }
 
   local work; work="$(mktemp)"
-  # Every Mach-O regular file in the bundle, deepest first.
+  # Every Mach-O regular file in the bundle, deepest first. `|| true` because an
+  # empty match is grep's exit 1, which pipefail would turn into a silent abort.
   find "$app" -type f -print0 \
     | xargs -0 file 2>/dev/null \
     | grep -E 'Mach-O' \
     | cut -d: -f1 \
-    | awk -F/ '{print NF" "$0}' | sort -rn | cut -d' ' -f2- > "$work"
+    | awk -F/ '{print NF" "$0}' | sort -rn | cut -d' ' -f2- > "$work" || true
+  if [ ! -s "$work" ]; then
+    echo "no Mach-O files found under $app — nothing to sign, refusing" >&2
+    return 1
+  fi
+  echo "  $(wc -l < "$work" | tr -d ' ') Mach-O files (deepest first)"
 
   local count=0
   while IFS= read -r file; do

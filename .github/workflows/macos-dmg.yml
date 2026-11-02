@@ -129,11 +129,18 @@ jobs:
       - uses: actions/checkout@v4
 
       # Build dependencies for the LGPL ffmpeg (no GPL library is installed):
-      # libvpx BSD, libaom BSD, opus BSD, libvorbis BSD, lame LGPL-2.1.
+      # libvpx BSD, aom BSD, opus BSD, libvorbis BSD, lame LGPL-2.1. pkgconf is
+      # how configure finds them; the build is arm64 so nasm is not needed.
+      # The formula is `aom`, not `libaom` — the configure flag is the only place
+      # that name appears. The whole output goes to brew.log: a `| tail -5`
+      # here is what hid the missing-formula error on run #3.
       - name: Install engine dependencies
         run: |
-          set -euo pipefail
-          brew install libvpx libaom opus libvorbis lame vips 2>&1 | tail -5
+          set -o pipefail
+          export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1
+          brew install libvpx aom opus libvorbis lame pkgconf vips 2>&1 | tee brew.log
+          brew list --versions libvpx aom opus libvorbis lame pkgconf vips | tee -a brew.log
+          pkg-config --modversion vpx aom opus vorbis 2>&1 | tee -a brew.log
 
       - name: Build, strip, sign and package the engine pack
         run: |
@@ -150,7 +157,7 @@ jobs:
 
       - name: Evidence
         if: always()
-        run: bash packaging/macos/publish-evidence.sh pack "${{ job.status }}" pack.log
+        run: bash packaging/macos/publish-evidence.sh pack "${{ job.status }}" pack.log brew.log
 
   # ------------------------------------------------- install + convert test
   install-test:
@@ -248,6 +255,13 @@ jobs:
           cat /tmp/facts/facts.json
 
       - name: Push the facts to macos-status
+        # Same values as the compose step: a step's `env:` does not carry over to
+        # the next step, and the commit message needs them (run #3 died on
+        # "APP: unbound variable" here, after every macOS job had already run).
+        env:
+          APP: ${{ needs.app.result }}
+          PACK: ${{ needs.pack.result }}
+          INSTALL: ${{ needs.install-test.result }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"

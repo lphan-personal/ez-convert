@@ -111,6 +111,17 @@ else
   ls -la "$CONTENTS" "$CONTENTS/MacOS" 2>&1 | head -40 >&2
   exit 1
 fi
+# The app is not just MacOS + Resources: soffice.bin loads its dylibs from
+# Contents/Frameworks (libmergedlo.dylib and the UNO libraries). program/ takes
+# MacOS's place one level below the pack root, so `../Frameworks` still resolves
+# after normalisation — but only if the directory comes along.
+for extra in Frameworks PlugIns Helpers; do
+  if [ -d "$CONTENTS/$extra" ]; then
+    ditto "$CONTENTS/$extra" "$PACK/engines/soffice/$extra"
+    note "carried Contents/$extra ($(find "$CONTENTS/$extra" -type f | wc -l | tr -d ' ') files)"
+  fi
+done
+
 # The launcher the engine layer spawns (ARC §6.2.1: console launcher, not .bin).
 [ -x "$PACK/engines/soffice/program/soffice" ] || {
   echo "no executable engines/soffice/program/soffice after normalisation:" >&2
@@ -160,7 +171,10 @@ deps_of() { otool -L "$1" 2>/dev/null | tail -n +2 | awk '{print $1}'; }
 while :; do
   pending="$(sort -u "$QUEUE" | comm -23 - <(sort -u "$SEEN") || true)"
   [ -n "$pending" ] || break
-  for file in $pending; do
+  # `while read`, not `for file in $pending`: LibreOffice ships paths with
+  # spaces, and word splitting turns each of those into two bogus filenames.
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
     printf '%s\n' "$file" >> "$SEEN"
     while IFS= read -r dep; do
       case "$dep" in
@@ -172,7 +186,7 @@ while :; do
       cp "$dep" "$VIPS_OUT/lib/$base"
       printf '%s\n' "$VIPS_OUT/lib/$base" >> "$QUEUE"
     done < <(deps_of "$file")
-  done
+  done <<< "$pending"
 done
 note "$(find "$VIPS_OUT/lib" -maxdepth 1 -name '*.dylib' | wc -l | tr -d ' ') dylibs in the closure"
 
@@ -252,16 +266,22 @@ note "ffmpeg $("$PACK/engines/ffmpeg/ffmpeg" -version | head -1)"
 
 # ------------------------------------------------------------- 5. sign inside-out
 step "5/8 ad-hoc sign inside-out (nested first, outer last)"
-sign() { codesign --force --sign - --timestamp=none "$1" >/dev/null 2>&1 || {
-  echo "codesign failed: $1" >&2; return 1; }; }
+sign() { local out
+  if ! out="$(codesign --force --sign - --timestamp=none "$1" 2>&1)"; then
+    echo "codesign failed: $1" >&2
+    printf '%s\n' "$out" | sed 's/^/    /' >&2
+    return 1
+  fi; }
 # 5a nested Mach-O files, deepest path first.
 find "$PACK/engines" -type f -print0 \
   | xargs -0 file 2>/dev/null | grep -E 'Mach-O' | cut -d: -f1 \
-  | awk -F/ '{print NF" "$0}' | sort -rn | cut -d' ' -f2- > "$WORK/macho.txt"
+  | awk -F/ '{print NF" "$0}' | sort -rn | cut -d' ' -f2- > "$WORK/macho.txt" || true
+[ -s "$WORK/macho.txt" ] || { echo "no Mach-O files found under $PACK/engines" >&2; exit 1; }
 while IFS= read -r f; do sign "$f"; done < "$WORK/macho.txt"
 note "$(wc -l < "$WORK/macho.txt" | tr -d ' ') Mach-O files signed"
 for probe in "$PACK/engines/vips/vips" "$PACK/engines/ffmpeg/ffmpeg" "$PACK/engines/soffice/program/soffice.bin"; do
-  [ -f "$probe" ] && codesign --verify "$probe" || { echo "unsigned nested object: $probe" >&2; exit 1; }
+  [ -f "$probe" ] || { echo "missing probe $probe" >&2; exit 1; }
+  codesign --verify "$probe" || { echo "unsigned nested object: $probe" >&2; exit 1; }
 done
 
 # -------------------------------------------------------------- 6. licence scan

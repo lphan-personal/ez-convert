@@ -23,7 +23,15 @@ printf '{\n  "run_id": %s,\n  "sha": "%s",\n  "stage": "%s",\n  "job_status": "%
   "${GITHUB_SERVER_URL:-https://github.com}" "${GITHUB_REPOSITORY:-}" "$run" \
   "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$stage_dir/status.json"
 for log in "$@"; do
-  if [ -f "$log" ]; then cp "$log" "$stage_dir/$(basename "$log")"; fi
+  if [ -f "$log" ]; then
+    cp "$log" "$stage_dir/$(basename "$log")"
+  else
+    # The gap this closes (run #3): a step that dies before its tee runs leaves
+    # no log at all, and the evidence tree then looked like a stage that simply
+    # had nothing to say. Absence is a fact; publish it.
+    echo "log $log was never created in this stage (the step failed before it)" \
+      > "$stage_dir/$(basename "$log").absent"
+  fi
 done
 if [ -d dist ]; then
   ( cd dist && find . -type f -exec shasum -a 256 {} \; ) > "$stage_dir/artifacts.sha256" || true
