@@ -345,30 +345,56 @@ else
   # does not search /opt/homebrew/include) — run 41381174131 died on
   # `fatal error: 'lame/lame.h' file not found` exactly there. 3.100 shipped no
   # .pc at all (run 41379287298). Both are the same hole: describe the keg under
-  # the name ffmpeg asks for. The version comes from the keg's own header.
+  # the name ffmpeg asks for.
+  #
+  # Two facts measured from the 4.0 bottle itself (arm64_tahoe, 41 members):
+  #   * include/lame/lame.h exists but the LAME_*_VERSION macros are gone, so the
+  #     version has to come from the keg's own lame.pc / brew metadata;
+  #   * Homebrew's lame.pc says `Cflags: -I${includedir}/lame`, which points one
+  #     level too deep for ffmpeg's `#include <lame/lame.h>`. The include root
+  #     written below is the header's grandparent, so the include resolves by
+  #     construction rather than by luck.
   LAME_PREFIX="$(brew --prefix lame)"
   note "lame pkgconfig: $(ls "$LAME_PREFIX/lib/pkgconfig" 2>/dev/null | tr '\n' ' ' || echo '<none>')"
   if ! pkg-config --exists "libmp3lame >= 3.98.3" 2>/dev/null; then
-    LAME_MAJOR="$(sed -nE 's/^#define LAME_MAJOR_VERSION[[:space:]]+([0-9]+).*/\1/p' "$LAME_PREFIX/include/lame/lame.h" | head -1)"
-    LAME_MINOR="$(sed -nE 's/^#define LAME_MINOR_VERSION[[:space:]]+([0-9]+).*/\1/p' "$LAME_PREFIX/include/lame/lame.h" | head -1)"
-    if [ -z "$LAME_MAJOR" ] || [ -z "$LAME_MINOR" ]; then
-      echo "cannot describe the installed lame keg: no libmp3lame.pc and no version macros in $LAME_PREFIX/include/lame/lame.h" >&2
+    LAME_HDR="$(find "$LAME_PREFIX/include" -name lame.h -print -quit 2>/dev/null || true)"
+    note "lame header: ${LAME_HDR:-<none>} (include: $(ls "$LAME_PREFIX/include" 2>/dev/null | tr '\n' ' '))"
+    LAME_VERSION=""
+    if [ -n "$LAME_HDR" ]; then
+      LAME_MAJOR="$(sed -nE 's/^#define[[:space:]]+LAME_MAJOR_VERSION[[:space:]]+([0-9]+).*/\1/p' "$LAME_HDR" | head -1)"
+      LAME_MINOR="$(sed -nE 's/^#define[[:space:]]+LAME_MINOR_VERSION[[:space:]]+([0-9]+).*/\1/p' "$LAME_HDR" | head -1)"
+      # 4.0 dropped the version macros; any release that still has them wins,
+      # because that is the header the compiler will read.
+      [ -n "$LAME_MAJOR" ] && LAME_VERSION="${LAME_MAJOR}.${LAME_MINOR:-0}"
+    fi
+    if [ -z "$LAME_VERSION" ] && [ -f "$LAME_PREFIX/lib/pkgconfig/lame.pc" ]; then
+      LAME_VERSION="$(sed -nE 's/^Version:[[:space:]]*(.+)$/\1/p' "$LAME_PREFIX/lib/pkgconfig/lame.pc" | head -1)"
+      note "lame version from the keg's lame.pc: ${LAME_VERSION:-<none>}"
+    fi
+    if [ -z "$LAME_VERSION" ]; then
+      LAME_VERSION="$(brew list --versions lame | awk '{print $2}' | head -1)"
+      note "lame version from brew metadata: ${LAME_VERSION:-<none>}"
+    fi
+    if [ -z "$LAME_VERSION" ] || [ -z "$LAME_HDR" ]; then
+      echo "cannot describe the installed lame keg (header=$LAME_HDR version=$LAME_VERSION);" >&2
+      echo "include tree: $(ls -R "$LAME_PREFIX/include" 2>&1 | head -20)" >&2
       exit 1
     fi
+    LAME_INCLUDE_ROOT="$(dirname "$(dirname "$LAME_HDR")")"
     mkdir -p "$WORK/pc"
     {
       echo "prefix=$LAME_PREFIX"
       echo "exec_prefix=\${prefix}"
       echo "libdir=\${exec_prefix}/lib"
-      echo "includedir=\${prefix}/include"
+      echo "includedir=$LAME_INCLUDE_ROOT"
       echo "Name: libmp3lame"
       echo "Description: MP3 encoding library (keg description written by mac-engine-pack.sh)"
-      echo "Version: ${LAME_MAJOR}.${LAME_MINOR}"
+      echo "Version: $LAME_VERSION"
       echo "Libs: -L\${libdir} -lmp3lame"
       echo "Cflags: -I\${includedir}"
     } > "$WORK/pc/libmp3lame.pc"
     export PKG_CONFIG_PATH="$WORK/pc${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-    note "libmp3lame.pc synthesised for $(pkg-config --modversion libmp3lame) at $LAME_PREFIX"
+    note "libmp3lame.pc synthesised: version $(pkg-config --modversion libmp3lame), $(pkg-config --cflags libmp3lame)"
   else
     note "libmp3lame $(pkg-config --modversion libmp3lame) found by pkg-config"
   fi
