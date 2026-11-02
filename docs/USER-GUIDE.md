@@ -138,10 +138,11 @@ is no such UI because there is no such code.
 
 ## 4. The wheel
 
-Press the hotkey (default **Ctrl+Alt+Shift+D**) and a ring appears at the pointer. If
-another application already owns that chord, the app records the OS error, falls back to
-**Ctrl+Alt+D**, and saves the working chord — it does not pretend to have registered
-(`evidence/u3-intake.md` §3).
+Press the hotkey (default **Ctrl+Alt+Shift+D**; on a Mac the same chord reads
+**Control+Option+Shift+D**, because Ctrl is Control and Alt is Option there) and a ring
+appears at the pointer. If another application already owns that chord, the app records
+the OS error, falls back to **Ctrl+Alt+D**, and saves the working chord — it does not
+pretend to have registered (`evidence/u3-intake.md` §3).
 
 - Drag one or more files from Explorer onto the ring (the Finder drag is unmeasured on
   macOS — see §12). Drop a folder to take its files.
@@ -157,8 +158,11 @@ another application already owns that chord, the app records the OS error, falls
   consent half is implemented and tested, but the selection reader is not implemented in
   this build, so turning it on does not yet grab anything (`evidence/u3-intake.md` §4).
 
-The wheel's placement, hotkey conflict ladder and dismiss rules are measured on Windows 11.
-On macOS the equivalent window primitives have not been measured — see §12.
+The wheel's placement, click-through, dismiss rules and the hotkey are measured on both
+Windows 11 and macOS arm64 (`.github/workflows/overlay-measure.yml`). On macOS the
+measurement registers the configured chord, reads it back as registered, and presses it
+with a synthetic key event that the hot key manager delivers. What is still unmeasured is
+listed in §12.
 
 ---
 
@@ -379,9 +383,10 @@ These are current, measured limits — not bugs waiting to be discovered:
 1. **The builds are unsigned.** Windows SmartScreen needs *More info → Run anyway*; macOS
    Gatekeeper needs right-click → Open or `xattr -d com.apple.quarantine`. `docs/DISTRIBUTION.md`
    records the decision (internal-only distribution).
-2. **The macOS wheel overlay is unmeasured.** Hotkey, placement, click-through and dismiss
-   rules are measured on Windows 11; the macOS window primitives behind them have not been
-   run on a Mac.
+2. **The macOS wheel has not been exercised by hand.** Its placement, click-through,
+   dismiss rules and hotkey registration are measured on a macOS arm64 runner, and the
+   chord is pressed there by a synthetic key event; a person pressing the chord on a
+   physical Mac, and dragging files out of Finder onto the ring, have not been recorded.
 3. **Smart grab does nothing yet.** The toggle and its consent behaviour exist; the code
    that reads the current Explorer/Finder selection is not implemented.
 4. **Aptos documents reflow** — Word's newer default font is not bundled and has no metrical

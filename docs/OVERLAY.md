@@ -6,8 +6,9 @@ and disappears. This document is what that window is, how it is built, and how i
 proven.
 
 Implementation: `src-tauri/src/shell/overlay.rs` (the window), `shell/screen.rs` (where
-the pointer and the screens are), `ui/wheel/overlay.js` (the page's side of it),
-`shell/probe.rs` + `scripts/overlay-probe.sh` (the measurement).
+the pointer and the screens are), `shell/hotkey.rs` (the chord that summons it),
+`ui/wheel/overlay.js` (the page's side of it), `shell/probe.rs` +
+`scripts/overlay-probe.sh` (the measurement).
 
 ## Why it is not in `tauri.conf.json`
 
@@ -87,6 +88,35 @@ macOS points vs Windows pixels: the placement payload is logical on macOS (520 p
 520 pt on a Retina display) and physical on Windows, and the window is positioned with
 the matching `LogicalPosition`/`PhysicalPosition`.
 
+## The global hotkey
+
+Both platforms register the chord stored in `settings.json` (`hotkey.accelerator`,
+default `Ctrl+Alt+Shift+D`) and keep one `Acquisition` model — `Registered`,
+`AllTaken`, `Failed`, with the conflict ladder from `shell/accelerator.rs` — so a
+taken chord falls through to a predictable alternative on either OS, and a rebind
+from the settings panel takes the same path (`state.rebind_hotkey`).
+
+**macOS: Carbon, not an event tap.** `RegisterEventHotKey` on the application event
+target plus an `InstallEventHandler` handler for `kEventHotKeyPressed`. A
+`CGEventTap` would work too, and would need the Accessibility grant that
+`SPEC.md` §2 reserves for smart grab only. `eventHotKeyExistsErr` (-9878) is
+classified into the same 1409 conflict code Windows uses, which is what keeps the
+ladder shared.
+
+| Accelerator token | Carbon mask | Note |
+|---|---|---|
+| `Ctrl` | `controlKey` 0x1000 | |
+| `Alt` | `optionKey` 0x0800 | Option on a Mac keyboard |
+| `Shift` | `shiftKey` 0x0200 | |
+| `Win`/`Meta`/`Cmd` | `cmdKey` 0x0100 | |
+
+The key half is the `kVK_*` table in `shell/hotkey.rs`. `Insert` has no `kVK_`
+constant and the function keys stop at `F20`; those chords are reported as unusable
+rather than registered as some other key. A macOS registration is not
+thread-scoped the way `RegisterHotKey(NULL, …)` is on Windows — it belongs to the
+*application* event target — so there is no hotkey thread on macOS and the
+registration happens on the thread that owns the run loop.
+
 ## The measurement
 
 `ez-convert --overlay-probe <facts.json> [--overlay-hold <seconds>]`:
@@ -101,7 +131,11 @@ the matching `LogicalPosition`/`PhysicalPosition`.
    focus;
 5. warps the pointer to the disc centre and to a corner, reading back the click-through
    state at both, then puts the pointer back;
-6. writes the JSON, touches `<facts>.ready`, holds the ring on screen for the
+6. reads the hotkey registration back through the same snapshot the `hotkey_view` IPC
+   command returns, records the Carbon key code and modifier mask, and — where the
+   session allows a process to post a key event — presses the chord and waits for the
+   summon counter to move;
+7. writes the JSON, touches `<facts>.ready`, holds the ring on screen for the
    screenshot, and exits 0 only when every asserted check passed.
 
 `scripts/overlay-probe.sh` runs it, photographs the screen (`screencapture` /
@@ -109,16 +143,36 @@ the matching `LogicalPosition`/`PhysicalPosition`.
 the crop is not blank and that its centre differs from its corner
 (`scripts/png-nonblank.py`, proved in both directions by
 `scripts/test-png-nonblank.py`). A screenshot the runner cannot take is recorded, never
-asserted.
+asserted. `scripts/hotkey-verdict.py` decides the hotkey half from the same facts and is
+proved in both directions by `scripts/test-hotkey-verdict.py`.
 
 CI: `.github/workflows/overlay-measure.yml` (macOS arm64 + Windows), publishing the
 facts and the capture to the `overlay-status` branch.
 
+## What the hotkey measurement can and cannot prove
+
+Two different claims live here, and conflating them is how a green build ends up
+meaningless:
+
+- **Registration** — `hotkey.registered` equals the canonical spelling of
+  `hotkey.configured`, and the acquisition state is `Registered`. This is asserted on
+  macOS. It is the card's acceptance criterion.
+- **Delivery** — a key event actually reached the hot key manager and summoned the
+  wheel, measured by the overlay's summon counter moving between the press and the
+  next sample. The probe tries an own-process post first and the system HID stream
+  second, records `input_posting_trusted` and every attempt, and **withholds the
+  assertion** when neither delivered. On the GitHub macOS arm64 runner input posting
+  is permitted (`AXIsProcessTrusted=true`), the own-process post is ignored, and the
+  HID post delivers: the summon counter moves and `hotkey-press-summons` is asserted.
+  Where a session forbids synthesising input the verdict line says
+  `chord-press=not-asserted` instead — it never reports a pass it did not earn.
+
 ## What is *not* proven by this
 
-- The **global hotkey on macOS** is still `Failed` in `shell/hotkey.rs` (the macOS
-  adapter is unimplemented). The probe drives the summon path the hotkey calls, not the
-  chord itself. Tray → Summon and the IPC command reach the overlay today.
+- Where the session refuses synthetic input, the **press** is unmeasured on that
+  runner. The probe then proves the registration and the summon path the chord calls
+  (`summon::summon`, the function the Carbon handler invokes), not the handover from
+  macOS's hot key manager into the handler.
 - Per-segment interaction *inside* the ring under the shaped window (mouse capture over
   a region-clipped HWND) is asserted only by the click-through samples, not by a
   scripted drag.
