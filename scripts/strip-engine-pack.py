@@ -51,11 +51,22 @@ CULMUS_FAMILIES = (
 
 
 def collect(pack: str) -> list[tuple[str, str, int]]:
-    """Return (group, relpath, bytes) for everything the decision strips."""
+    """Return (group, relpath, bytes) for everything the decision strips.
+
+    The data root differs by platform: Windows and Linux packs put it under
+    `share/` (`share/fonts/truetype`, `share/gallery`), while the macOS pack —
+    built from LibreOffice.app/Contents/Resources — keeps `fonts/truetype` at
+    the pack root and has no `share/gallery` at all. Both layouts are collected
+    so a decision that says "strip" cannot be silently a no-op on one platform
+    (the macOS pack shipped all five GPL-2.0 Culmus families until this was
+    fixed, caught by the pack's own post-strip assertion).
+    """
     out: list[tuple[str, str, int]] = []
 
-    fontdir = os.path.join(pack, "share", "fonts", "truetype")
-    if os.path.isdir(fontdir):
+    for fontdir_rel in (("share", "fonts", "truetype"), ("fonts", "truetype")):
+        fontdir = os.path.join(pack, *fontdir_rel)
+        if not os.path.isdir(fontdir):
+            continue
         for name in sorted(os.listdir(fontdir)):
             stem = name.split("-", 1)[0]
             if stem in CULMUS_FAMILIES:
@@ -65,6 +76,7 @@ def collect(pack: str) -> list[tuple[str, str, int]]:
                                 os.path.getsize(full)))
 
     for group, sub in (("gallery", os.path.join("share", "gallery")),
+                       ("gallery", "gallery"),
                        ("help", "help")):
         root = os.path.join(pack, sub)
         if not os.path.isdir(root):
@@ -85,7 +97,11 @@ def main(argv: list[str]) -> int:
     args = ap.parse_args(argv[1:])
 
     pack = os.path.abspath(args.pack)
-    if not os.path.isfile(os.path.join(pack, "program", "soffice")):
+    # The launcher name is platform-decided: `soffice` on POSIX, `soffice.com`
+    # (and `soffice.exe`) on Windows. The strip set is path-identical on both,
+    # so the Windows pack is a valid input for the same decision.
+    launchers = ("soffice", "soffice.com", "soffice.exe")
+    if not any(os.path.isfile(os.path.join(pack, "program", name)) for name in launchers):
         print(f"strip-engine-pack: refusing to run: {pack} does not look like a "
               f"LibreOffice engine pack (no program/soffice)", file=sys.stderr)
         return 1

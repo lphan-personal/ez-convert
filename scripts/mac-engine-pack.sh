@@ -155,7 +155,7 @@ note "$(wc -l < "$WORK/downloads/strip-manifest.tsv" | tr -d ' ') paths removed"
 # under `engines/soffice/`, so the failure-closed "not-shipped" check cannot see
 # a survivor here. Assert the removal directly instead: a strip that silently
 # did nothing must not pass as a licence decision.
-for gone in "$PACK/engines/soffice/share/gallery" "$PACK/engines/soffice/help"; do
+for gone in "$PACK/engines/soffice/share/gallery" "$PACK/engines/soffice/gallery" "$PACK/engines/soffice/help"; do
   [ ! -e "$gone" ] || { echo "strip incomplete: $gone still in the pack" >&2; exit 1; }
 done
 survivor="$(find "$PACK/engines/soffice" \( -name 'DavidCLM-*' -o -name 'FrankRuehlCLM-*' \
