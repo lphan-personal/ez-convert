@@ -157,6 +157,19 @@ jobs:
             *) echo "::error::Rosetta conversion was partial ($pass/4) - unexplained, inspect diag-rosetta.log"; exit 1 ;;
           esac
 
+      - name: The wheel overlay, measured from the INSTALLED app (must pass every check)
+        # The build-tree measurement lives in `overlay-measure.yml`. This is the
+        # claim a release may make: `--overlay-probe` drives the same summon path
+        # the global hotkey uses, but out of `/Applications/EZ Convert.app` — the
+        # binary a user runs after installing the DMG. `scripts/overlay-probe.sh`
+        # photographs the screen and decides the verdict from the facts plus the
+        # crop; exit 2 means it produced nothing, exit 1 means a check failed, and
+        # both fail this job. Never assert "the overlay ships" from a build tree.
+        run: |
+          set -o pipefail
+          BIN="/Applications/EZ Convert.app/Contents/MacOS/ez-convert" \
+            bash scripts/overlay-probe.sh overlay-evidence 2>&1 | tee overlay-verdict.log
+
       - name: Launch the GUI and capture a screenshot (evidence only)
         # `--diagnostics` proves the binary runs headless; this proves the windowed
         # app starts from /Applications (the App-Translocation failure mode) and
@@ -190,19 +203,26 @@ jobs:
           [ -n "$rosetta" ] || rosetta="unknown"
           shot="$(grep -c '^screenshot: captured' gui.log 2>/dev/null || true)"
           [ -n "$shot" ] || shot=0
+          overlay="$(grep -o 'OVERLAY_PROBE ok=[a-z]*' overlay-verdict.log 2>/dev/null | tail -1 | cut -d= -f2 || true)"
+          [ -n "$overlay" ] || overlay="unknown"
           {
             echo "VALIDATION arm64 install=pass launch=pass engine-discovery=pass conversion=pass (4/4)"
             echo "VALIDATION rosetta-x86_64 launch=pass conversion=$rosetta"
+            echo "VALIDATION overlay installed-binary=$overlay (scripts/overlay-probe.sh, /Applications/EZ Convert.app)"
             echo "VALIDATION gui-window screenshot=$([ "$shot" -ge 1 ] && echo captured || echo unavailable)"
           } | tee verdict.log
           [ "$rosetta" != "unknown" ] || { echo "::error::the Rosetta run produced no classification"; exit 1; }
+          [ "$overlay" = "true" ] || { echo "::error::the installed app's overlay probe did not report ok=true"; exit 1; }
 
       - name: Evidence
         if: always()
         run: |
           bash packaging/macos/publish-evidence.sh validate-arm64 "${{ job.status }}" \
             install.log install-pack.log verify-pack.log symlinks.log arch.log \
-            diag-arm64.log rosetta.log diag-rosetta.log gui.log verdict.log gui.png
+            diag-arm64.log rosetta.log diag-rosetta.log gui.log verdict.log gui.png \
+            overlay-verdict.log overlay-evidence/overlay-facts.json \
+            overlay-evidence/overlay-shot.json overlay-evidence/overlay-run.log \
+            overlay-evidence/overlay-screen.png
 
   intel:
     name: "validate (Intel x86_64, native)"
