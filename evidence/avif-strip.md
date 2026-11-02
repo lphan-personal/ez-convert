@@ -129,6 +129,12 @@ so nobody re-reads the difference as a fix.
 | tree | `C:\msys64\ezc\repo3` (junction `C:\ezc\repo3`), 271 files, byte-identical to the branch working tree on the Linux side (every `sha256` equal); measured at this commit, i.e. rebased onto `4339541` (`p3-mac: …`), so the run is at the head it lands on |
 | driver | `/c/msys64/ezc/q3avif.sh` — a copy of the parent card's `q3win.sh` with the checkout, work and report dirs changed (`C:/ezc/q3work3`, `C:/ezc/q3report3`); it only exports `EZC_VIPS_DIR`, `EZC_FFMPEG_DIR`, `EZC_SOFFICE_DIR`, `RUSTFLAGS` and `cd`s. No repo file is edited by the leg. |
 
+The measured base is `4339541`; the landed head is that plus `.github/workflows/build.yml`
+(`6888ca4`, CI job-start markers) and this card's own two source files. Checked, not
+assumed: `git diff --name-only 4339541 <landed head> -- src-tauri/src e2e scripts fixtures`
+lists exactly `engine/vips.rs` and `engine/plan.rs` — the files this card changes and no
+others — so no measured path moved between the run and the commit.
+
 Commands:
 
 ```bash
