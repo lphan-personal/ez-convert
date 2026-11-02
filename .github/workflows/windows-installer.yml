@@ -350,6 +350,10 @@ jobs:
                 installed-overlay-evidence/overlay-verdict.txt \
                 installed-overlay-evidence/overlay-run.log \
             "ci-installer/${GITHUB_RUN_ID}/overlay/" 2>/dev/null || true
+          # Every capture frame, not only the one the verdict used: the frames are
+          # what shows the ring was on screen when the shutter opened.
+          cp -f installed-overlay-evidence/frames/frame-*.png \
+            "ci-installer/${GITHUB_RUN_ID}/overlay/" 2>/dev/null || true
           mkdir -p ci-installer
           {
             echo "{"
