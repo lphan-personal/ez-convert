@@ -174,9 +174,19 @@ and `SHA256SUMS.txt`. The recomputed binary digest and size equal the manifest i
 artifact is the binary the job staged. Each platform's own record is on its branch:
 `ci-artifacts-windows-latest/latest.json` and `ci-artifacts-macos-latest/latest.json`.
 
-Not green, stated plainly: the run's overall conclusion is still `in_progress` because the `e2e` job
-(another card's suite) had not finished after 95 minutes; the `report` job needs it, so `ci-status`
-still holds run 58's verdict. `macos-dmg.yml` is a separate workflow and a separate card.
+Run-level verdict, stated plainly: the run's own conclusion is **cancelled**, not green — its `e2e`
+job ran uncapped until 02:08Z and was killed by the `cancel-in-progress` concurrency group when the
+next push (`dd99031`, another card) arrived. Every job that matters to this card had already
+finished: the three `build` jobs, `license-assert` and `policy-check` are `success`, and the `report`
+job then published
+
+```json
+{"run_number": 59, "results": {"build_matrix_3_os": "success", "license_assert": "success",
+ "policy_check": "success", "e2e": "cancelled", "spike": "skipped"}}
+```
+
+to `ci-status/latest.json` — i.e. the matrix verdict is green in the machine-readable channel even
+though the run as a whole was cancelled. `macos-dmg.yml` is a separate workflow and a separate card.
 
 ## 7. Fix forced by the run: no job outside the matrix had a time cap
 
