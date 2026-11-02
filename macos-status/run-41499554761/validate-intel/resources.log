@@ -1,0 +1,4 @@
+codesign --verify --strict: OK
+Contents/Resources:
+/Applications/EZ Convert.app/Contents/Resources/icon.icns
+Contents/Resources carries icon.icns only: OK
