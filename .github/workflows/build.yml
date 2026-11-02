@@ -87,12 +87,6 @@ jobs:
   build:
     name: build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    # Cost control (decision A, 2026-11-02): macOS bills at 10x the Linux rate
-    # ($0.08/min vs $0.008). Measured burn on this repo: macos-latest was 14% of
-    # the wall time but 49% of the billed minutes. Every push still builds Linux +
-    # Windows; macOS builds on workflow_dispatch and on tag pushes, and the full
-    # 3-OS matrix is the release evidence rather than the per-commit signal.
-    if: matrix.os != 'macos-latest' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     # Free-tier minutes are the budget: a hung runner must not burn an hour.
     # A cold run is ~8-12 min per platform including the release build.
     timeout-minutes: 30
@@ -100,8 +94,15 @@ jobs:
       contents: write
     strategy:
       fail-fast: false
+      # Cost control (decision A, 2026-11-02): macOS bills at 10x the Linux rate
+      # ($0.08/min vs $0.008/min). Measured on this repo: macos-latest was 14% of
+      # job wall time but 49% of billed minutes. Every push/PR still builds Linux +
+      # Windows; the macOS leg is added only for workflow_dispatch and v* tag
+      # pushes, so the full 3-OS matrix is the release evidence rather than the
+      # per-commit signal. (A job-level `if:` cannot see `matrix`, so the leg is
+      # selected here in the strategy instead of being skipped after allocation.)
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')) && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest","windows-latest"]') }}
     steps:
       - uses: actions/checkout@v4
 
