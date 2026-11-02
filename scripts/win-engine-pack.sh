@@ -532,7 +532,11 @@ rm -f "$ZIP"
 # binaries for a few percent. The manifest, not the compression level, is what
 # proves the artifact.
 tick "zip (level 1)"
-( cd "$PACK" && zip -r -1 -q "$(win "$ZIP")" . -x '*/.*' )
+# `zip` is an MSYS2 binary: it needs the POSIX path, not `cygpath -w`. Handing it
+# a Windows path makes it fail with "No such file or directory / Could not create
+# output file" (run 41433451274). Only the *native Windows* tools (msiexec,
+# soffice, vips, ffmpeg) get win() paths.
+( cd "$PACK" && zip -r -1 -q "$ZIP" . -x '*/.*' )
 [ -s "$ZIP" ] || die "the zip was not produced"
 note "zip: $(wc -c < "$ZIP" | tr -d ' ') B"
 # Verify the artifact as a user receives it: unzip elsewhere and check every hash.
