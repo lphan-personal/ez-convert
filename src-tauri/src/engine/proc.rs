@@ -46,7 +46,13 @@ impl Program {
     /// performance claims: no large-input measurement backs them.
     pub fn timeout(self) -> Duration {
         match self {
-            Program::Vips | Program::VipsHeader => Duration::from_secs(120),
+            // A Windows first run of a *freshly unpacked* pack has to pay for
+            // Defender scanning the whole vips tree: measured 96.5 s warm-after-
+            // one-read and 120.6 s on the first touch, which overran the old
+            // 120 s cap and killed a legitimate conversion (v1.0.1 acceptance,
+            // 2026-11-02). 300 s is still a hang guard — a warm conversion is
+            // 0.13 s — it just clears the scanner instead of racing it.
+            Program::Vips | Program::VipsHeader => Duration::from_secs(300),
             Program::Ffprobe => Duration::from_secs(30),
             // A long video legitimately runs for minutes; ffmpeg is governed by
             // the stall detector instead of a fixed cap (§6.0.3).
@@ -814,6 +820,13 @@ mod tests {
         assert!(Program::Ffprobe.timeout().as_secs() > 0);
         assert!(Program::Ffmpeg.stall_limit().is_some());
         assert!(Program::Vips.stall_limit().is_none());
+        // The Windows first run of a freshly unpacked pack pays for the AV
+        // scanner: 120.6 s measured on 2026-11-02 against a 120 s cap, i.e. a
+        // killed conversion. The cap has to clear a cold scan with headroom.
+        assert!(
+            Program::Vips.timeout() >= Duration::from_secs(300),
+            "vips cap must clear a cold first-run AV scan (measured 120.6 s)"
+        );
     }
 
     /// An unpacked vips has to be told where its own modules and libheif's

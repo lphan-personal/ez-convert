@@ -76,7 +76,7 @@ Rules, all unit-tested against `fixtures/`:
    directory entries is refused.
    The pixel cap exists because the byte cap does not see a decompression bomb:
    a 1.55 MB PNG declaring 20,000x20,000 (400 Mpx) passed detection and
-   converted through vips with flat memory, bounded only by the 120 s engine
+   converted through vips with flat memory, bounded only by the 300 s engine
    kill. 250 Mpx is above any camera or stitched panorama we expect. A format
    whose geometry is not in the prefix (heic, avif, svg, a plain lossy webp)
    is a named gap: the byte cap and the engine kill still apply, and the

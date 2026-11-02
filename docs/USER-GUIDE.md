@@ -401,9 +401,11 @@ These are current, measured limits — not bugs waiting to be discovered:
     format as an output.
 11. **GIF input is first-frame only**, and GIF-to-GIF animation re-encoding is not offered.
 12. **No auto-update** — upgrade by reinstalling.
-13. **Cold-start image conversion is close to its timeout** on a Defender-scanned install
-    (113 s measured against a 120 s engine timeout). Warm conversions are fast; a much
-    slower disk could time the first one out.
+13. **First image conversion after a fresh engine-pack unpack is slow** on a Defender-scanned
+    install: the scanner reads the whole vips tree (96.5 s measured warm-after-one-read,
+    120.6 s on the first touch). The engine cap is 300 s so this completes instead of being
+    killed; warm conversions are ~0.1 s. A very slow disk could still be noticeable, but no
+    longer fails.
 
 ---
 
