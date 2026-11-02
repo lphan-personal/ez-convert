@@ -211,10 +211,12 @@ bundle, resolving engines exactly as the window does.
 
 **Gaps this card does not close:**
 
-- the pack is **arm64 only**. The app is universal and runs on Intel, but media
-  and document conversion on an Intel Mac needs an `x86_64` pack; the script
-  takes `--arch x86_64` and has not been run on Intel hardware. Filed as a
-  follow-up rather than claimed.
+- the pack is **arm64 only**. The app is universal and runs on Intel, and that
+  was measured on real Intel hardware (`macos-15-intel`, macOS 15.7.9): the app
+  installs, launches and resolves all five engines, then every family fails with
+  `Bad CPU type in executable (os error 86)`. An `x86_64` pack
+  (`scripts/mac-engine-pack.sh --arch x86_64`, never run) is the missing
+  artifact. See §7 and `evidence/p3-macos-validation.md`.
 - unsigned: Gatekeeper friction on first launch (§3), and `spctl` will reject
   the DMG until §4 is funded.
 - no release upload: the DMGs are build artifacts on the run (`macos-app-dmg`,
@@ -273,4 +275,48 @@ config that happens to be correct today — the Windows bundle config *does* cop
    `docs/shipped-inventory.tsv` under "macOS app DMG payload". Before this step
    the app DMG had never been through the gate: all four bundle files were
    unattributed and the scan failed.
+
+## 7. Cross-architecture validation (2026-11-02)
+
+`.github/workflows/macos-validate.yml` is the acceptance run for the *shipped*
+artifacts. It rebuilds nothing: it downloads `macos-app-dmg` and
+`macos-engine-pack` from a named run, pins each image against its published
+digest sidecar (`packaging/macos/verify-pins.sh`, fail-closed), installs both
+with the same script a user's install follows
+(`packaging/macos/install-from-dmgs.sh`), and then exercises the installed app on
+two runners:
+
+| | arm64 native | arm64, x86_64 slice via Rosetta | Intel native |
+|---|---|---|---|
+| runner | `macos-latest` (macOS 26.6.2) | same | `macos-15-intel` (macOS 15.7.9) |
+| install + signature + symlinks | PASS | — | PASS |
+| 5/5 engines resolved | PASS | PASS | PASS |
+| conversions | **4/4** | **4/4** | 0/4, `Bad CPU type in executable` |
+| windowed app + screenshot | PASS | — | PASS |
+
+Runs `41392415715` and `41392784882` (the latter with the digest pin) are green
+on all jobs; logs and the two screenshots are on the `macos-status` branch under
+`macos-status/run-41392784882/validate-{arm64,intel}/`. Full matrix, commands and
+log excerpts: `evidence/p3-macos-validation.md`.
+
+Two things this section is careful about:
+
+- **Rosetta is not Intel.** The x86_64 slice converts 4/4 on Apple Silicon
+  because the translated process spawns the arm64 engines natively. It proves
+  the Intel *slice* is sound; it says nothing about Intel *hardware*, which is
+  why the second job runs on one.
+- **The arm64-only pack is a conversion limit, not an install limit.** On Intel
+  the digest, install, signature, manifest of 9,304 files, 339 Mach-O checks and
+  engine discovery all pass; only execution fails. The app reports one FAIL per
+  family rather than exiting 0 over an empty output.
+
+`macos-13` no longer exists (retired December 2025); the current Intel labels are
+`macos-15-intel` (through August 2027) and `macos-26-intel`.
+
+The first Intel run also earned its keep by exposing a **false PASS** in
+`scripts/verify-engine-pack.sh`: the soffice smoke check only required non-empty
+output, so `Bad CPU type in executable` on stderr counted as success. It now
+asserts exit status for all three engines and declines to PASS a licence probe it
+could not run, guarded by `scripts/test-verify-engine-pack.sh` in both macOS
+workflows.
 
