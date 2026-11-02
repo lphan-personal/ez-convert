@@ -1,0 +1,26 @@
+verify-pins: PASS EZ-Convert-Engine-Pack-arm64.dmg
+  sha256 5f6c41050dfa91d04aa91ed7d6b09ba47598b4bdb9c45ecfb66dd1c9e998eb9c
+  pin    EZ-Convert-Engine-Pack-arm64.dmg.sha256
+verifying 9305 files...
+installed: /Users/runner/Library/Application Support/app.ezconvert.desktop/engines
+pack:      ezconvert-engine-pack-macos-arm64 version 1.0.0 (arm64)
+  present  vips/vips
+  present  ffmpeg/ffmpeg
+  present  soffice/LibreOffice.app/Contents/MacOS/soffice
+
+Open EZ Convert. If macOS blocks the unsigned app, right-click it and choose Open once.
+installed pack root:
+total 3344
+drwxr-xr-x   6 runner  staff      192 Nov  2 05:14 .
+drwxr-xr-x  34 runner  staff     1088 Nov  2 05:14 ..
+drwxr-xr-x   5 runner  staff      160 Nov  2 04:36 engines
+drwxr-xr-x   9 runner  staff      288 Nov  2 04:41 licenses
+-rw-r--r--   1 runner  staff     5305 Nov  2 05:14 MANIFEST.json
+-rw-r--r--   1 runner  staff  1703531 Nov  2 05:14 MANIFEST.sha256
+engines:
+total 0
+drwxr-xr-x  5 runner  staff  160 Nov  2 04:36 .
+drwxr-xr-x  6 runner  staff  192 Nov  2 05:14 ..
+drwxr-xr-x  5 runner  staff  160 Nov  2 04:36 ffmpeg
+drwxr-xr-x  4 runner  staff  128 Nov  2 04:30 soffice
+drwxr-xr-x  6 runner  staff  192 Nov  2 04:36 vips
