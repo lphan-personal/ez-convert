@@ -1,0 +1,101 @@
+=== clean-machine preparation ===
+renamed C:\p2 -> C:\p2_offdev
+=== tool probe (must all be absent) ===
+absent cargo
+absent rustc
+absent node
+absent npm
+absent cl
+absent link
+absent makensis
+absent windres
+absent lld-link
+absent python
+absent gcc
+absent git
+=== dev-tool directories ===
+absent  C:\Program Files\Microsoft Visual Studio
+absent  C:\Program Files (x86)\Microsoft Visual Studio
+absent  C:\p2
+absent  C:\ezc
+=== network ===
+ipv4_gateway_pingable=False
+=== install (silent, per-user) ===
+installer_exit 0
+install_seconds 112
+install_dir C:\Users\ryo\AppData\Local\EZ Convert
+
+Name                     Length   
+----                     ------   
+engines                           
+licenses                          
+concrt140.dll            324208   
+ez-convert.exe           4702720  
+ffmpeg.exe               136180736
+ffprobe.exe              135966208
+msvcp140.dll             557728   
+msvcp140_1.dll           35952    
+msvcp140_2.dll           280200   
+msvcp140_atomic_wait.dll 50304    
+msvcp140_codecvt_ids.dll 31872    
+uninstall.exe            137484   
+vcruntime140.dll         124544   
+vcruntime140_1.dll       49792    
+
+
+
+=== diagnostics run 1 (cold cache) ===
+bundle_root C:\Users\ryo\AppData\Local\EZ Convert
+engine vips found C:\Users\ryo\AppData\Local\EZ Convert\engines\vips\vips.exe
+engine vipsheader found C:\Users\ryo\AppData\Local\EZ Convert\engines\vips\vipsheader.exe
+engine ffmpeg found C:\Users\ryo\AppData\Local\EZ Convert\ffmpeg.exe
+engine ffprobe found C:\Users\ryo\AppData\Local\EZ Convert\ffprobe.exe
+engine soffice found C:\Users\ryo\AppData\Local\EZ Convert\engines\soffice\program\soffice.com
+fixtures C:\anchor\fixtures
+FAMILY image PASS 2781 113086 C:\anchor\work2\diag-image.jpg
+FAMILY audio PASS 8579 51729 C:\anchor\work2\diag-audio.mp3
+FAMILY video PASS 2206 282 C:\anchor\work2\diag-video.webm
+FAMILY document PASS 46489 8296 C:\anchor\work2\diag-document.pdf
+SUMMARY families=4 pass=4 fail=0
+
+diag1_exit=0
+diag1_seconds 198
+=== diagnostics run 2 (warm cache) ===
+bundle_root C:\Users\ryo\AppData\Local\EZ Convert
+engine vips found C:\Users\ryo\AppData\Local\EZ Convert\engines\vips\vips.exe
+engine vipsheader found C:\Users\ryo\AppData\Local\EZ Convert\engines\vips\vipsheader.exe
+engine ffmpeg found C:\Users\ryo\AppData\Local\EZ Convert\ffmpeg.exe
+engine ffprobe found C:\Users\ryo\AppData\Local\EZ Convert\ffprobe.exe
+engine soffice found C:\Users\ryo\AppData\Local\EZ Convert\engines\soffice\program\soffice.com
+fixtures C:\anchor\fixtures
+FAMILY image PASS 2781 163 C:\anchor\work3\diag-image.jpg
+FAMILY audio PASS 8579 187 C:\anchor\work3\diag-audio.mp3
+FAMILY video PASS 2206 237 C:\anchor\work3\diag-video.webm
+FAMILY document PASS 46489 2438 C:\anchor\work3\diag-document.pdf
+SUMMARY families=4 pass=4 fail=0
+
+diag2_exit=0
+diag2_seconds 3
+=== outputs ===
+
+Name              Length
+----              ------
+tmp-audio               
+tmp-document            
+tmp-image               
+tmp-video               
+diag-audio.mp3    8579  
+diag-document.pdf 46489 
+diag-image.jpg    2781  
+diag-video.webm   2206  
+tmp-audio               
+tmp-document            
+tmp-image               
+tmp-video               
+diag-audio.mp3    8579  
+diag-document.pdf 46489 
+diag-image.jpg    2781  
+diag-video.webm   2206  
+
+
+
