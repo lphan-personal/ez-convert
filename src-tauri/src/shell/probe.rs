@@ -183,6 +183,10 @@ fn measure(app: &AppHandle) -> Facts {
         })
         .unwrap_or_default();
 
+    let monitor_in_range = payload.monitor_index < monitors.len();
+    let cursor_inside_rect = Rect::from_origin(payload.x, payload.y, payload.width, payload.height)
+        .contains(payload.cursor_x, payload.cursor_y);
+
     let window_facts = match window.as_ref() {
         Some(window) => WindowFacts {
             found: true,
@@ -365,8 +369,8 @@ fn measure(app: &AppHandle) -> Facts {
             monitor_index: payload.monitor_index,
             placed: payload.placed,
             grab_note: payload.grab_note.clone(),
-            cursor_inside_rect: rect.contains(payload.cursor_x, payload.cursor_y),
-            monitor_in_range: payload.monitor_index < monitors.len(),
+            cursor_inside_rect,
+            monitor_in_range,
         },
         window: window_facts,
         click: ClickSamples {
