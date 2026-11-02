@@ -13,18 +13,21 @@
 #
 # VERDICT SEMANTICS (deliberate, see the comment on the card):
 #   - native arm64 is ASSERTED (install, launch, 5 engines resolved, 4/4 families).
-#   - Rosetta and Intel record what happened. The shipped pack is arm64-only
-#     (docs/MACOS-PACKAGING.md §7), so "0 of 4" on x86_64 is a documented
-#     architecture limitation, not a red build. What IS an error is a *partial*
-#     result (some families pass, some fail) or a Rosetta run that never starts
-#     that is unexplained behaviour and fails the job.
+#   - Intel native is ASSERTED the same way since the x86_64 pack exists
+#     (EZ-Convert-Engine-Pack-x86_64.dmg): install, `codesign --verify --strict`,
+#     the per-pack symlink inventory, 5/5 engines resolved and 4/4 families.
+#     `0/4` is a FAILURE now, not a documented "blocked" state — that expectation
+#     belonged to the arm64-only era and would hide a regression behind it.
+#   - Rosetta records what happened: 4/4 is expected (the translated process
+#     spawns the arm64 engines natively), 0/4 is still recorded as blocked, and a
+#     *partial* result is unexplained behaviour and fails the job.
 name: macos-validate
 
 on:
   workflow_dispatch:
     inputs:
       source_run:
-        description: "Actions run id holding macos-app-dmg + macos-engine-pack"
+        description: "Actions run id holding macos-app-dmg + macos-engine-pack-{arm64,x86_64}"
         required: true
         default: "41388618088"
       intel_label:
@@ -208,6 +211,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Unit-test the verifier's smoke runs (must FAIL when an engine cannot execute)
+        # Mirrors the arm64 job: the Intel leg is exactly where a smoke check that
+        # only looks at output would lie, so the regression test runs here too.
+        run: bash scripts/test-verify-engine-pack.sh
+
+      - name: Unit-test the installer's architecture guard (arm64 pack on Intel is refused)
+        run: bash scripts/test-install-engine-pack-arch.sh
+
       - name: Download the shipped DMGs (no rebuild)
         uses: actions/download-artifact@v4
         with:
@@ -231,33 +242,61 @@ jobs:
             done
           } | tee arch.log
 
-      - name: Pack structure (engine execution is expected to fail here)
-        # The full verifier runs BOTH structure and engine execution. On Intel the
-        # structure must pass and only the "engine runs" checks may fail, because
-        # the shipped pack is arm64-only. Anything else failing is unexplained.
+      - name: Verify the installed pack (manifest, symlinks, signatures, engines run)
+        # Not "structure only" any more: with an x86_64 pack, all three engines
+        # must execute on this host and every check must pass. `0/4` conversions
+        # were the documented arm64-only state; a structural failure is still
+        # unexplained and fails here first.
         run: |
           set -o pipefail
-          set +e
           bash scripts/verify-engine-pack.sh \
             --pack "$HOME/Library/Application Support/app.ezconvert.desktop" \
-            --app "/Applications/EZ Convert.app" --expect-arch arm64 2>&1 | tee verify-pack.log
-          code=$?
-          set -e
-          echo "verify exit=$code" | tee -a verify-pack.log
-          passes="$(grep -c '^PASS  ' verify-pack.log || true)"
-          echo "PASS lines: $passes" | tee -a verify-pack.log
-          if [ "${passes:-0}" -lt 15 ]; then
-            echo "::error::too few checks passed on Intel ($passes) - the pack is not structurally intact"
-            exit 1
-          fi
-          unexplained="$(grep '^FAIL  ' verify-pack.log | grep -vE 'does not run|not GPL' || true)"
-          if [ -n "$unexplained" ]; then
-            echo "::error::unexplained verification failures on Intel:"
-            printf '%s\n' "$unexplained"
-            exit 1
-          fi
+            --app "/Applications/EZ Convert.app" --expect-arch x86_64 2>&1 | tee verify-pack.log
 
-      - name: Launch and convert natively on x86_64 (recorded, classified)
+      - name: Symlinks survive installation (count taken from the pack's manifest)
+        # The arm64 job hardcodes 24 because that pack's inventory is stable. The
+        # x86_64 pack is a different LibreOffice build, so assert the exact
+        # inventory the pack declares instead of an arm64 constant: verify-pack.log
+        # reports the manifest's count, and the installed tree must match it with
+        # nothing dangling.
+        run: |
+          set -euo pipefail
+          pack="$HOME/Library/Application Support/app.ezconvert.desktop"
+          dangling="$(find "$pack" -type l ! -exec test -e {} \; -print)"
+          declared="$(grep -oE '[0-9]+ symlinks' verify-pack.log | head -1 | awk '{print $1}')"
+          installed="$(find "$pack" -type l | wc -l | tr -d ' ')"
+          {
+            echo "installed symlinks: $installed  (manifest declares ${declared:-?})"
+            echo "engines/soffice/program -> $(readlink "$pack/engines/soffice/program")"
+            echo "engine binary through the link: $(ls -l "$pack/engines/soffice/program/soffice" | sed 's/.* -> //')"
+            echo "dangling symlinks: $(printf '%s' "$dangling" | grep -c . || true)"
+            if [ -n "$dangling" ]; then printf 'DANGLING %s\n' "$dangling"; fi
+          } | tee symlinks.log
+          [ -n "$declared" ] || { echo "::error::could not read the declared symlink count from verify-pack.log"; exit 1; }
+          [ "$installed" -eq "$declared" ] \
+            || { echo "::error::expected $declared symlinks after install, found $installed"; exit 1; }
+          [ -z "$dangling" ] || { echo "::error::installed pack has dangling symlinks"; exit 1; }
+          test -e "$pack/engines/soffice/program/soffice" \
+            || { echo "::error::engines/soffice/program does not resolve to soffice"; exit 1; }
+
+      - name: The installed app stays engine-free (Contents/Resources = icon only)
+        # Same assertion the arm64 job and the app job make: the pack is external
+        # on every architecture (docs/MACOS-PACKAGING.md §1).
+        run: |
+          set -euo pipefail
+          app="/Applications/EZ Convert.app"
+          codesign --verify --strict "$app"
+          echo "codesign --verify --strict: OK" | tee resources.log
+          { echo "Contents/Resources:"; find "$app/Contents/Resources" -type f | sort; } | tee -a resources.log
+          extra="$(find "$app/Contents/Resources" -type f ! -name 'icon.icns' | sort)"
+          if [ -n "$extra" ]; then
+            echo "::error::Contents/Resources holds more than icon.icns"
+            printf '%s\n' "$extra" | tee -a resources.log
+            exit 1
+          fi
+          echo "Contents/Resources carries icon.icns only: OK" | tee -a resources.log
+
+      - name: Launch and convert natively on x86_64 (must be 4/4)
         run: |
           set -o pipefail
           set +e
@@ -275,12 +314,23 @@ jobs:
             echo "::error::engine discovery resolved ${found:-0} of 5 engines on Intel"
             exit 1
           fi
-          pass="$(sed -n 's/^SUMMARY families=[0-9]* pass=\([0-9]*\) fail=[0-9]*.*/\1/p' diag-intel.log | tail -1)"
-          case "$pass" in
-            4) echo "INTEL_CONVERSION=pass (4/4 - an x86_64 pack is no longer needed)" | tee -a diag-intel.log ;;
-            0) echo "INTEL_CONVERSION=blocked (0/4 - arm64-only engine pack, see docs/MACOS-PACKAGING.md section 7)" | tee -a diag-intel.log ;;
-            *) echo "::error::Intel conversion was partial ($pass/4) - unexplained, inspect diag-intel.log"; exit 1 ;;
-          esac
+          if grep -E '^engine ' diag-intel.log | grep -q MISSING; then
+            echo "::error::an engine was not resolved on Intel"
+            exit 1
+          fi
+          # 4/4 is the assertion now. `0/4` used to be the documented arm64-only
+          # state; keeping it green would let a real regression (pack not picked,
+          # engine not executable, symlink flattened) hide behind that note.
+          if [ "$code" -ne 0 ]; then
+            grep -E '^FAMILY .* FAIL' diag-intel.log || true
+            echo "::error::native x86_64 conversion failed (exit $code)"
+            exit 1
+          fi
+          if ! grep -q '^SUMMARY families=4 pass=4 fail=0' diag-intel.log; then
+            echo "::error::Intel conversion is not 4/4 — the x86_64 pack must restore all four families"
+            exit 1
+          fi
+          echo "INTEL_CONVERSION=pass (4/4)" | tee -a diag-intel.log
 
       - name: Launch the GUI and capture a screenshot (evidence only)
         continue-on-error: true
@@ -305,13 +355,13 @@ jobs:
           conv="$(grep -o 'INTEL_CONVERSION=[a-z]*' diag-intel.log | tail -1 | cut -d= -f2 || true)"
           [ -n "$conv" ] || conv="unknown"
           echo "VALIDATION intel install=pass launch=pass engine-discovery=pass conversion=$conv" | tee verdict.log
-          [ "$conv" != "unknown" ] || { echo "::error::the Intel run produced no classification"; exit 1; }
+          [ "$conv" = "pass" ] || { echo "::error::the Intel run classified conversion as '$conv' - 4/4 is required"; exit 1; }
 
       - name: Evidence
         if: always()
         run: |
           bash packaging/macos/publish-evidence.sh validate-intel "${{ job.status }}" \
-            install.log install-pack.log verify-pack.log arch.log diag-intel.log gui.log verdict.log gui.png
+            install.log install-pack.log verify-pack.log symlinks.log resources.log arch.log diag-intel.log gui.log verdict.log gui.png
 
   report:
     name: "report (both architectures)"

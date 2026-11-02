@@ -80,8 +80,25 @@ done
 say "$app_log" "Contents/Resources carries no engine payload: OK"
 
 # ------------------------------------------------------------- the engine pack
-packdmg="$(find "$in_dir" -name 'EZ-Convert-Engine-Pack-*.dmg' | head -1)"
-[ -n "$packdmg" ] || { echo "::error::no engine-pack DMG artifact under $in_dir"; exit 1; }
+# Two packs ship (arm64 and x86_64). Pick by the host architecture: `head -1` over
+# a glob is filesystem order, and with both packs in one artifact set that would
+# pick at random. The installer repeats the check inside the image, so a lone
+# wrong-architecture pack is refused with a message instead of installed.
+host_arch="$(uname -m)"
+packdmg="$(find "$in_dir" -name "EZ-Convert-Engine-Pack-${host_arch}.dmg" | head -1)"
+if [ -z "$packdmg" ]; then
+  packs="$(find "$in_dir" -name 'EZ-Convert-Engine-Pack-*.dmg' | sort)"
+  n="$(printf '%s' "$packs" | grep -c . || true)"
+  if [ "${n:-0}" -eq 1 ]; then
+    packdmg="$packs"
+    say "$pack_log" "only one engine pack present ($(basename "$packdmg")); the installer's arch check decides"
+  else
+    echo "::error::no EZ-Convert-Engine-Pack-${host_arch}.dmg in the artifacts (found: ${n:-0} pack(s))" | tee -a "$pack_log"
+    printf '%s\n' "$packs" | sed 's/^/    /' | tee -a "$pack_log"
+    exit 1
+  fi
+fi
+say "$pack_log" "selected engine pack: $(basename "$packdmg") (host $host_arch)"
 verify_pin "$packdmg" "$pack_log"
 pack_mnt="${RUNNER_TEMP:-/tmp}/pack-mnt"
 rm -rf "$pack_mnt"; mkdir -p "$pack_mnt"

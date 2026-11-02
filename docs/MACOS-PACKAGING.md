@@ -9,9 +9,26 @@ is documented in §4 and is a configuration change, not a redesign.
 | Artifact | Contents | Size (runner-measured) |
 |---|---|---|
 | `EZ-Convert-0.0.1-macos-universal.dmg` | `EZ Convert.app`, universal (arm64 + x86_64) | ~12 MB |
-| `EZ-Convert-Engine-Pack-arm64.dmg` | `engines/vips`, `engines/ffmpeg`, `engines/soffice` + licences + `MANIFEST.sha256` + `MANIFEST.json` | ~700 MB |
+| `EZ-Convert-Engine-Pack-arm64.dmg` | `engines/vips`, `engines/ffmpeg`, `engines/soffice` + licences + `MANIFEST.sha256` + `MANIFEST.json`, built for Apple Silicon | ~700 MB |
 | `EZ-Convert-Engine-Pack-arm64.dmg.sha256` | digest of the published DMG | 1 line |
 | `EZ-Convert-Engine-Pack-arm64.dmg.manifest.json` | pack id/version/arch, artifact digest, `MANIFEST.json` digest | 1 file |
+| `EZ-Convert-Engine-Pack-x86_64.dmg` | the same payload built for Intel Macs: LibreOffice `x86-64`, the `/usr/local` Homebrew bottle of libvips, ffmpeg configured for x86_64 | ~700 MB |
+| `EZ-Convert-Engine-Pack-x86_64.dmg.sha256` | digest of the published DMG | 1 line |
+| `EZ-Convert-Engine-Pack-x86_64.dmg.manifest.json` | pack id/version/arch, artifact digest, `MANIFEST.json` digest | 1 file |
+
+**One pack per architecture; they are not interchangeable.** Each pack carries
+`arch` in its `MANIFEST.json` (`arm64` or `x86_64`), and
+`packaging/macos/install-engine-pack.command` compares it with `uname -m` and
+**refuses** to install a mismatched pack, before it copies anything:
+
+```
+REFUSED: this engine pack is for arm64 Macs; this Mac is x86_64.
+         Download EZ-Convert-Engine-Pack-x86_64.dmg and run that one instead.
+```
+
+Without that check the arm64 pack installs happily on Intel and the app then
+fails every family with `Bad CPU type in executable (os error 86)` — a wrong
+download read as an app bug (§7).
 
 The app bundle contains **no engines**. On macOS every engine ships in the pack,
 for three reasons that are all properties of Tauri's macOS bundler:
@@ -99,11 +116,13 @@ cosmetic difference.
 A DMG cannot contain its own digest, so the published bytes are pinned beside it:
 
 ```
-EZ-Convert-Engine-Pack-arm64.dmg
-EZ-Convert-Engine-Pack-arm64.dmg.sha256          # the digest
-EZ-Convert-Engine-Pack-arm64.dmg.manifest.json   # name, bytes, sha256, pack id/version/arch,
-                                                 # + sha256 of the MANIFEST.json inside
+EZ-Convert-Engine-Pack-<arch>.dmg                 # <arch> = arm64 | x86_64
+EZ-Convert-Engine-Pack-<arch>.dmg.sha256          # the digest
+EZ-Convert-Engine-Pack-<arch>.dmg.manifest.json   # name, bytes, sha256, pack id/version/arch,
+                                                  # + sha256 of the MANIFEST.json inside
 ```
+
+Each architecture's pack publishes its own trio (same shape, different bytes).
 
 The installer checks `MANIFEST.sha256` before copying and carries `MANIFEST.json`
 into the install root, so the installed pack still says what it is. To check a
@@ -113,10 +132,10 @@ pack the way the app uses it (macOS):
 # an installed pack, plus proof the app bundle carries no engines
 bash scripts/verify-engine-pack.sh \
   --pack "$HOME/Library/Application Support/app.ezconvert.desktop" \
-  --app "/Applications/EZ Convert.app" --expect-arch arm64
+  --app "/Applications/EZ Convert.app" --expect-arch "$(uname -m)"
 
 # a downloaded DMG, before installing anything (mounts read-only)
-bash scripts/verify-engine-pack.sh --dmg EZ-Convert-Engine-Pack-arm64.dmg --expect-arch arm64
+bash scripts/verify-engine-pack.sh --dmg EZ-Convert-Engine-Pack-x86_64.dmg --expect-arch x86_64
 ```
 
 That verifier checks the sidecar digest against the artifact, the manifest pair
@@ -211,16 +230,18 @@ bundle, resolving engines exactly as the window does.
 
 **Gaps this card does not close:**
 
-- the pack is **arm64 only**. The app is universal and runs on Intel, and that
-  was measured on real Intel hardware (`macos-15-intel`, macOS 15.7.9): the app
-  installs, launches and resolves all five engines, then every family fails with
-  `Bad CPU type in executable (os error 86)`. An `x86_64` pack
-  (`scripts/mac-engine-pack.sh --arch x86_64`, never run) is the missing
-  artifact. See §7 and `evidence/p3-macos-validation.md`.
+- the `install-test` job runs on Apple Silicon only and therefore exercises the
+  arm64 pack. The Intel pack has its own execution proof, on Intel hardware:
+  `.github/workflows/macos-validate.yml`'s `intel` job installs
+  `EZ-Convert-Engine-Pack-x86_64.dmg`, runs
+  `scripts/verify-engine-pack.sh --expect-arch x86_64` (every Mach-O signature,
+  the pack's symlink inventory, all three engines executing) and requires 4/4
+  conversions — see §7.
 - unsigned: Gatekeeper friction on first launch (§3), and `spctl` will reject
   the DMG until §4 is funded.
 - no release upload: the DMGs are build artifacts on the run (`macos-app-dmg`,
-  `macos-engine-pack`); publishing them is a release-engineering card.
+  `macos-engine-pack-arm64`, `macos-engine-pack-x86_64`); publishing them is a
+  release-engineering card.
 
 ## 6. The app DMG, measured off the runner (2026-11-02)
 
