@@ -1,0 +1,7 @@
+{
+  "run_id": 41377802862,
+  "sha": "afdb011644b43c16f389623839ce8cf240dcd09e",
+  "run_url": "https://github.com/lphan-personal/ez-convert/actions/runs/41377802862",
+  "results": {"app_dmg": "success", "engine_pack": "failure", "install_test": "skipped"},
+  "published_at": "2026-11-02T02:30:15Z"
+}
