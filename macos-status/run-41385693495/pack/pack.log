@@ -1,0 +1,190 @@
+
+=== 1/8 LibreOffice 26.8.2 (arm64)
+    download https://download.documentfoundation.org/libreoffice/stable/26.8.2/mac/aarch64/LibreOffice_26.8.2_MacOS_aarch64.dmg
+9f24fe83ab1ed5c95eb3df580119f32932f713e577feeac02bf619fb00749b55  /Users/runner/work/_temp/ezc-pack/downloads/LibreOffice_26.8.2_MacOS_aarch64.dmg
+    289M on disk
+    layout: program = Contents/MacOS, data = Contents/Resources (flat at the pack root)
+    Resources -> . (so program/../Resources/<x> resolves)
+    carried Contents/Frameworks (3580 files)
+    carried Contents/PlugIns (6 files)
+    carried Contents/Library (4 files)
+    17448 files, 802M
+
+=== 2/8 strip the content the licence decision removed (t_20fae747)
+strip-engine-pack: culmus      18 files  1,333,708 B
+strip-engine-pack: gallery    175 files 13,556,254 B
+strip-engine-pack: help      8082 files 43,179,151 B
+strip-engine-pack: manifest -> /Users/runner/work/_temp/ezc-pack/downloads/strip-manifest.tsv (8275 entries)
+strip-engine-pack: removed 8275 files
+    8275 paths removed
+    strip verified: gallery, help and the five Culmus families are gone
+
+=== 2b/8 smoke LibreOffice before the long engines are built
+scripts/mac-engine-pack.sh: line 184: 19994 Killed: 9               "$PACK/engines/soffice/program/soffice" --headless --norestore -env:UserInstallation="$LO_PROFILE" --convert-to pdf --outdir "$WORK/smoke" "$REPO_ROOT/fixtures/sample.docx" > "$WORK/smoke/soffice-early.log" 2>&1
+LibreOffice did not produce a PDF from the pack. What it said:
+--- engines/soffice layout ---
+total 15960
+drwxr-xr-x  130 runner  staff     4160 Nov  2 03:58 .
+drwxr-xr-x    3 runner  staff       96 Nov  2 03:58 ..
+-rw-r--r--    1 runner  staff    63942 Oct 22 12:54 access2base.py
+drwxr-xr-x   51 runner  staff     1632 Oct 22 12:54 autocorr
+drwxr-xr-x    4 runner  staff      128 Oct 22 12:47 autotext
+drwxr-xr-x   19 runner  staff      608 Oct 22 12:54 basic
+-rw-r--r--    1 runner  staff      112 Oct 22 12:54 bootstraprc
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 ca.lproj
+drwxr-xr-x    4 runner  staff      128 Oct 22 12:54 calc
+drwxr-xr-x   11 runner  staff      352 Oct 22 12:54 classification
+drwxr-xr-x   25 runner  staff      800 Oct 22 12:54 config
+-rw-r--r--    1 runner  staff  2047898 Oct 22 12:54 CREDITS.fodt
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 cs.lproj
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 da.lproj
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 de.lproj
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:47 dtd
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 el.lproj
+drwxr-xr-x    2 runner  staff       64 Oct 22 12:47 en.lproj
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 es.lproj
+drwxr-xr-x    6 runner  staff      192 Oct 22 12:47 extensions
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 fi.lproj
+drwxr-xr-x    7 runner  staff      224 Oct 22 12:54 filter
+drwxr-xr-x  193 runner  staff     6176 Oct 22 12:54 fingerprint
+drwxr-xr-x    5 runner  staff      160 Oct 22 12:54 firebird
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:47 fonts
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 fr.lproj
+drwxr-xr-x  142 runner  staff     4544 Oct 22 12:55 Frameworks
+-rw-r--r--    1 runner  staff     2364 Oct 22 12:54 fundamentalrc
+drwxr-xr-x    6 runner  staff      192 Nov  2 03:58 gallery
+-rw-r--r--    1 runner  staff   159064 Oct 22 12:54 generic-database.icns
+-rw-r--r--    1 runner  staff   152157 Oct 22 12:54 generic-drawing-template.icns
+-rw-r--r--    1 runner  staff   152157 Oct 22 12:54 generic-drawing.icns
+-rw-r--r--    1 runner  staff   127090 Oct 22 12:54 generic-extension.icns
+-rw-r--r--    1 runner  staff   152891 Oct 22 12:54 generic-formula.icns
+-rw-r--r--    1 runner  staff   107847 Oct 22 12:54 generic-master-document-template.icns
+-rw-r--r--    1 runner  staff   107847 Oct 22 12:54 generic-master-document.icns
+-rw-r--r--    1 runner  staff   143631 Oct 22 12:54 generic-presentation-template.icns
+-rw-r--r--    1 runner  staff   143631 Oct 22 12:54 generic-presentation.icns
+-rw-r--r--    1 runner  staff   132064 Oct 22 12:54 generic-spreadsheet-template.icns
+-rw-r--r--    1 runner  staff   132064 Oct 22 12:54 generic-spreadsheet.icns
+-rw-r--r--    1 runner  staff   139941 Oct 22 12:54 generic-text-template.icns
+-rw-r--r--    1 runner  staff   139941 Oct 22 12:54 generic-text.icns
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 glade
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 hr.lproj
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 hu.lproj
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 id.lproj
+-rw-r--r--    1 runner  staff   128638 Oct 22 12:54 intro-highres.png
+-rw-r--r--    1 runner  staff    86626 Oct 22 12:54 intro.png
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 it.lproj
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 ja.lproj
+drwxr-xr-x   38 runner  staff     1216 Oct 22 12:54 java
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 ko.lproj
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 labels
+drwxr-xr-x    4 runner  staff      128 Oct 22 12:54 liblangtag
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:47 Library
+-rw-r--r--    1 runner  staff   489966 Oct 22 12:54 LICENSE
+-rw-r--r--    1 runner  staff   562856 Oct 22 12:54 LICENSE.html
+-rw-r--r--    1 runner  staff     1077 Oct 22 12:54 lounorc
+-rw-r--r--    1 runner  staff    22517 Oct 22 12:54 mailmerge.py
+-rw-r--r--    1 runner  staff   338998 Oct 22 12:54 main.icns
+-rw-r--r--    1 runner  staff     2762 Oct 22 12:54 MainMenu.nib
+-rw-r--r--    1 runner  staff     1715 Oct 22 12:54 MenuTranslations.plist
+-rw-r--r--    1 runner  staff     8183 Oct 22 12:54 msgbox.py
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 nl.lproj
+-rw-r--r--    1 runner  staff     1859 Oct 22 12:54 NOTICE
+drwxr-xr-x   52 runner  staff     1664 Oct 22 12:54 numbertext
+-rw-r--r--    1 runner  staff   159064 Oct 22 12:54 oasis-database.icns
+-rw-r--r--    1 runner  staff   152157 Oct 22 12:54 oasis-drawing-template.icns
+-rw-r--r--    1 runner  staff   152157 Oct 22 12:54 oasis-drawing.icns
+-rw-r--r--    1 runner  staff   127090 Oct 22 12:54 oasis-extension.icns
+-rw-r--r--    1 runner  staff   152891 Oct 22 12:54 oasis-formula.icns
+-rw-r--r--    1 runner  staff   107847 Oct 22 12:54 oasis-master-document-template.icns
+-rw-r--r--    1 runner  staff   107847 Oct 22 12:54 oasis-master-document.icns
+-rw-r--r--    1 runner  staff   143631 Oct 22 12:54 oasis-presentation-template.icns
+-rw-r--r--    1 runner  staff   143631 Oct 22 12:54 oasis-presentation.icns
+-rw-r--r--    1 runner  staff   132064 Oct 22 12:54 oasis-spreadsheet-template.icns
+-rw-r--r--    1 runner  staff   132064 Oct 22 12:54 oasis-spreadsheet.icns
+-rw-r--r--    1 runner  staff   139941 Oct 22 12:54 oasis-text-template.icns
+-rw-r--r--    1 runner  staff   139941 Oct 22 12:54 oasis-text.icns
+-rw-r--r--    1 runner  staff     8212 Oct 22 12:54 officehelper.py
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 opencl
+drwxr-xr-x   26 runner  staff      832 Oct 22 12:54 opengl
+drwxr-xr-x   21 runner  staff      672 Oct 22 12:54 palette
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 pl.lproj
+drwxr-xr-x    4 runner  staff      128 Oct 22 12:47 PlugIns
+drwxr-xr-x    7 runner  staff      224 Oct 22 12:47 presets
+drwxr-xr-x   13 runner  staff      416 Oct 22 12:55 program
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 pt.lproj
+-rwxr-xr-x    1 runner  staff     1908 Oct 22 12:54 python
+-rw-r--r--    1 runner  staff     6770 Oct 22 12:54 pythonloader.py
+-rw-r--r--    1 runner  staff      390 Oct 22 12:54 pythonloader.unorc
+-rw-r--r--    1 runner  staff    48502 Oct 22 12:54 pythonscript.py
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 readmes
+drwxr-xr-x   22 runner  staff      704 Oct 22 12:54 registry
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:47 resource
+lrwxr-xr-x    1 runner  staff        1 Nov  2 03:58 Resources -> .
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 ro.lproj
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 ru.lproj
+-rw-r--r--    1 runner  staff   170598 Oct 22 12:54 scriptforge.py
+-rw-r--r--    1 runner  staff   406699 Oct 22 12:54 scriptforge.pyi
+drwxr-xr-x    6 runner  staff      192 Oct 22 12:47 Scripts
+-rwxr-xr-x    1 runner  staff    11494 Oct 22 12:54 senddoc
+drwxr-xr-x    8 runner  staff      256 Oct 22 12:54 services
+-rw-r--r--    1 runner  staff       61 Oct 22 12:54 setuprc
+drwxr-xr-x    9 runner  staff      288 Oct 22 12:54 shell
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 sk.lproj
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 skia
+-rw-r--r--    1 runner  staff      470 Oct 22 12:54 sofficerc
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 sv.lproj
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 svx
+drwxr-xr-x    4 runner  staff      128 Oct 22 12:47 template
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 th.lproj
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:47 theme_definitions
+drwxr-xr-x    9 runner  staff      288 Oct 22 12:54 themes
+drwxr-xr-x   14 runner  staff      448 Oct 22 12:54 tipoftheday
+drwxr-xr-x   11 runner  staff      352 Oct 22 12:54 toolbarmode
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 tr.lproj
+drwxr-xr-x    4 runner  staff      128 Oct 22 12:54 types
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 uk.lproj
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:47 uno_packages
+-rw-r--r--    1 runner  staff    17608 Oct 22 12:54 uno.py
+-rw-r--r--    1 runner  staff    10815 Oct 22 12:54 unohelper.py
+-rwxr-xr-x    1 runner  staff     1334 Oct 22 12:54 unoinfo
+drwxr-xr-x    4 runner  staff      128 Oct 22 12:47 ure
+-rw-r--r--    1 runner  staff      428 Oct 22 12:54 versionrc
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:54 vi.lproj
+drwxr-xr-x  134 runner  staff     4288 Oct 22 12:54 wizards
+drwxr-xr-x    5 runner  staff      160 Oct 22 12:54 wordbook
+drwxr-xr-x    3 runner  staff       96 Oct 22 12:47 xpdfimport
+drwxr-xr-x    6 runner  staff      192 Oct 22 12:47 xslt
+--- program/ (first 20) ---
+total 8288
+drwxr-xr-x   13 runner  staff      416 Oct 22 12:55 .
+drwxr-xr-x  130 runner  staff     4160 Nov  2 03:58 ..
+-rwxr-xr-x    1 runner  staff   104304 Oct 22 12:55 gengal
+-rwxr-xr-x    1 runner  staff    55920 Oct 22 12:55 opencltest
+-rwxr-xr-x    1 runner  staff    55488 Oct 22 12:55 regview
+lrwxr-xr-x    1 runner  staff       20 Nov  2 03:58 senddoc -> ../Resources/senddoc
+-rwxr-xr-x    1 runner  staff    53136 Oct 22 12:55 soffice
+-rwxr-xr-x    1 runner  staff   135264 Oct 22 12:55 uno
+lrwxr-xr-x    1 runner  staff       20 Nov  2 03:58 unoinfo -> ../Resources/unoinfo
+-rwxr-xr-x    1 runner  staff    53168 Oct 22 12:55 unopkg
+lrwxr-xr-x    1 runner  staff       13 Nov  2 03:58 urelibs -> ../Frameworks
+-rwxr-xr-x    1 runner  staff    53312 Oct 22 12:55 uri-encode
+-rwxr-xr-x    1 runner  staff  3715488 Oct 22 12:55 xpdfimport
+--- probes ---
+  program/soffice          present
+  program/soffice.bin      MISSING
+  fundamentalrc            present
+  Resources                symlink -> .
+  registry/main.xcd        present
+  share/registry/main.xcd  MISSING
+  program/services         MISSING
+--- what the launcher links ---
+/Users/runner/work/_temp/ezc-pack/pack/engines/soffice/program/soffice:
+	@executable_path/../Frameworks/libuno_sal.dylib.3 (compatibility version 0.0.0, current version 0.0.0)
+	@executable_path/../Frameworks/libmergedlo.dylib (compatibility version 0.0.0, current version 0.0.0)
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)
+--- bootstrap files that mention BRAND_BASE_DIR ---
+/Users/runner/work/_temp/ezc-pack/pack/engines/soffice/fundamentalrc
+/Users/runner/work/_temp/ezc-pack/pack/engines/soffice/lounorc
+/Users/runner/work/_temp/ezc-pack/pack/engines/soffice/basic/Tools/Misc.xba
+/Users/runner/work/_temp/ezc-pack/pack/engines/soffice/sofficerc
+/Users/runner/work/_temp/ezc-pack/pack/engines/soffice/Scripts/java/Highlight/HighlightText.java
