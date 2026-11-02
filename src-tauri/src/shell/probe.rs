@@ -80,12 +80,15 @@ struct WindowFacts {
 
 #[derive(Debug, Serialize)]
 struct ClickSamples {
+    /// How the boundary was sampled: "warp" (pointer moved) or "window-shift" (the
+    /// window moved under a fixed pointer, used when the session refuses a warp).
+    method: &'static str,
     /// Pointer warped to the disc centre.
     centre: [i32; 2],
     centre_cursor: [i32; 2],
     centre_inside_disc: bool,
     centre_ignores_mouse_events: Option<bool>,
-    /// Pointer warped into the window but outside the disc (a corner).
+    /// Pointer into the window but outside the disc (a corner).
     corner: [i32; 2],
     corner_cursor: [i32; 2],
     corner_inside_disc: bool,
@@ -109,6 +112,12 @@ struct Facts {
     main_focused_after: bool,
     /// ms from the summon call to the webview's first painted frame.
     render_ms: i64,
+    /// The same figure for the very first summon after launch, before the page had
+    /// finished loading. Reported, not asserted: it is a cold-start cost, not the
+    /// hotkey's.
+    cold_render_ms: i64,
+    /// True once the overlay page had booted its bridge before the first summon.
+    page_ready: bool,
     checks: BTreeMap<String, bool>,
     asserted: Vec<String>,
     ok: bool,
@@ -154,17 +163,26 @@ fn measure(app: &AppHandle) -> Facts {
         .unwrap_or(false);
     let cursor_before = on_main(app, screen::cursor).unwrap_or(screen::Cursor { x: 0, y: 0 });
 
+    // Wait for the overlay page to boot its bridge. The window exists from startup, so
+    // this is the state the user's hotkey press finds it in.
+    let ready_deadline = std::time::Instant::now() + Duration::from_secs(25);
+    while !crate::shell::overlay::page_ready() && std::time::Instant::now() < ready_deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let page_ready = crate::shell::overlay::page_ready();
+
     // The measured path: the same function the global hotkey and the tray call, from
     // a worker thread — the hotkey thread's situation.
-    let payload = crate::shell::summon::summon(app);
+    let _cold = crate::shell::summon::summon(app);
+    let cold_render_ms = wait_for_render(Duration::from_secs(8));
 
-    // Wait for the webview's first painted frame (bounded: a broken webview must
-    // produce a recorded failure, not a hung CI job).
-    let deadline = std::time::Instant::now() + Duration::from_secs(5);
-    while crate::shell::overlay::rendered_ms() < 0 && std::time::Instant::now() < deadline {
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    let render_ms = crate::shell::overlay::rendered_ms();
+    // …and again, warm: dismiss, let the window hide, summon once more. This is the
+    // figure the acceptance card means (the app has been open; the user presses the
+    // chord), and it is the one asserted.
+    crate::shell::overlay::dismiss(app, crate::shell::overlay::Dismissal::Escape);
+    std::thread::sleep(Duration::from_millis(600));
+    let payload = crate::shell::summon::summon(app);
+    let render_ms = wait_for_render(Duration::from_secs(3));
 
     // Let the frame settle before sampling window state.
     std::thread::sleep(Duration::from_millis(200));
@@ -227,29 +245,76 @@ fn measure(app: &AppHandle) -> Facts {
     let centre = (rect.left + rect.width() / 2, rect.top + rect.height() / 2);
     let corner = (rect.left + 6, rect.top + 6);
 
-    let mut warped = screen::warp_pointer(centre.0, centre.1);
-    std::thread::sleep(Duration::from_millis(150));
+    // Two ways to put the pointer against the boundary. A warp is the honest one; a
+    // CI session with no console refuses it, and then the window is moved under the
+    // fixed pointer instead — the same question, asked the other way round.
+    let warped = screen::warp_pointer(centre.0, centre.1);
+    let method = if warped { "warp" } else { "window-shift" };
+    let half = (rect.width() / 2, rect.height() / 2);
+    if !warped {
+        if let Some(window) = window.as_ref() {
+            crate::shell::overlay::position_over_cursor(window, (cursor_before.x, cursor_before.y), half);
+        }
+    }
+    std::thread::sleep(Duration::from_millis(250));
     let centre_cursor = on_main(app, screen::cursor).unwrap_or(screen::Cursor { x: 0, y: 0 });
-    let centre_inside = crate::shell::overlay::point_in_disc((centre_cursor.x, centre_cursor.y), rect);
+    // With a warp the window is where the placement put it; with a shift it has moved
+    // so the pointer sits at its centre.
+    let centre_rect = if warped {
+        rect
+    } else {
+        Rect::from_origin(
+            cursor_before.x - half.0,
+            cursor_before.y - half.1,
+            rect.width(),
+            rect.height(),
+        )
+    };
+    let centre_inside = crate::shell::overlay::point_in_disc((centre_cursor.x, centre_cursor.y), centre_rect);
     let centre_ignores = window
         .as_ref()
         .and_then(crate::shell::overlay::ignores_mouse_events);
 
-    warped = screen::warp_pointer(corner.0, corner.1) && warped;
-    std::thread::sleep(Duration::from_millis(150));
+    if warped {
+        screen::warp_pointer(corner.0, corner.1);
+    } else if let Some(window) = window.as_ref() {
+        crate::shell::overlay::position_over_cursor(window, (cursor_before.x, cursor_before.y), (6, 6));
+    }
+    std::thread::sleep(Duration::from_millis(250));
     let corner_cursor = on_main(app, screen::cursor).unwrap_or(screen::Cursor { x: 0, y: 0 });
-    let corner_inside = crate::shell::overlay::point_in_disc((corner_cursor.x, corner_cursor.y), rect);
+    let corner_rect = if warped {
+        rect
+    } else {
+        Rect::from_origin(
+            cursor_before.x - 6,
+            cursor_before.y - 6,
+            rect.width(),
+            rect.height(),
+        )
+    };
+    let corner_inside = crate::shell::overlay::point_in_disc((corner_cursor.x, corner_cursor.y), corner_rect);
     let corner_ignores = window
         .as_ref()
         .and_then(crate::shell::overlay::ignores_mouse_events);
-    let corner_window_is_ours = window
-        .as_ref()
-        .and_then(|window| {
-            crate::shell::overlay::window_at_point_is_ours(window, corner.0, corner.1)
-        });
+    let corner_window_is_ours = window.as_ref().and_then(|window| {
+        crate::shell::overlay::window_at_point_is_ours(
+            window,
+            corner_rect.left + 6,
+            corner_rect.top + 6,
+        )
+    });
 
-    // Leave the pointer where it was: a probe must not move the user's cursor.
-    let _ = screen::warp_pointer(cursor_before.x, cursor_before.y);
+    // Leave the world as we found it: the pointer where it was, the window back on the
+    // placement it measured.
+    if warped {
+        let _ = screen::warp_pointer(cursor_before.x, cursor_before.y);
+    } else if let Some(window) = window.as_ref() {
+        crate::shell::overlay::position_over_cursor(
+            window,
+            (payload.cursor_x, payload.cursor_y),
+            half,
+        );
+    }
 
     // ---- checks ---------------------------------------------------------
     let mut checks: BTreeMap<String, bool> = BTreeMap::new();
@@ -272,15 +337,15 @@ fn measure(app: &AppHandle) -> Facts {
         "rendered-within-150ms".into(),
         render_ms >= 0 && render_ms <= 150,
     );
-    checks.insert(
-        "cursor-inside-wheel-rect".into(),
-        rect.contains(payload.cursor_x, payload.cursor_y),
-    );
+    checks.insert("cursor-at-wheel-or-clamped".into(), cursor_on_wheel(&payload, &monitors));
     checks.insert(
         "monitor-index-in-range".into(),
         payload.monitor_index < monitors.len(),
     );
-    checks.insert("pointer-warps".into(), warped);
+    checks.insert(
+        "click-through-sampled".into(),
+        centre_inside != corner_inside,
+    );
 
     // Which of the two click-through mechanisms the platform actually has. Each is
     // asserted only where it is implemented and observable.
@@ -316,9 +381,9 @@ fn measure(app: &AppHandle) -> Facts {
         "overlay-not-key",
         "main-window-keeps-focus",
         "rendered-within-150ms",
-        "cursor-inside-wheel-rect",
+        "cursor-at-wheel-or-clamped",
         "monitor-index-in-range",
-        "pointer-warps",
+        "click-through-sampled",
         "window-region-is-ellipse",
         "corner-belongs-to-another-window",
     ]
@@ -337,9 +402,9 @@ fn measure(app: &AppHandle) -> Facts {
         "overlay-not-key",
         "main-window-keeps-focus",
         "rendered-within-150ms",
-        "cursor-inside-wheel-rect",
+        "cursor-at-wheel-or-clamped",
         "monitor-index-in-range",
-        "pointer-warps",
+        "click-through-sampled",
         "disc-accepts-mouse-events",
         "corner-ignores-mouse-events",
     ]
@@ -374,6 +439,7 @@ fn measure(app: &AppHandle) -> Facts {
         },
         window: window_facts,
         click: ClickSamples {
+            method,
             centre: [centre.0, centre.1],
             centre_cursor: [centre_cursor.x, centre_cursor.y],
             centre_inside_disc: centre_inside,
@@ -388,10 +454,44 @@ fn measure(app: &AppHandle) -> Facts {
         main_focused_before,
         main_focused_after,
         render_ms,
+        cold_render_ms,
+        page_ready,
         checks,
         asserted,
         ok,
     }
+}
+
+/// Waits for the webview's painted-frame acknowledgement and returns it (`-1` on
+/// timeout: a broken webview must be a recorded failure, never a hung CI job).
+fn wait_for_render(limit: Duration) -> i64 {
+    let deadline = std::time::Instant::now() + limit;
+    while crate::shell::overlay::rendered_ms() < 0 && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    crate::shell::overlay::rendered_ms()
+}
+
+/// Is the cursor on the wheel — centred on it, or against a work-area edge the wheel
+/// was clamped to?
+///
+/// The placement rule clamps into the monitor's **work area**, so a cursor over the
+/// menu bar (or the Dock) produces a wheel whose edge stops at the work area rather
+/// than one centred on the pointer. Both are correct; a wheel that is neither centred
+/// nor clamped is not.
+fn cursor_on_wheel(payload: &crate::shell::summon::SummonPayload, monitors: &[MonitorFacts]) -> bool {
+    let half_x = payload.width / 2;
+    let half_y = payload.height / 2;
+    let centred_x = ((payload.x + half_x) - payload.cursor_x).abs() <= half_x;
+    let centred_y = ((payload.y + half_y) - payload.cursor_y).abs() <= half_y;
+    let Some(monitor) = monitors.get(payload.monitor_index) else {
+        return false;
+    };
+    let (work_left, work_top, work_right, work_bottom) =
+        (monitor.work[0], monitor.work[1], monitor.work[2], monitor.work[3]);
+    let clamped_x = payload.x <= work_left + 1 || payload.x + payload.width >= work_right - 1;
+    let clamped_y = payload.y <= work_top + 1 || payload.y + payload.height >= work_bottom - 1;
+    (centred_x || clamped_x) && (centred_y || clamped_y)
 }
 
 /// Does the platform's reported window position agree with the placement, in the

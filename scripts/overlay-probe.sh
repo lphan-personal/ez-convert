@@ -73,7 +73,8 @@ PY
       if screencapture -x "$SHOT" 2>>"$OUTDIR/overlay-run.log"; then shot_state="captured"; fi
       ;;
     MINGW*|MSYS*|CYGWIN*)
-      if powershell -NoProfile -Command "Add-Type -AssemblyName System.Drawing; \$b = [System.Windows.Forms.SystemInformation]::VirtualScreen; Add-Type -AssemblyName System.Windows.Forms; \$bmp = New-Object System.Drawing.Bitmap \$b.Width, \$b.Height; \$g = [System.Drawing.Graphics]::FromImage(\$bmp); \$g.CopyFromScreen(\$b.X, \$b.Y, 0, 0, \$bmp.Size); \$bmp.Save('$(cygpath -w "$SHOT" 2>/dev/null || echo "$SHOT")');" >>"$OUTDIR/overlay-run.log" 2>&1; then
+      shot_win="$(cygpath -w "$SHOT" 2>/dev/null || echo "$SHOT")"
+      if powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; \$b = [System.Windows.Forms.SystemInformation]::VirtualScreen; \$bmp = New-Object System.Drawing.Bitmap \$b.Width, \$b.Height; \$g = [System.Drawing.Graphics]::FromImage(\$bmp); \$g.CopyFromScreen(\$b.X, \$b.Y, 0, 0, \$bmp.Size); \$bmp.Save('$shot_win', [System.Drawing.Imaging.ImageFormat]::Png); \$g.Dispose(); \$bmp.Dispose();" >>"$OUTDIR/overlay-run.log" 2>&1; then
         shot_state="captured"
       fi
       ;;
@@ -98,7 +99,8 @@ probe_code=$?
     python3 - "$OUT" <<'PY'
 import json, sys
 facts = json.load(open(sys.argv[1]))
-print(f"OVERLAY_PROBE ok={str(facts.get('ok')).lower()} render_ms={facts.get('render_ms')}")
+print(f"OVERLAY_PROBE ok={str(facts.get('ok')).lower()} render_ms={facts.get('render_ms')} "
+      f"cold_render_ms={facts.get('cold_render_ms')} page_ready={str(facts.get('page_ready')).lower()}")
 print(f"OVERLAY_PROBE placement=x{facts['placement']['x']} y{facts['placement']['y']} "
       f"monitor={facts['placement']['monitor_index']} placed={str(facts['placement']['placed']).lower()} "
       f"cursor={facts['placement']['cursor_x']},{facts['placement']['cursor_y']}")

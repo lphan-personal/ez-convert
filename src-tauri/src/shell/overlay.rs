@@ -50,6 +50,8 @@ const WATCH_INTERVAL: Duration = Duration::from_millis(16);
 static LAST_RECT: Mutex<Option<Rect>> = Mutex::new(None);
 /// True while the dismiss watcher thread is alive.
 static WATCHING: AtomicBool = AtomicBool::new(false);
+/// Set once the overlay webview has booted and asked for its placement.
+static PAGE_READY: AtomicBool = AtomicBool::new(false);
 /// Summon counter: a dismissal only hides the window the summon it belongs to
 /// created, so a re-summon inside the close animation survives.
 static SUMMONS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -246,6 +248,35 @@ pub fn rendered_ms() -> i64 {
     RENDER_MS.load(Ordering::SeqCst)
 }
 
+/// True once the overlay page has booted its bridge (`overlay_ready`).
+pub fn page_ready() -> bool {
+    PAGE_READY.load(Ordering::SeqCst)
+}
+
+/// Measurement helper: puts the overlay so `cursor` sits at `offset` inside it.
+///
+/// The probe uses it when the platform refuses to warp the pointer (a CI session with
+/// no console does): moving the window under a fixed pointer samples the same
+/// click-through boundary. The app itself never moves the overlay anywhere but the
+/// cursor's own placement.
+pub fn position_over_cursor(window: &WebviewWindow, cursor: (i32, i32), offset: (i32, i32)) {
+    let x = cursor.0 - offset.0;
+    let y = cursor.1 - offset.1;
+    #[cfg(target_os = "macos")]
+    {
+        let _ = window.set_position(tauri::LogicalPosition::new(x as f64, y as f64));
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+    }
+    // Keep the dismiss/click-through watcher's notion of where the wheel is in step
+    // with the window, or the sample would be judged against the old rect.
+    if let Ok(mut slot) = LAST_RECT.lock() {
+        *slot = Some(Rect::from_origin(x, y, WHEEL_SIZE.0, WHEEL_SIZE.1));
+    }
+}
+
 /// Places and shows the overlay for a placement decision.
 pub fn present(app: &AppHandle, payload: &crate::shell::summon::SummonPayload) -> Option<WebviewWindow> {
     SUMMONS.fetch_add(1, Ordering::SeqCst);
@@ -345,6 +376,8 @@ fn shape_window(window: &WebviewWindow) {
     #[cfg(windows)]
     {
         if let Ok(hwnd) = window.hwnd() {
+            // Non-activating before shaping: `show()` must not take the foreground.
+            win32::make_non_activating(hwnd.0 as isize);
             if !win32::clip_to_disc(hwnd.0 as isize, WHEEL_SIZE) {
                 eprintln!("wheel overlay: cannot shape the window to the ring");
             }
@@ -443,6 +476,28 @@ mod win32 {
         fn GetWindowRgn(window: Handle, region: Handle) -> i32;
         fn WindowFromPoint(point: Point) -> Handle;
         fn GetAncestor(window: Handle, flags: u32) -> Handle;
+        fn GetWindowLongPtrW(window: Handle, index: i32) -> isize;
+        fn SetWindowLongPtrW(window: Handle, index: i32, value: isize) -> isize;
+    }
+
+    const GWL_EXSTYLE: i32 = -20;
+    /// `WS_EX_NOACTIVATE`: a click does not activate the window, and showing it does
+    /// not take the foreground — Windows' equivalent of "never steal the key window".
+    const WS_EX_NOACTIVATE: isize = 0x0800_0000;
+    /// `WS_EX_TOOLWINDOW`: out of the taskbar and the Alt-Tab list.
+    const WS_EX_TOOLWINDOW: isize = 0x0000_0080;
+
+    pub fn make_non_activating(hwnd: Handle) {
+        // SAFETY: `hwnd` is the live window handle Tauri created; both calls are plain
+        // value calls on it.
+        unsafe {
+            let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+            SetWindowLongPtrW(
+                hwnd,
+                GWL_EXSTYLE,
+                style | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
+            );
+        }
     }
 
     #[repr(C)]
@@ -510,8 +565,13 @@ mod win32 {
 
 /// The webview calls this on boot so a summon that arrived before the listener was
 /// registered is not lost: the answer is the current placement (or `None`).
+///
+/// It is also the signal the measurement probe waits for: until the page has run its
+/// bridge, a summon would be measured against a webview that is still loading, which
+/// is not what the user's second hotkey press costs.
 #[tauri::command]
 pub fn overlay_ready() -> Option<crate::shell::summon::SummonPayload> {
+    PAGE_READY.store(true, Ordering::SeqCst);
     LAST_RECT.lock().ok().and_then(|slot| *slot).map(|rect| {
         crate::shell::summon::SummonPayload {
             x: rect.left,
