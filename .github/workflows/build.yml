@@ -62,6 +62,9 @@ jobs:
   build:
     name: build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    # Free-tier minutes are the budget: a hung runner must not burn an hour.
+    # A cold run is ~8-12 min per platform including the release build.
+    timeout-minutes: 30
     permissions:
       contents: write
     strategy:
@@ -100,6 +103,178 @@ jobs:
         run: |
           set -o pipefail
           cargo test --locked 2>&1 | tee test.log
+
+      # --------------------------------------------- Tauri app (windows/macOS)
+      # The two shipping platforms build the actual desktop app here and upload
+      # it unsigned. The CLI is a build-time tool (never shipped to users), so it
+      # is fetched as an official prebuilt release and sha256-pinned instead of
+      # costing minutes of `cargo install` on every run. Nothing built with it is
+      # signed: signing is a release step with credentials CI must not hold.
+      - name: Install the Tauri CLI (pinned prebuilt, build-time tool)
+        if: runner.os != 'Linux'
+        env:
+          TAURI_CLI_VER: 2.12.4
+        run: |
+          set -euo pipefail
+          case "$RUNNER_OS" in
+            Windows)
+              asset="x86_64-pc-windows-msvc.zip"
+              sum="3e8687fb184bd7f10ebd8642f7715f79f4a605c0694c142a21507e8a24dc0f8b"
+              ;;
+            macOS)
+              if [ "$(uname -m)" = "arm64" ]; then
+                asset="aarch64-apple-darwin.zip"
+                sum="f71a34ada728ca2d1a51c28d6d21639e1e080898ec69ec8d49c5da3b7e8bc1be"
+              else
+                asset="x86_64-apple-darwin.zip"
+                sum="164d184c0e50800dcae7bb31f0815066ebd27efc3e3bb73117974bcd2e982192"
+              fi
+              ;;
+            *)
+              echo "::error::no pinned Tauri CLI for $RUNNER_OS"
+              exit 1
+              ;;
+          esac
+          curl -fsSL -o cli.zip \
+            "https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v${TAURI_CLI_VER}/cargo-tauri-${asset}"
+          # The pin is the point: a swapped tool binary fails here, not later.
+          if command -v sha256sum >/dev/null 2>&1; then
+            echo "${sum}  cli.zip" | sha256sum -c -
+          else
+            echo "${sum}  cli.zip" | shasum -a 256 -c -
+          fi
+          export CLI_ZIP="$PWD/cli.zip" CLI_DIR="$HOME/.cargo/bin"
+          mkdir -p "$CLI_DIR"
+          if ! pwsh -NoProfile -NonInteractive \
+              -Command 'Expand-Archive -LiteralPath $env:CLI_ZIP -DestinationPath $env:CLI_DIR -Force'; then
+            tar -xf "$CLI_ZIP" -C "$CLI_DIR"
+          fi
+          chmod +x "$CLI_DIR/cargo-tauri" 2>/dev/null || true
+          cargo tauri --version
+
+      # The licence assertion on the platform that ships, not just on Linux:
+      # (a) every ffmpeg this checkout would bundle must report enable-gpl=0,
+      # (b) the gate must REJECT a deliberately GPL ffmpeg and accept an LGPL one,
+      #     so a green run without the rejection line is not trusted.
+      - name: Licence assertion - bundled ffmpeg must be enable-gpl=0
+        if: runner.os != 'Linux'
+        run: |
+          set -o pipefail
+          bash scripts/license-assert.sh --scan 2>&1 | tee license-scan.log
+
+      - name: Licence assertion - a deliberately GPL ffmpeg must be rejected
+        if: runner.os != 'Linux'
+        run: |
+          set -o pipefail
+          bash scripts/license-assert.sh --selftest 2>&1 | tee license-selftest.log
+
+      - name: Build the Tauri app (release, unsigned, no installer yet)
+        if: runner.os != 'Linux'
+        working-directory: src-tauri
+        run: |
+          set -o pipefail
+          cargo tauri build --no-bundle --ci 2>&1 | tee tauri-build.log
+
+      # The binary plus a manifest that says exactly what was built. The manifest
+      # travels inside the artifact (self-describing) and is republished to the
+      # ci-artifacts-<os> branch (auditable with Contents scope alone).
+      - name: Stage the unsigned artifact + manifest
+        id: stage
+        if: runner.os != 'Linux'
+        env:
+          TAURI_CLI_VER: 2.12.4
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          case "$RUNNER_OS" in
+            Windows) src="src-tauri/target/release/ez-convert.exe"; out="ez-convert-windows-x86_64.exe" ;;
+            macOS)   src="src-tauri/target/release/ez-convert";     out="ez-convert-macos-$(uname -m)" ;;
+            *) echo "::error::unsupported runner $RUNNER_OS"; exit 1 ;;
+          esac
+          [ -f "$src" ] || { echo "::error::the Tauri build produced no binary at $src"; exit 1; }
+          cp "$src" "artifacts/$out"
+          chmod +x "artifacts/$out" 2>/dev/null || true
+          size=$(wc -c < "artifacts/$out" | tr -d ' ')
+          sum=$( (sha256sum "artifacts/$out" 2>/dev/null || shasum -a 256 "artifacts/$out") | cut -d' ' -f1)
+          echo "$sum  $out" > artifacts/SHA256SUMS.txt
+          {
+            echo "{"
+            echo "  \"os\": \"$RUNNER_OS\","
+            echo "  \"file\": \"$out\","
+            echo "  \"size_bytes\": $size,"
+            echo "  \"sha256\": \"$sum\","
+            echo "  \"signed\": false,"
+            echo "  \"bundle\": false,"
+            echo "  \"bundle_note\": \"bundle.active is false; installers are a later packaging step\","
+            echo "  \"tauri_cli\": \"$TAURI_CLI_VER\","
+            echo "  \"rustc\": \"$(rustc --version)\","
+            echo "  \"run_id\": ${GITHUB_RUN_ID},"
+            echo "  \"run_url\": \"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\","
+            echo "  \"sha\": \"${GITHUB_SHA}\""
+            echo "}"
+          } > artifacts/manifest.json
+          cp artifacts/manifest.json artifacts-manifest.json
+          cat artifacts/manifest.json
+          {
+            echo "ART_FILE=$out"
+            echo "ART_SIZE=$size"
+            echo "ART_SHA=$sum"
+          } >> "$GITHUB_ENV"
+
+      - name: Upload the unsigned artifact
+        id: upload
+        if: runner.os != 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ez-convert-${{ runner.os }}-unsigned
+          path: |
+            artifacts/**
+            src-tauri/tauri-build.log
+            license-scan.log
+            license-selftest.log
+          if-no-files-found: error
+          retention-days: 30
+
+      # The upload step's own id/url is the proof the artifact exists. Recording
+      # it on a branch keeps the evidence readable without the Actions API, which
+      # this account's token cannot reach (403).
+      - name: Publish the artifact record to ci-artifacts-${{ matrix.os }}
+        if: always() && runner.os != 'Linux'
+        env:
+          OS_SLUG: ${{ matrix.os }}
+          JOB_STATUS: ${{ job.status }}
+          ARTIFACT_NAME: ez-convert-${{ runner.os }}-unsigned
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        run: |
+          set -eo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p ci-artifacts
+          {
+            echo "{"
+            echo "  \"os\": \"$OS_SLUG\","
+            echo "  \"job_status\": \"$JOB_STATUS\","
+            echo "  \"run_id\": ${GITHUB_RUN_ID},"
+            echo "  \"run_attempt\": ${GITHUB_RUN_ATTEMPT},"
+            echo "  \"run_url\": \"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\","
+            echo "  \"sha\": \"${GITHUB_SHA}\","
+            echo "  \"artifact_name\": \"$ARTIFACT_NAME\","
+            echo "  \"artifact_id\": \"${ARTIFACT_ID}\","
+            echo "  \"artifact_url\": \"${ARTIFACT_URL}\","
+            echo "  \"file\": \"${ART_FILE:-}\","
+            echo "  \"size_bytes\": \"${ART_SIZE:-}\","
+            echo "  \"sha256\": \"${ART_SHA:-}\","
+            echo "  \"signed\": false,"
+            echo "  \"published_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\""
+            echo "}"
+          } > "ci-artifacts/${GITHUB_RUN_ID}.json"
+          cp "ci-artifacts/${GITHUB_RUN_ID}.json" ci-artifacts/latest.json
+          cat ci-artifacts/latest.json
+          git checkout -B "ci-artifacts-${OS_SLUG}"
+          git add -f ci-artifacts
+          git commit -m "ci-artifacts: ${OS_SLUG} ${JOB_STATUS} in run ${GITHUB_RUN_ID}" || echo "nothing to commit"
+          git push --force origin "ci-artifacts-${OS_SLUG}"
 
       # The skeleton was authored without a local Rust toolchain, so the lock
       # file is born in CI. P2/U1 commit it, then builds can use --locked.
@@ -366,7 +541,7 @@ jobs:
   # --------------------------------------------------------- verdict publisher
   report:
     name: report (publish run verdict to ci-status)
-    needs: [build, license-assert, policy-check, spike]
+    needs: [build, license-assert, policy-check, e2e, spike]
     if: always()
     runs-on: ubuntu-latest
     permissions:
@@ -375,6 +550,7 @@ jobs:
       BUILD_RESULT: ${{ needs.build.result }}
       LICENSE_RESULT: ${{ needs.license-assert.result }}
       POLICY_RESULT: ${{ needs.policy-check.result }}
+      E2E_RESULT: ${{ needs.e2e.result }}
       SPIKE_RESULT: ${{ needs.spike.result }}
     steps:
       - uses: actions/checkout@v4
@@ -400,6 +576,7 @@ jobs:
               "build_matrix_3_os": "${BUILD_RESULT}",
               "license_assert": "${LICENSE_RESULT}",
               "policy_check": "${POLICY_RESULT}",
+              "e2e": "${E2E_RESULT}",
               "spike": "${SPIKE_RESULT}"
             },
             "published_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
