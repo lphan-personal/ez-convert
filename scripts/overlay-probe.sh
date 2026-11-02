@@ -73,10 +73,43 @@ PY
       if screencapture -x "$SHOT" 2>>"$OUTDIR/overlay-run.log"; then shot_state="captured"; fi
       ;;
     MINGW*|MSYS*|CYGWIN*)
-      shot_win="$(cygpath -w "$SHOT" 2>/dev/null || echo "$SHOT")"
-      if powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; \$b = [System.Windows.Forms.SystemInformation]::VirtualScreen; \$bmp = New-Object System.Drawing.Bitmap \$b.Width, \$b.Height; \$g = [System.Drawing.Graphics]::FromImage(\$bmp); \$g.CopyFromScreen(\$b.X, \$b.Y, 0, 0, \$bmp.Size); \$bmp.Save('$shot_win', [System.Drawing.Imaging.ImageFormat]::Png); \$g.Dispose(); \$bmp.Dispose();" >>"$OUTDIR/overlay-run.log" 2>&1; then
-        shot_state="captured"
+      # One PowerShell start, three frames ~1 s apart. `Add-Type -AssemblyName
+      # System.Windows.Forms` alone can take seconds on a cold runner, and a
+      # capture taken after `--overlay-hold` expires photographs the desktop —
+      # which the crop check can mistake for a ring: a maximised console window is
+      # neither blank nor uniform (17 colours, a quarter of the pixels off the
+      # corner sample, "ring-visible") and would be published as proof of a wheel
+      # nobody photographed. Every frame is kept, and the first one whose crop
+      # passes is the one the verdict names.
+      mkdir -p "$OUTDIR/frames" && rm -f "$OUTDIR"/frames/frame-*.png
+      frames_win="$(cygpath -w "$OUTDIR/frames" 2>/dev/null || echo "$OUTDIR/frames")"
+      if ! powershell -NoProfile -Command "
+          Add-Type -AssemblyName System.Windows.Forms;
+          Add-Type -AssemblyName System.Drawing;
+          \$b = [System.Windows.Forms.SystemInformation]::VirtualScreen;
+          \$t = [System.Diagnostics.Stopwatch]::StartNew();
+          for (\$i = 1; \$i -le 3; \$i++) {
+            \$bmp = New-Object System.Drawing.Bitmap \$b.Width, \$b.Height;
+            \$g = [System.Drawing.Graphics]::FromImage(\$bmp);
+            \$g.CopyFromScreen(\$b.X, \$b.Y, 0, 0, \$bmp.Size);
+            \$bmp.Save('$frames_win\\frame-' + \$i + '.png', [System.Drawing.Imaging.ImageFormat]::Png);
+            \$g.Dispose(); \$bmp.Dispose();
+            Write-Output ('frame ' + \$i + ' written at ' + \$t.ElapsedMilliseconds + ' ms');
+            if (\$i -lt 3) { Start-Sleep -Milliseconds 1000 }
+          }" >>"$OUTDIR/overlay-run.log" 2>&1; then
+        echo "overlay-probe: the screen capture failed (recorded, not asserted)" >>"$OUTDIR/overlay-run.log"
       fi
+      for frame in "$OUTDIR"/frames/frame-*.png; do
+        [ -f "$frame" ] || continue
+        shot_state="captured"
+        if [ -n "${rect:-}" ] \
+           && python3 "$here/scripts/png-nonblank.py" "$frame" --crop "$rect" --json \
+                >"$OUTDIR/frames.json" 2>>"$OUTDIR/overlay-run.log"; then
+          cp "$frame" "$SHOT"
+          echo "overlay-probe: using $(basename "$frame") — its crop shows the ring" >>"$OUTDIR/overlay-run.log"
+          break
+        fi
+      done
       ;;
   esac
   if [ "$shot_state" = "captured" ] && [ -n "${rect:-}" ]; then

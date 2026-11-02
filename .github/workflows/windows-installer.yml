@@ -263,7 +263,12 @@ jobs:
         run: |
           set -o pipefail
           echo "measuring $INSTALLED_BIN (sha256 $INSTALLED_BIN_SHA256)" | tee installed-overlay.log
-          BIN="$INSTALLED_BIN" HOLD=8 bash scripts/overlay-probe.sh installed-overlay-evidence 2>&1 | tee -a overlay-verdict.log
+          # HOLD=25, not 8: a cold `Add-Type -AssemblyName System.Windows.Forms`
+          # costs several seconds on this image, and a capture that lands after the
+          # hold expires photographs the desktop. The build-tree job's 8 s was a
+          # race it happened to win; the installed run lost it and published a
+          # screenshot of a console window as "ring-visible".
+          BIN="$INSTALLED_BIN" HOLD=25 bash scripts/overlay-probe.sh installed-overlay-evidence 2>&1 | tee -a overlay-verdict.log
 
       - name: Assert the installed-build facts (ok, 15/15, ellipse, corner, no-activate)
         # `overlay-probe.sh` already exits with the probe's code (0 only when every

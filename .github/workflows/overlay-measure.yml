@@ -107,7 +107,9 @@ jobs:
           cargo build --release 2>&1 | tee ../build.log
 
       - name: Measure the overlay
-        run: BIN="$PWD/src-tauri/target/release/ez-convert.exe" bash scripts/overlay-probe.sh overlay-evidence
+        # HOLD=25 on Windows for the same reason windows-installer uses it: the
+        # capture is a cold PowerShell start, and an 8 s hold is a race.
+        run: BIN="$PWD/src-tauri/target/release/ez-convert.exe" HOLD=25 bash scripts/overlay-probe.sh overlay-evidence
 
       - name: Evidence
         if: always()
