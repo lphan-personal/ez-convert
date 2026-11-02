@@ -156,7 +156,12 @@ note "$(wc -l < "$WORK/downloads/strip-manifest.tsv" | tr -d ' ') paths removed"
 # a survivor here. Assert the removal directly instead: a strip that silently
 # did nothing must not pass as a licence decision.
 for gone in "$PACK/engines/soffice/share/gallery" "$PACK/engines/soffice/gallery" "$PACK/engines/soffice/help"; do
-  [ ! -e "$gone" ] || { echo "strip incomplete: $gone still in the pack" >&2; exit 1; }
+  # The directory itself may survive the removal (the strip removes files, not
+  # empty parents); what must be gone is every file under it.
+  if [ -d "$gone" ] && [ -n "$(find "$gone" -type f -print -quit 2>/dev/null)" ]; then
+    echo "strip incomplete: files still under $gone" >&2
+    exit 1
+  fi
 done
 survivor="$(find "$PACK/engines/soffice" \( -name 'DavidCLM-*' -o -name 'FrankRuehlCLM-*' \
   -o -name 'MiriamCLM-*' -o -name 'MiriamMonoCLM-*' -o -name 'NachlieliCLM-*' \) -print -quit)"
