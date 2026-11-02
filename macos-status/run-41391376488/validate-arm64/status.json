@@ -1,0 +1,8 @@
+{
+  "run_id": 41391376488,
+  "sha": "89744acb14b31599fef3e8fcb6d5b93acf07a9d4",
+  "stage": "validate-arm64",
+  "job_status": "failure",
+  "run_url": "https://github.com/lphan-personal/ez-convert/actions/runs/41391376488",
+  "published_at": "2026-11-02T04:59:57Z"
+}
