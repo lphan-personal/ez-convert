@@ -1,3 +1,3 @@
--rw-r--r--  1 runner  staff  104 Nov  2 10:05 ./EZ-Convert-Engine-Pack-arm64.dmg.sha256
--rw-r--r--@ 1 runner  staff  361154840 Nov  2 10:05 ./EZ-Convert-Engine-Pack-arm64.dmg
--rw-r--r--  1 runner  staff  558 Nov  2 10:05 ./EZ-Convert-Engine-Pack-arm64.dmg.manifest.json
+-rw-r--r--  1 runner  staff  105 Nov  2 10:11 ./EZ-Convert-Engine-Pack-x86_64.dmg.sha256
+-rw-r--r--  1 runner  staff  561 Nov  2 10:11 ./EZ-Convert-Engine-Pack-x86_64.dmg.manifest.json
+-rw-r--r--@ 1 runner  staff  380435751 Nov  2 10:11 ./EZ-Convert-Engine-Pack-x86_64.dmg
