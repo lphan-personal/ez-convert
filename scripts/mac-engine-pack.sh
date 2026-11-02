@@ -456,7 +456,11 @@ find "$PACK/engines" -type f -print0 \
 [ -s "$WORK/macho.txt" ] || { echo "no Mach-O files found under $PACK/engines" >&2; exit 1; }
 while IFS= read -r f; do sign "$f"; done < "$WORK/macho.txt"
 note "$(wc -l < "$WORK/macho.txt" | tr -d ' ') Mach-O files signed"
-for probe in "$PACK/engines/vips/vips" "$PACK/engines/ffmpeg/ffmpeg" "$PACK/engines/soffice/program/soffice.bin"; do
+# The launcher the app spawns is `program/soffice` (ARC §6.2.1: the console
+# launcher, never `soffice.bin`). The Windows/Linux packs have a `soffice.bin`;
+# this one does not — measured on the 26.8.2 MacOS build, where Contents/MacOS
+# holds the launchers and there is no `program/soffice.bin` at all.
+for probe in "$PACK/engines/vips/vips" "$PACK/engines/ffmpeg/ffmpeg" "$PACK/engines/soffice/program/soffice"; do
   [ -f "$probe" ] || { echo "missing probe $probe" >&2; exit 1; }
   codesign --verify "$probe" || { echo "unsigned nested object: $probe" >&2; exit 1; }
 done
