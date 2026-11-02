@@ -1,0 +1,12 @@
+bundle_root /Applications/EZ Convert.app/Contents/Resources
+engine vips found /Users/runner/Library/Application Support/app.ezconvert.desktop/engines/vips/vips
+engine vipsheader found /Users/runner/Library/Application Support/app.ezconvert.desktop/engines/vips/vipsheader
+engine ffmpeg found /Users/runner/Library/Application Support/app.ezconvert.desktop/engines/ffmpeg/ffmpeg
+engine ffprobe found /Users/runner/Library/Application Support/app.ezconvert.desktop/engines/ffmpeg/ffprobe
+engine soffice found /Users/runner/Library/Application Support/app.ezconvert.desktop/engines/soffice/LibreOffice.app/Contents/MacOS/soffice
+fixtures /Users/runner/work/ez-convert/ez-convert/fixtures
+FAMILY image PASS 2781 215 /Users/runner/work/_temp/diag/diag-image.jpg
+FAMILY audio PASS 8579 214 /Users/runner/work/_temp/diag/diag-audio.mp3
+FAMILY video PASS 2278 210 /Users/runner/work/_temp/diag/diag-video.webm
+FAMILY document PASS 25546 2476 /Users/runner/work/_temp/diag/diag-document.pdf
+SUMMARY families=4 pass=4 fail=0
