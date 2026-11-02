@@ -149,8 +149,8 @@ jobs:
           fi
           pass="$(sed -n 's/^SUMMARY families=[0-9]* pass=\([0-9]*\) fail=[0-9]*.*/\1/p' diag-rosetta.log | tail -1)"
           case "$pass" in
-            4) echo "ROSETTA_CONVERSION=pass (4/4)" ;;
-            0) echo "ROSETTA_CONVERSION=blocked (0/4 - arm64-only engine pack, see docs/MACOS-PACKAGING.md section 7)" ;;
+            4) echo "ROSETTA_CONVERSION=pass (4/4)" | tee -a diag-rosetta.log ;;
+            0) echo "ROSETTA_CONVERSION=blocked (0/4 - arm64-only engine pack, see docs/MACOS-PACKAGING.md section 7)" | tee -a diag-rosetta.log ;;
             *) echo "::error::Rosetta conversion was partial ($pass/4) - unexplained, inspect diag-rosetta.log"; exit 1 ;;
           esac
 
@@ -180,7 +180,10 @@ jobs:
       - name: Verdict
         run: |
           set -euo pipefail
-          rosetta="$(grep -o 'ROSETTA_CONVERSION=[a-z]*' diag-rosetta.log | tail -1 | cut -d= -f2)"
+          # `|| true`: with `set -o pipefail` a missing classification would kill
+          # this step with no message (that is exactly how the first two runs
+          # failed - silently). Ask for it, then say so if it is absent.
+          rosetta="$(grep -o 'ROSETTA_CONVERSION=[a-z]*' diag-rosetta.log | tail -1 | cut -d= -f2 || true)"
           [ -n "$rosetta" ] || rosetta="unknown"
           shot="$(grep -c '^screenshot: captured' gui.log 2>/dev/null || true)"
           [ -n "$shot" ] || shot=0
@@ -274,8 +277,8 @@ jobs:
           fi
           pass="$(sed -n 's/^SUMMARY families=[0-9]* pass=\([0-9]*\) fail=[0-9]*.*/\1/p' diag-intel.log | tail -1)"
           case "$pass" in
-            4) echo "INTEL_CONVERSION=pass (4/4 - an x86_64 pack is no longer needed)" ;;
-            0) echo "INTEL_CONVERSION=blocked (0/4 - arm64-only engine pack, see docs/MACOS-PACKAGING.md section 7)" ;;
+            4) echo "INTEL_CONVERSION=pass (4/4 - an x86_64 pack is no longer needed)" | tee -a diag-intel.log ;;
+            0) echo "INTEL_CONVERSION=blocked (0/4 - arm64-only engine pack, see docs/MACOS-PACKAGING.md section 7)" | tee -a diag-intel.log ;;
             *) echo "::error::Intel conversion was partial ($pass/4) - unexplained, inspect diag-intel.log"; exit 1 ;;
           esac
 
@@ -299,7 +302,7 @@ jobs:
       - name: Verdict
         run: |
           set -euo pipefail
-          conv="$(grep -o 'INTEL_CONVERSION=[a-z]*' diag-intel.log | tail -1 | cut -d= -f2)"
+          conv="$(grep -o 'INTEL_CONVERSION=[a-z]*' diag-intel.log | tail -1 | cut -d= -f2 || true)"
           [ -n "$conv" ] || conv="unknown"
           echo "VALIDATION intel install=pass launch=pass engine-discovery=pass conversion=$conv" | tee verdict.log
           [ "$conv" != "unknown" ] || { echo "::error::the Intel run produced no classification"; exit 1; }
