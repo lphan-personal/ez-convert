@@ -1,0 +1,23 @@
+host       iad20-eo1210-1c1257de-5ed3-44d6-946b-1ddd589bedba-F2164BB76D4F.local
+uname -m   arm64
+sw_vers    26.6.2 (25G83)
+rosetta    0
+volume EZ-Convert-0.0.1-macos-universal.dmg:
+total 1856
+drwxr-xr-x@ 5 runner  staff     238 Nov  2 04:32 .
+drwxr-xr-x  7 runner  staff     224 Nov  2 05:10 ..
+-rw-r--r--@ 1 runner  staff  944161 Nov  2 04:32 .VolumeIcon.icns
+lrwxr-xr-x  1 runner  staff      13 Nov  2 04:32 Applications -> /Applications
+drwxr-xr-x  3 runner  staff     102 Nov  2 04:32 EZ Convert.app
+installed app bundle:
+total 8
+drwxr-xr-x  3 runner  staff    96 Nov  2 04:32 _CodeSignature
+drwxr-xr-x  6 runner  staff   192 Nov  2 04:32 .
+drwxr-xr-x  3 runner  staff    96 Nov  2 04:32 ..
+-rw-r--r--  1 runner  staff  1058 Nov  2 04:32 Info.plist
+drwxr-xr-x  3 runner  staff    96 Nov  2 04:32 MacOS
+drwxr-xr-x  3 runner  staff    96 Nov  2 04:32 Resources
+lipo: x86_64 arm64
+codesign --verify --strict: OK
+installed size:  12M
+Contents/Resources carries no engine payload: OK

@@ -1,0 +1,3 @@
+VALIDATION arm64 install=pass launch=pass engine-discovery=pass conversion=pass (4/4)
+VALIDATION rosetta-x86_64 launch=pass conversion=pass
+VALIDATION gui-window screenshot=captured
