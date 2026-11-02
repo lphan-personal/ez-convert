@@ -88,6 +88,50 @@ installed it, and the probe ran **against the installed binary**
 The facts, screenshot, crop and verdict are published under
 `macos-status/run-41499554761/validate-arm64/overlay-*`.
 
+## The installed build — windows-installer 41506163113 @ a07f462
+
+The Windows counterpart, and the Windows claim a release may make. Until
+[41506163113](https://github.com/lphan-personal/ez-convert/actions/runs/41506163113) every
+Windows number came from `overlay-measure`, i.e. from a build tree a user never runs.
+`windows-installer` now builds `EZ Convert_0.0.1_x64-setup.exe` (219,983,879 B, sha256
+`3b6fafb8dfe01b5b61fce66d17860e9c671d7c2430a3e022dbb009e3a21baff1`), installs it silently
+(`/S`, `installMode: currentUser`, no elevation) into `%LOCALAPPDATA%\EZ Convert\` — the
+path the installer itself chooses, which the job asserts rather than assumes — and runs
+`scripts/overlay-probe.sh` with `BIN` pointing at the installed
+`ez-convert.exe` (4,749,824 B, sha256
+`e3d16075519785c72bfdf42caf5f8e4bc82cd2dcd43a1a95532274693847c1d0`):
+
+| Platform | `ok` | summon → visible | cold | screenshot | asserted checks |
+|---|---|---|---|---|---|
+| Windows Server 2025 x64, app installed from the NSIS installer | **true** | **33 ms** | 75 ms | captured, ring visible | 15/15 |
+
+`installed-overlay.log` from that job:
+`INSTALLED_OVERLAY ok=true checks=15/15`, `INSTALLED_OVERLAY binary=…/AppData/Local/EZ Convert/ez-convert.exe`.
+The probe's exit code is the gate (`0` only when every asserted check passed) and a second
+step re-reads the verdict and fails unless `ok=true`, all 15 asserted checks pass, and
+`window-region-is-ellipse`, `corner-belongs-to-another-window`,
+`window-non-activating`, `click-through-sampled` and `rendered-within-150ms` are named in it.
+Facts, crop, screenshot, frames and verdict are published under
+`ci-windows-installer:ci-installer/41506163113/overlay/`, and the same files are committed
+here under `run-41506163113/windows-installed/`. Placement and window facts are the same as
+the build-tree run (`x252 y124`, 520×520, monitor 0, `GetWindowRgn` = ellipse, corner
+belongs to another window, `WS_EX_NOACTIVATE`).
+
+### The capture race this found
+
+An earlier installed-build run
+([41503165517](https://github.com/lphan-personal/ez-convert/actions/runs/41503165517)) was
+green and published `screenshot=captured crop=ring-visible` — for a frame that shows a
+maximised console window and **no wheel**. The Windows capture is a cold
+`Add-Type -AssemblyName System.Windows.Forms`, which on that image outlasted the 8 s
+`--overlay-hold`; and a console window is neither blank nor uniform (17 colours, 25 % of the
+crop off the corner sample), so `png-nonblank.py` waved it through. Two fixes, both landed:
+the harness writes three frames a second apart and keeps all of them (`frames/frame-*.png`,
+published next to the verdict), and the Windows jobs hold the ring for 25 s so the capture
+lands inside it. Every frame from 41506163113 is the wheel over the app window; frame-1 is
+the one the verdict used. The macOS leg was never affected — `screencapture` is not a
+PowerShell start.
+
 ## What is recorded but not asserted
 
 - `overlay-not-key` on Windows reads `focused=true`. A runner with no console has no
@@ -99,6 +143,8 @@ The facts, screenshot, crop and verdict are published under
 
 ```bash
 gh workflow run overlay-measure.yml --ref overlay/wheel-window
+# the installed Windows build — the claim a release makes (installs, then measures):
+gh workflow run windows-installer.yml --ref main
 # or, on a machine with a desktop:
 BIN=src-tauri/target/release/ez-convert bash scripts/overlay-probe.sh overlay-evidence
 ```

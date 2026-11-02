@@ -42,12 +42,17 @@ known issue in the v1.0.0 notes and is deleted now that the window and its measu
   fails unless the probe reports `ok=true`. Installed result: **55 ms warm, 2321 ms cold, 15/15
   checks**, `VALIDATION overlay installed-binary=true`, alongside arm64 4/4 and Rosetta 4/4
   conversions and a native Intel 4/4 leg.
-- **What is not yet true:** neither the DMG above nor the NSIS installer
-  (`EZ Convert_0.0.1_x64-setup.exe`, 219,982,819 B, sha256
-  `455069d8760bc2a220c8926d9db13810a4c3a8b1e1f033c964ad38302cf20e0e`) is attached to a
-  published release yet, and the Windows overlay is measured on the build tree rather than
-  from an installed NSIS build. Publishing the release is the next step; a Windows
-  installed-build probe is tracked as a follow-up card.
+- **The same is true on Windows.** `windows-installer`
+  ([41506163113](https://github.com/lphan-personal/ez-convert/actions/runs/41506163113))
+  builds the NSIS installer from this state (`EZ Convert_0.0.1_x64-setup.exe`, 219,983,879 B,
+  sha256 `3b6fafb8dfe01b5b61fce66d17860e9c671d7c2430a3e022dbb009e3a21baff1`), installs it
+  silently and per-user into `%LOCALAPPDATA%\EZ Convert\` with no elevation, and runs
+  `--overlay-probe` against the installed `ez-convert.exe`; the job fails unless the probe
+  reports `ok=true`, 15/15. Installed result: **33 ms warm, 75 ms cold, 15/15 checks**, with
+  the wheel photographed over the installed app (`evidence/overlay/README.md`). The installer
+  digest is per-build: a release rebuilds it and publishes that build's bytes.
+- **What is not yet true:** neither the DMG above nor an NSIS installer is attached to a
+  published release yet. Publishing the release is the next step.
 
 ---
 

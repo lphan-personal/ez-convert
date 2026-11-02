@@ -109,10 +109,16 @@ the matching `LogicalPosition`/`PhysicalPosition`.
 the crop is not blank and that its centre differs from its corner
 (`scripts/png-nonblank.py`, proved in both directions by
 `scripts/test-png-nonblank.py`). A screenshot the runner cannot take is recorded, never
-asserted.
+asserted. On Windows the capture writes **three frames a second apart** and keeps them all:
+`Add-Type -AssemblyName System.Windows.Forms` is a cold start that can outlast a short
+`--overlay-hold`, and a frame taken after the dismissal photographs the desktop — a
+maximised console window is not blank and not uniform, so the crop check alone cannot tell
+it from a wheel. The Windows jobs hold the ring for 25 s for the same reason.
 
-CI: `.github/workflows/overlay-measure.yml` (macOS arm64 + Windows), publishing the
-facts and the capture to the `overlay-status` branch.
+CI: `.github/workflows/overlay-measure.yml` (macOS arm64 + Windows, **build tree**) and
+`.github/workflows/windows-installer.yml` (the **installed** NSIS build, `%LOCALAPPDATA%\EZ
+Convert\`), publishing the facts, the frames and the capture to the `overlay-status` /
+`ci-windows-installer` branches.
 
 ## What is *not* proven by this
 
