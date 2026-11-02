@@ -370,11 +370,11 @@ fn measure(app: &AppHandle) -> Facts {
         },
         window: window_facts,
         click: ClickSamples {
-            centre,
+            centre: [centre.0, centre.1],
             centre_cursor: [centre_cursor.x, centre_cursor.y],
             centre_inside_disc: centre_inside,
             centre_ignores_mouse_events: centre_ignores,
-            corner,
+            corner: [corner.0, corner.1],
             corner_cursor: [corner_cursor.x, corner_cursor.y],
             corner_inside_disc: corner_inside,
             corner_ignores_mouse_events: corner_ignores,
@@ -443,7 +443,11 @@ pub fn run(app: AppHandle, out: PathBuf) {
         match std::fs::write(&out, &json) {
             Ok(()) => {
                 println!("{json}");
-                let _ = std::fs::write(out.with_extension("ready"), b"ready\n");
+                // Exactly `<facts>.ready`: that is the file `scripts/overlay-probe.sh`
+                // waits for before it photographs the ring.
+                let mut marker = out.clone().into_os_string();
+                marker.push(".ready");
+                let _ = std::fs::write(PathBuf::from(marker), b"ready\n");
             }
             Err(error) => eprintln!("overlay probe: cannot write {}: {error}", out.display()),
         }

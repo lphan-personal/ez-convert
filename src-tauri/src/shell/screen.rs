@@ -217,7 +217,7 @@ mod win32 {
     /// click-through boundary at a known point); the app never warps the cursor.
     pub fn warp_pointer(x: i32, y: i32) -> bool {
         // SAFETY: plain value call.
-        unsafe { SetCursorPos(x, y) } != 0
+        (unsafe { SetCursorPos(x, y) }) != 0
     }
 }
 
@@ -386,7 +386,7 @@ mod macos {
         };
         // SAFETY: plain value call; a point outside every display is clamped by the
         // window server, never a fault.
-        unsafe { CGWarpMouseCursorPosition(point) } == 0
+        (unsafe { CGWarpMouseCursorPosition(point) }) == 0
     }
 }
 

@@ -23,7 +23,12 @@ OUT = os.path.join(ROOT, "docs", "LICENSES.md")
 
 # Direct dependencies of ours (the ones a human actually chose).
 DIRECT = {"ez-convert", "tauri", "tauri-build", "tauri-plugin-dialog", "serde", "serde_json",
-          "lofty", "sha2"}
+          "lofty", "sha2",
+          # macOS-only (src-tauri/Cargo.toml `[target.'cfg(target_os = "macos")']`):
+          # the overlay's cursor/monitor/click-through AppKit surface (shell/screen.rs,
+          # shell/overlay.rs). Pinned as direct deps with features; already in the graph
+          # transitively via tao/tauri.
+          "objc2", "objc2-app-kit", "objc2-foundation"}
 
 
 def metadata():

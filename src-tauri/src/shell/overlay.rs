@@ -387,7 +387,7 @@ pub fn ignores_mouse_events(window: &WebviewWindow) -> Option<bool> {
             // `with_webview` runs the closure on the main thread, where AppKit may be
             // touched.
             let ns = unsafe { &*(pointer as *const NSWindow) };
-            let _ = tx.send(unsafe { ns.ignoresMouseEvents() });
+            let _ = tx.send(ns.ignoresMouseEvents());
         });
         if sent.is_err() {
             return None;

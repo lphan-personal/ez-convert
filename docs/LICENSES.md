@@ -8,7 +8,7 @@ python3 scripts/gen-licenses.py          # regenerate
 python3 scripts/gen-licenses.py --check  # CI drift check
 ```
 
-Total packages in the locked graph: **416** (8 direct/workspace, 408 transitive).
+Total packages in the locked graph: **416** (11 direct/workspace, 405 transitive).
 
 ## Direct dependencies
 
@@ -16,6 +16,9 @@ Total packages in the locked graph: **416** (8 direct/workspace, 408 transitive)
 |---|---|---|
 | `ez-convert` | 0.0.1 | own code - licence TBD (stakeholder decision) |
 | `lofty` | 0.22.4 | MIT OR Apache-2.0 |
+| `objc2` | 0.6.5 | MIT |
+| `objc2-app-kit` | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
+| `objc2-foundation` | 0.3.2 | MIT |
 | `serde` | 1.0.229 | MIT OR Apache-2.0 |
 | `serde_json` | 1.0.154 | MIT OR Apache-2.0 |
 | `sha2` | 0.10.9 | MIT OR Apache-2.0 |
@@ -216,8 +219,6 @@ Total packages in the locked graph: **416** (8 direct/workspace, 408 transitive)
 | `num-traits` | 0.2.19 | MIT OR Apache-2.0 |
 | `num_enum` | 0.7.6 | BSD-3-Clause OR MIT OR Apache-2.0 |
 | `num_enum_derive` | 0.7.6 | BSD-3-Clause OR MIT OR Apache-2.0 |
-| `objc2` | 0.6.5 | MIT |
-| `objc2-app-kit` | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | `objc2-cloud-kit` | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | `objc2-core-data` | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | `objc2-core-foundation` | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
@@ -227,7 +228,6 @@ Total packages in the locked graph: **416** (8 direct/workspace, 408 transitive)
 | `objc2-core-text` | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | `objc2-encode` | 4.1.0 | MIT |
 | `objc2-exception-helper` | 0.1.1 | Zlib OR Apache-2.0 OR MIT |
-| `objc2-foundation` | 0.3.2 | MIT |
 | `objc2-io-surface` | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | `objc2-quartz-core` | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | `objc2-ui-kit` | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
