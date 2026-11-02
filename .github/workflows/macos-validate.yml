@@ -1,0 +1,348 @@
+# macos-validate.yml — the acceptance run for the shipped macOS artifacts.
+#
+# It does not rebuild anything: it downloads the app DMG and the engine pack from
+# a completed `macos-dmg` run and then installs, launches, resolves engines and
+# converts on *real* macOS — natively on arm64, with the universal app's x86_64
+# slice under Rosetta, and natively on an Intel runner. A validation therefore
+# costs minutes, not another 47-minute build.
+#
+# Why a separate workflow instead of the install-test job in macos-dmg.yml: that
+# job runs inside the build it validates (artifacts are local) and must stay a
+# cheap gate. This one is the cross-architecture acceptance card, is dispatched
+# by hand, and reuses a pinned artifact run id.
+#
+# VERDICT SEMANTICS (deliberate, see the comment on the card):
+#   - native arm64 is ASSERTED (install, launch, 5 engines resolved, 4/4 families).
+#   - Rosetta and Intel record what happened. The shipped pack is arm64-only
+#     (docs/MACOS-PACKAGING.md §7), so "0 of 4" on x86_64 is a documented
+#     architecture limitation, not a red build. What IS an error is a *partial*
+#     result (some families pass, some fail) or a Rosetta run that never starts
+#     that is unexplained behaviour and fails the job.
+name: macos-validate
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run:
+        description: "Actions run id holding macos-app-dmg + macos-engine-pack"
+        required: true
+        default: "41388618088"
+      intel_label:
+        description: "Intel macOS runner label (macos-15-intel, macos-26-intel)"
+        required: true
+        default: "macos-15-intel"
+
+permissions:
+  contents: write # publish evidence to the macos-status branch
+  actions: read # download artifacts from an earlier run
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  arm64:
+    name: "validate (arm64 native + Rosetta x86_64)"
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the shipped DMGs (no rebuild)
+        uses: actions/download-artifact@v4
+        with:
+          path: in
+          run-id: ${{ inputs.source_run }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install the app and the engine pack
+        run: bash packaging/macos/install-from-dmgs.sh in "$GITHUB_WORKSPACE"
+
+      - name: Verify the installed pack (manifest, symlinks, signatures, engines run)
+        run: |
+          set -o pipefail
+          bash scripts/verify-engine-pack.sh \
+            --pack "$HOME/Library/Application Support/app.ezconvert.desktop" \
+            --app "/Applications/EZ Convert.app" --expect-arch arm64 2>&1 | tee verify-pack.log
+
+      - name: Symlinks survive installation (app DMG + engine pack)
+        run: |
+          set -euo pipefail
+          pack="$HOME/Library/Application Support/app.ezconvert.desktop"
+          dangling="$(find "$pack" -type l ! -exec test -e {} \; -print)"
+          {
+            echo "installed symlinks: $(find "$pack" -type l | wc -l | tr -d ' ')  (manifest declares 24)"
+            echo "engines/soffice/program -> $(readlink "$pack/engines/soffice/program")"
+            echo "engine binary through the link: $(ls -l "$pack/engines/soffice/program/soffice" | sed 's/.* -> //')"
+            echo "dangling symlinks: $(printf '%s' "$dangling" | grep -c . || true)"
+            if [ -n "$dangling" ]; then printf 'DANGLING %s\n' "$dangling"; fi
+            echo "symlink inventory checked"
+          } | tee symlinks.log
+          n="$(find "$pack" -type l | wc -l | tr -d ' ')"
+          [ "$n" -eq 24 ] || { echo "::error::expected 24 symlinks after install, found $n"; exit 1; }
+          [ -z "$dangling" ] || { echo "::error::installed pack has dangling symlinks"; exit 1; }
+          test -e "$pack/engines/soffice/program/soffice" \
+            || { echo "::error::engines/soffice/program does not resolve to soffice"; exit 1; }
+
+      - name: Record the architectures of every moving part
+        run: |
+          set -euo pipefail
+          pack="$HOME/Library/Application Support/app.ezconvert.desktop"
+          {
+            echo "host arch: $(uname -m)"
+            echo "app binary lipo: $(lipo -archs "/Applications/EZ Convert.app/Contents/MacOS/ez-convert")"
+            for e in "vips/vips" "ffmpeg/ffmpeg" "soffice/LibreOffice.app/Contents/MacOS/soffice"; do
+              printf 'engine %-50s %s\n' "$e" "$(file -b "$pack/engines/$e" | cut -d, -f1-2)"
+            done
+          } | tee arch.log
+
+      - name: Convert on native arm64 (must be 4/4)
+        run: |
+          set -o pipefail
+          set +e
+          "/Applications/EZ Convert.app/Contents/MacOS/ez-convert" --diagnostics \
+            --fixtures "$GITHUB_WORKSPACE/fixtures" --work "$RUNNER_TEMP/diag-arm64" 2>&1 \
+            | tee diag-arm64.log
+          code=${PIPESTATUS[0]}
+          set -e
+          grep -q '^SUMMARY' diag-arm64.log || { echo "::error::no SUMMARY line - the app did not run"; exit 1; }
+          if grep -E '^engine ' diag-arm64.log | grep -q MISSING; then
+            echo "::error::an engine was not resolved"; exit 1
+          fi
+          [ "$code" -eq 0 ] || { echo "::error::native arm64 conversion failed (exit $code)"; exit 1; }
+          grep -q '^SUMMARY families=4 pass=4 fail=0' diag-arm64.log \
+            || { echo "::error::native arm64 was not 4/4"; exit 1; }
+          echo "native arm64: 4/4 families converted"
+
+      - name: Rosetta - is the translator present?
+        run: |
+          set -o pipefail
+          {
+            echo "hw.optional.arm64=$(sysctl -n hw.optional.arm64 2>/dev/null || echo 0)"
+            echo "proc_translated(shell)=$(sysctl -n sysctl.proc_translated 2>/dev/null || echo n/a)"
+          } | tee rosetta.log
+          if arch -x86_64 /usr/bin/true 2>/dev/null; then
+            echo "rosetta: already installed" | tee -a rosetta.log
+          else
+            echo "rosetta: installing via softwareupdate" | tee -a rosetta.log
+            sudo softwareupdate --install-rosetta --agree-to-license 2>&1 | tee -a rosetta.log
+          fi
+          # Proof that the next run is really translated, not merely labelled.
+          arch -x86_64 /usr/bin/uname -m | tee -a rosetta.log
+          arch -x86_64 /bin/sh -c 'echo proc_translated(child)=$(sysctl -n sysctl.proc_translated)' | tee -a rosetta.log
+
+      - name: Convert with the app's x86_64 slice under Rosetta (recorded, classified)
+        run: |
+          set -o pipefail
+          set +e
+          arch -x86_64 "/Applications/EZ Convert.app/Contents/MacOS/ez-convert" --diagnostics \
+            --fixtures "$GITHUB_WORKSPACE/fixtures" --work "$RUNNER_TEMP/diag-rosetta" 2>&1 \
+            | tee diag-rosetta.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "exit=$code" | tee -a diag-rosetta.log
+          if ! grep -q '^SUMMARY' diag-rosetta.log; then
+            echo "::error::the x86_64 slice did not reach a SUMMARY line - Rosetta launch failed"
+            exit 1
+          fi
+          pass="$(sed -n 's/^SUMMARY families=[0-9]* pass=\([0-9]*\) fail=[0-9]*.*/\1/p' diag-rosetta.log | tail -1)"
+          case "$pass" in
+            4) echo "ROSETTA_CONVERSION=pass (4/4)" ;;
+            0) echo "ROSETTA_CONVERSION=blocked (0/4 - arm64-only engine pack, see docs/MACOS-PACKAGING.md section 7)" ;;
+            *) echo "::error::Rosetta conversion was partial ($pass/4) - unexplained, inspect diag-rosetta.log"; exit 1 ;;
+          esac
+
+      - name: Launch the GUI and capture a screenshot (evidence only)
+        # `--diagnostics` proves the binary runs headless; this proves the windowed
+        # app starts from /Applications (the App-Translocation failure mode) and
+        # leaves a picture behind. Screen capture needs the runner's console
+        # session, so a failure here is recorded, never asserted.
+        continue-on-error: true
+        run: |
+          set +e
+          open -n "/Applications/EZ Convert.app" 2>&1 | tee gui.log
+          sleep 20
+          pgrep -fl "ez-convert" | tee -a gui.log
+          echo "lsappinfo:" | tee -a gui.log
+          /usr/bin/lsappinfo list 2>/dev/null | grep -i "ez-convert\|EZ Convert" | tee -a gui.log
+          osascript -e 'tell application "System Events" to count windows of process "ez-convert"' 2>&1 | tee -a gui.log
+          if screencapture -x gui.png 2>>gui.log; then
+            sips -g pixelWidth -g pixelHeight gui.png | tee -a gui.log
+            echo "screenshot: captured gui.png ($(stat -f%z gui.png) B)" | tee -a gui.log
+          else
+            echo "screenshot: screencapture failed on this runner (recorded, not asserted)" | tee -a gui.log
+          fi
+          osascript -e 'tell application "EZ Convert" to quit' 2>&1 | tee -a gui.log
+          exit 0
+
+      - name: Verdict
+        run: |
+          set -euo pipefail
+          rosetta="$(grep -o 'ROSETTA_CONVERSION=[a-z]*' diag-rosetta.log | tail -1 | cut -d= -f2)"
+          [ -n "$rosetta" ] || rosetta="unknown"
+          shot="$(grep -c '^screenshot: captured' gui.log 2>/dev/null || true)"
+          [ -n "$shot" ] || shot=0
+          {
+            echo "VALIDATION arm64 install=pass launch=pass engine-discovery=pass conversion=pass (4/4)"
+            echo "VALIDATION rosetta-x86_64 launch=pass conversion=$rosetta"
+            echo "VALIDATION gui-window screenshot=$([ "$shot" -ge 1 ] && echo captured || echo unavailable)"
+          } | tee verdict.log
+          [ "$rosetta" != "unknown" ] || { echo "::error::the Rosetta run produced no classification"; exit 1; }
+
+      - name: Evidence
+        if: always()
+        run: |
+          bash packaging/macos/publish-evidence.sh validate-arm64 "${{ job.status }}" \
+            install.log install-pack.log verify-pack.log symlinks.log arch.log \
+            diag-arm64.log rosetta.log diag-rosetta.log gui.log verdict.log gui.png
+
+  intel:
+    name: "validate (Intel x86_64, native)"
+    runs-on: ${{ inputs.intel_label }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the shipped DMGs (no rebuild)
+        uses: actions/download-artifact@v4
+        with:
+          path: in
+          run-id: ${{ inputs.source_run }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install the app and the engine pack
+        run: bash packaging/macos/install-from-dmgs.sh in "$GITHUB_WORKSPACE"
+
+      - name: Record the architectures of every moving part
+        run: |
+          set -euo pipefail
+          pack="$HOME/Library/Application Support/app.ezconvert.desktop"
+          {
+            echo "host arch: $(uname -m)"
+            echo "sw_vers $(sw_vers -productVersion)"
+            echo "app binary lipo: $(lipo -archs "/Applications/EZ Convert.app/Contents/MacOS/ez-convert")"
+            for e in "vips/vips" "ffmpeg/ffmpeg" "soffice/LibreOffice.app/Contents/MacOS/soffice"; do
+              printf 'engine %-50s %s\n' "$e" "$(file -b "$pack/engines/$e" | cut -d, -f1-2)"
+            done
+          } | tee arch.log
+
+      - name: Pack structure (engine execution is expected to fail here)
+        # The full verifier runs BOTH structure and engine execution. On Intel the
+        # structure must pass and only the "engine runs" checks may fail, because
+        # the shipped pack is arm64-only. Anything else failing is unexplained.
+        run: |
+          set -o pipefail
+          set +e
+          bash scripts/verify-engine-pack.sh \
+            --pack "$HOME/Library/Application Support/app.ezconvert.desktop" \
+            --app "/Applications/EZ Convert.app" --expect-arch arm64 2>&1 | tee verify-pack.log
+          code=$?
+          set -e
+          echo "verify exit=$code" | tee -a verify-pack.log
+          passes="$(grep -c '^PASS  ' verify-pack.log || true)"
+          echo "PASS lines: $passes" | tee -a verify-pack.log
+          if [ "${passes:-0}" -lt 15 ]; then
+            echo "::error::too few checks passed on Intel ($passes) - the pack is not structurally intact"
+            exit 1
+          fi
+          unexplained="$(grep '^FAIL  ' verify-pack.log | grep -vE 'runs|not GPL' || true)"
+          if [ -n "$unexplained" ]; then
+            echo "::error::unexplained verification failures on Intel:"
+            printf '%s\n' "$unexplained"
+            exit 1
+          fi
+
+      - name: Launch and convert natively on x86_64 (recorded, classified)
+        run: |
+          set -o pipefail
+          set +e
+          "/Applications/EZ Convert.app/Contents/MacOS/ez-convert" --diagnostics \
+            --fixtures "$GITHUB_WORKSPACE/fixtures" --work "$RUNNER_TEMP/diag-intel" 2>&1 | tee diag-intel.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "exit=$code" | tee -a diag-intel.log
+          if ! grep -q '^SUMMARY' diag-intel.log; then
+            echo "::error::the app did not run on Intel - install or launch is broken, not just conversion"
+            exit 1
+          fi
+          found="$(grep -cE '^engine .* found ' diag-intel.log || true)"
+          if [ "${found:-0}" -ne 5 ]; then
+            echo "::error::engine discovery resolved ${found:-0} of 5 engines on Intel"
+            exit 1
+          fi
+          pass="$(sed -n 's/^SUMMARY families=[0-9]* pass=\([0-9]*\) fail=[0-9]*.*/\1/p' diag-intel.log | tail -1)"
+          case "$pass" in
+            4) echo "INTEL_CONVERSION=pass (4/4 - an x86_64 pack is no longer needed)" ;;
+            0) echo "INTEL_CONVERSION=blocked (0/4 - arm64-only engine pack, see docs/MACOS-PACKAGING.md section 7)" ;;
+            *) echo "::error::Intel conversion was partial ($pass/4) - unexplained, inspect diag-intel.log"; exit 1 ;;
+          esac
+
+      - name: Launch the GUI and capture a screenshot (evidence only)
+        continue-on-error: true
+        run: |
+          set +e
+          open -n "/Applications/EZ Convert.app" 2>&1 | tee gui.log
+          sleep 20
+          pgrep -fl "ez-convert" | tee -a gui.log
+          osascript -e 'tell application "System Events" to count windows of process "ez-convert"' 2>&1 | tee -a gui.log
+          if screencapture -x gui.png 2>>gui.log; then
+            sips -g pixelWidth -g pixelHeight gui.png | tee -a gui.log
+            echo "screenshot: captured gui.png ($(stat -f%z gui.png) B)" | tee -a gui.log
+          else
+            echo "screenshot: screencapture failed on this runner (recorded, not asserted)" | tee -a gui.log
+          fi
+          osascript -e 'tell application "EZ Convert" to quit' 2>&1 | tee -a gui.log
+          exit 0
+
+      - name: Verdict
+        run: |
+          set -euo pipefail
+          conv="$(grep -o 'INTEL_CONVERSION=[a-z]*' diag-intel.log | tail -1 | cut -d= -f2)"
+          [ -n "$conv" ] || conv="unknown"
+          echo "VALIDATION intel install=pass launch=pass engine-discovery=pass conversion=$conv" | tee verdict.log
+          [ "$conv" != "unknown" ] || { echo "::error::the Intel run produced no classification"; exit 1; }
+
+      - name: Evidence
+        if: always()
+        run: |
+          bash packaging/macos/publish-evidence.sh validate-intel "${{ job.status }}" \
+            install.log install-pack.log verify-pack.log arch.log diag-intel.log gui.log verdict.log gui.png
+
+  report:
+    name: "report (both architectures)"
+    needs: [arm64, intel]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Compose the validation facts
+        env:
+          ARM: ${{ needs.arm64.result }}
+          INTEL: ${{ needs.intel.result }}
+          SOURCE: ${{ inputs.source_run }}
+          INTEL_LABEL: ${{ inputs.intel_label }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/facts
+          cat > /tmp/facts/facts.json <<JSON
+          {
+            "run_id": ${GITHUB_RUN_ID},
+            "source_run": "${SOURCE}",
+            "sha": "${GITHUB_SHA}",
+            "run_url": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}",
+            "intel_label": "${INTEL_LABEL}",
+            "results": {"arm64": "${ARM}", "intel": "${INTEL}"},
+            "published_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          JSON
+          cat /tmp/facts/facts.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch -q origin macos-status:refs/remotes/origin/macos-status 2>/dev/null || true
+          git checkout -q -B macos-status origin/macos-status 2>/dev/null || git checkout -q -B macos-status
+          mkdir -p "macos-status/run-${GITHUB_RUN_ID}/validate"
+          cp /tmp/facts/facts.json "macos-status/run-${GITHUB_RUN_ID}/validate/"
+          git add -f macos-status
+          git commit -q -m "macos-status: run ${GITHUB_RUN_ID} validate arm64=${ARM} intel=${INTEL}" || echo "nothing to commit"
+          git push origin macos-status || { git pull --rebase -q origin macos-status && git push origin macos-status; }
