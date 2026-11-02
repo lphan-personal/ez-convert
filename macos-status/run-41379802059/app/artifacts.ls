@@ -1,0 +1,2 @@
+-rw-r--r--@ 1 runner  staff  6298734 Nov  2 02:52 ./EZ-Convert-0.0.1-macos-universal.dmg
+-rw-r--r--  1 runner  staff  108 Nov  2 02:52 ./app-dmg.sha256
