@@ -1,0 +1,15 @@
+architecture: pack arm64, this Mac arm64 — OK
+verifying 9305 files...
+installed: /Users/runner/Library/Application Support/app.ezconvert.desktop/engines
+pack:      ezconvert-engine-pack-macos-arm64 version 1.0.0 (arm64)
+  present  vips/vips
+  present  ffmpeg/ffmpeg
+  present  soffice/LibreOffice.app/Contents/MacOS/soffice
+
+Open EZ Convert. If macOS blocks the unsigned app, right-click it and choose Open once.
+total 0
+drwxr-xr-x  5 runner  staff  160 Nov  2 05:32 .
+drwxr-xr-x  6 runner  staff  192 Nov  2 05:56 ..
+drwxr-xr-x  5 runner  staff  160 Nov  2 05:32 ffmpeg
+drwxr-xr-x  4 runner  staff  128 Nov  2 05:29 soffice
+drwxr-xr-x  6 runner  staff  192 Nov  2 05:32 vips
