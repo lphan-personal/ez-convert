@@ -22,6 +22,16 @@ name: windows-installer
 # Nothing here is code-signed: there is no certificate in CI. The installer is
 # documented as unsigned in the release body (SmartScreen More info -> Run
 # anyway, docs/DISTRIBUTION.md).
+#
+# This job also measures the thing the build tree cannot: it installs the
+# installer it just produced (silently, per-user, no elevation — the path a user
+# gets, `%LOCALAPPDATA%\EZ Convert\`) and runs `--overlay-probe` against the
+# *installed* `ez-convert.exe` through `scripts/overlay-probe.sh`. The probe is
+# the gate: it exits non-zero unless every asserted check passes, and the step
+# after it re-asserts `ok=true`, 15/15 checks, the elliptic window region, the
+# corner belonging to another window and `WS_EX_NOACTIVATE` from the facts. The
+# build-tree numbers live in `overlay-measure.yml`; do not quote those as "the
+# shipped build".
 
 on:
   workflow_dispatch:
@@ -173,6 +183,128 @@ jobs:
           echo "INSTALLER_SIZE=$size" >> "$GITHUB_ENV"
           echo "INSTALLER_SHA=$sum" >> "$GITHUB_ENV"
 
+      # ---------------------------------------------------------------------
+      # The installed build. Everything measured before this point came out of
+      # the build tree (`overlay-measure.yml`); a user never runs that. These
+      # steps install the installer that was just produced, the way a user does,
+      # and measure the binary that lands on disk.
+      # ---------------------------------------------------------------------
+      - name: Install the installer silently, per-user (the path a user gets)
+        id: install
+        run: |
+          set -uo pipefail
+          exe="artifacts/$INSTALLER_FILE"
+          [ -f "$exe" ] || { echo "::error::$exe is missing"; exit 1; }
+          # /S is silent. NSIS `installMode: currentUser` puts it in
+          # %LOCALAPPDATA%\EZ Convert\ and asks for no elevation. MSYS would
+          # rewrite "/S" into a Windows path, so argument conversion is off for
+          # this one call.
+          MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' "$exe" /S > install.log 2>&1
+          code=$?
+          echo "installer exit=$code" | tee -a install.log
+          [ "$code" -eq 0 ] || { echo "::error::the silent install exited $code (see install.log)"; exit 1; }
+
+          local_appdata="$(cygpath -u "${LOCALAPPDATA:-$HOME/AppData/Local}")"
+          installed="$(find "$local_appdata" -maxdepth 3 -type f -iname 'ez-convert.exe' 2>/dev/null | head -1)"
+          [ -n "$installed" ] || {
+            echo "::error::the silent install produced no ez-convert.exe under $local_appdata"
+            ls -la "$local_appdata" 2>/dev/null | head -30 || true
+            exit 1
+          }
+          # Per-user, no UAC: if the binary did not land under the user's profile
+          # the installer asked for elevation and this is not the artifact users run.
+          case "$installed" in
+            "$local_appdata"/*) echo "per-user install: $installed" ;;
+            *) echo "::error::$installed is not under $local_appdata - this was not a per-user install"; exit 1 ;;
+          esac
+          case "$installed" in
+            *src-tauri*) echo "::error::$installed is the build tree, not the installed app"; exit 1 ;;
+          esac
+          magic="$(head -c 2 "$installed")"
+          [ "$magic" = "MZ" ] || { echo "::error::$installed is not a PE executable (magic '$magic')"; exit 1; }
+          size=$(wc -c < "$installed" | tr -d ' ')
+          if command -v sha256sum >/dev/null 2>&1; then
+            sum=$(sha256sum "$installed" | cut -d' ' -f1)
+          else
+            sum=$(shasum -a 256 "$installed" | cut -d' ' -f1)
+          fi
+          {
+            echo "INSTALLED_BIN=$installed"
+            echo "INSTALLED_BIN_SIZE=$size"
+            echo "INSTALLED_BIN_SHA256=$sum"
+            echo "INSTALLED_DIR=$local_appdata/EZ Convert"
+          } | tee -a install.log
+          {
+            echo "INSTALLED_BIN=$installed"
+            echo "INSTALLED_BIN_SIZE=$size"
+            echo "INSTALLED_BIN_SHA256=$sum"
+          } >> "$GITHUB_ENV"
+
+      - name: Make sure `python3` resolves (scripts/overlay-probe.sh calls it)
+        # Windows images ship python; this is the shim the card asked for, and it
+        # runs as a check rather than an assumption. A missing interpreter would
+        # otherwise turn into "no facts written" two steps later.
+        run: |
+          set -euo pipefail
+          if command -v python3 >/dev/null 2>&1; then
+            python3 -V 2>&1 | tee python.log
+            exit 0
+          fi
+          echo "python3 missing - shimming the runner's python" | tee -a python.log
+          py="$(command -v python || command -v py || true)"
+          [ -n "$py" ] || { echo "::error::no python on this runner, and the probe needs one"; exit 1; }
+          mkdir -p "$HOME/bin"
+          printf '#!/usr/bin/env bash\nexec "%s" "$@"\n' "$py" > "$HOME/bin/python3"
+          chmod +x "$HOME/bin/python3"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+          "$HOME/bin/python3" -V 2>&1 | tee -a python.log
+
+      - name: The wheel overlay, measured from the INSTALLED app (must pass every check)
+        run: |
+          set -o pipefail
+          echo "measuring $INSTALLED_BIN (sha256 $INSTALLED_BIN_SHA256)" | tee installed-overlay.log
+          BIN="$INSTALLED_BIN" HOLD=8 bash scripts/overlay-probe.sh installed-overlay-evidence 2>&1 | tee -a overlay-verdict.log
+
+      - name: Assert the installed-build facts (ok, 15/15, ellipse, corner, no-activate)
+        # `overlay-probe.sh` already exits with the probe's code (0 only when every
+        # asserted check passed). This re-reads the verdict on purpose: the claim a
+        # release makes is these five facts, so they are named here rather than
+        # inferred from a green step.
+        if: always()
+        run: |
+          set -euo pipefail
+          [ -f overlay-verdict.log ] || { echo "::error::no verdict log - the probe never ran"; exit 1; }
+          grep -q '^OVERLAY_PROBE ok=true' overlay-verdict.log \
+            || { echo "::error::the installed app's overlay probe did not report ok=true"; exit 1; }
+          pass=$(grep -c '^OVERLAY_CHECK .*=pass$' overlay-verdict.log || true)
+          fail=$(grep -c '^OVERLAY_CHECK .*=FAIL$' overlay-verdict.log || true)
+          echo "asserted checks: ${pass} pass, ${fail} fail (expected 15 and 0)"
+          [ "$pass" -eq 15 ] || { echo "::error::expected 15 asserted checks to pass on the installed build, saw $pass"; exit 1; }
+          [ "$fail" -eq 0 ] || { echo "::error::$fail asserted check(s) failed on the installed build"; exit 1; }
+          for name in window-region-is-ellipse corner-belongs-to-another-window \
+                      window-non-activating click-through-sampled rendered-within-150ms; do
+            grep -q "^OVERLAY_CHECK ${name}=pass$" overlay-verdict.log \
+              || { echo "::error::$name did not pass on the installed build"; exit 1; }
+          done
+          {
+            echo "INSTALLED_OVERLAY ok=true checks=${pass}/15"
+            echo "INSTALLED_OVERLAY binary=$INSTALLED_BIN sha256=$INSTALLED_BIN_SHA256"
+            echo "INSTALLED_OVERLAY window-region-is-ellipse=pass corner-belongs-to-another-window=pass window-non-activating=pass"
+          } | tee -a installed-overlay.log
+
+      - name: Upload the installed-build overlay evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ez-convert-windows-installed-overlay
+          path: |
+            installed-overlay-evidence/**
+            overlay-verdict.log
+            installed-overlay.log
+            install.log
+            python.log
+          if-no-files-found: warn
+
       - name: Upload the installer
         id: upload
         uses: actions/upload-artifact@v4
@@ -197,6 +329,22 @@ jobs:
           set -eo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # The installed-build verdict, read back from the log the assertion step
+          # wrote, so the record cannot claim a pass the job did not make.
+          overlay_ok="$(grep -o 'INSTALLED_OVERLAY ok=[a-z]*' installed-overlay.log 2>/dev/null | tail -1 | cut -d= -f2 || true)"
+          [ -n "$overlay_ok" ] || overlay_ok="unknown"
+          overlay_checks="$(grep -o 'INSTALLED_OVERLAY checks=[0-9]*/15' installed-overlay.log 2>/dev/null | tail -1 | cut -d= -f2 || true)"
+          [ -n "$overlay_checks" ] || overlay_checks="unknown"
+          git checkout -B ci-windows-installer
+          mkdir -p "ci-installer/${GITHUB_RUN_ID}/overlay"
+          cp -f overlay-verdict.log installed-overlay.log install.log python.log \
+            "ci-installer/${GITHUB_RUN_ID}/" 2>/dev/null || true
+          cp -f installed-overlay-evidence/overlay-facts.json \
+                installed-overlay-evidence/overlay-shot.json \
+                installed-overlay-evidence/overlay-screen.png \
+                installed-overlay-evidence/overlay-verdict.txt \
+                installed-overlay-evidence/overlay-run.log \
+            "ci-installer/${GITHUB_RUN_ID}/overlay/" 2>/dev/null || true
           mkdir -p ci-installer
           {
             echo "{"
@@ -210,12 +358,17 @@ jobs:
             echo "  \"file\": \"${INSTALLER_FILE:-}\","
             echo "  \"size_bytes\": \"${INSTALLER_SIZE:-}\","
             echo "  \"sha256\": \"${INSTALLER_SHA:-}\","
+            echo "  \"installed_bin\": \"${INSTALLED_BIN:-}\","
+            echo "  \"installed_bin_sha256\": \"${INSTALLED_BIN_SHA256:-}\","
+            echo "  \"installed_overlay_ok\": \"$overlay_ok\","
+            echo "  \"installed_overlay_checks\": \"$overlay_checks\","
+            echo "  \"installed_overlay_evidence\": \"ci-installer/${GITHUB_RUN_ID}/overlay/\","
             echo "  \"published_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\""
             echo "}"
           } > "ci-installer/${GITHUB_RUN_ID}.json"
           cp "ci-installer/${GITHUB_RUN_ID}.json" ci-installer/latest.json
           cat ci-installer/latest.json
-          git checkout -B ci-windows-installer
           git add -f ci-installer
-          git commit -m "ci-installer: $JOB_STATUS in run ${GITHUB_RUN_ID}" || echo "nothing to commit"
+          git commit -m "ci-installer: $JOB_STATUS in run ${GITHUB_RUN_ID} (installed overlay ok=$overlay_ok)" || echo "nothing to commit"
           git push --force origin ci-windows-installer
+          [ "$overlay_ok" = "true" ] || { echo "::error::the published record says the installed overlay did not pass"; exit 1; }
