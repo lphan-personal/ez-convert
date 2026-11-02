@@ -84,6 +84,12 @@ while [ $# -gt 0 ]; do
 done
 
 [ -n "$OUT" ] || { echo "usage: $0 --out <dir> [--arch x86_64]" >&2; exit 2; }
+# Absolutise --out once, here, while the CWD is still the caller's. The packaging
+# step builds the zip from inside `cd "$PACK"`, so a relative --out (the documented
+# `--out dist`) would resolve to $WORK/pack/dist and `zip` would fail with "No such
+# file or directory" — which is exactly what runs 41433451274 and 41434716010 hit.
+mkdir -p "$OUT"
+OUT="$(cd "$OUT" && pwd)"
 [ "$ARCH" = "x86_64" ] || { echo "unsupported --arch $ARCH (only x86_64 is built)" >&2; exit 2; }
 
 case "$(uname -s)" in
