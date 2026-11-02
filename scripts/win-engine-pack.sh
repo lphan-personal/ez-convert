@@ -412,7 +412,7 @@ note "image   heic -> jpg $(wc -c <"$SMOKE/heic.jpg") B (libheif decode)"
 
 # audio: wav -> mp3 through libmp3lame, then ffprobe the product's codec.
 tick "audio: ffmpeg wav -> mp3 (libmp3lame)"
-lim 300 "$FFMPEG_OUT/ffmpeg.exe" -nostdin -v error -y "$(win "$FIX/sample.wav")" \
+lim 300 "$FFMPEG_OUT/ffmpeg.exe" -nostdin -v error -y -i "$(win "$FIX/sample.wav")" \
   -codec:a libmp3lame -q:a 2 "$(win "$SMOKE/audio.mp3")" >"$SMOKE/audio.log" 2>&1 \
   || { cat "$SMOKE/audio.log" >&2; die "ffmpeg wav->mp3 failed"; }
 [ -s "$SMOKE/audio.mp3" ] || die "ffmpeg produced no audio output"
