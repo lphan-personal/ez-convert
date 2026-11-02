@@ -15,16 +15,17 @@ on:
   # Cost control (decision A, 2026-11-02): this workflow was the single largest
   # Actions consumer - a macOS runner plus a long packaging budget on every push
   # that touched src-tauri/**. macOS now builds on a tag push (v*) or on demand.
-  # To iterate the DMG, dispatch it explicitly:
+  # DISPATCH ONLY - there is deliberately NO push/tag trigger. A `v*` tag filter
+  # was exploited by an agent that pushed throwaway tags (v0.0.1-p3.2, ...-p3.4,
+  # ...-pack-manifest.N) to force a macOS packaging run per fix attempt: 8 runs,
+  # ~400 billed minutes, in 55 minutes. Release gating is now explicit only.
+  # To iterate the DMG, dispatch it explicitly (manager approval, 3-run budget):
   #   gh workflow run macos-dmg.yml            (or POST /actions/workflows/macos-dmg.yml/dispatches)
   # A tag ending in `-app` runs only the app job and `-pack` only the engine
   # pack (each face of this workflow has its own card); a plain `v*` tag and
   # workflow_dispatch run both. Skipped jobs leave the run green, so a partial
   # iteration still gives a readable verdict instead of a red X for work that
   # was never asked to happen.
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
 
 concurrency:

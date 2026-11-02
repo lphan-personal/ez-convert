@@ -102,7 +102,7 @@ jobs:
       # per-commit signal. (A job-level `if:` cannot see `matrix`, so the leg is
       # selected here in the strategy instead of being skipped after allocation.)
       matrix:
-        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')) && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest","windows-latest"]') }}
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest","windows-latest"]') }}
     steps:
       - uses: actions/checkout@v4
 
