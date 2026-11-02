@@ -16,12 +16,27 @@ set -euo pipefail
 in_dir="${1:?usage: install-from-dmgs.sh <artifact dir> [log dir]}"
 log_dir="${2:-.}"
 mkdir -p "$log_dir"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 app_log="$log_dir/install.log"
 pack_log="$log_dir/install-pack.log"
 : >"$app_log"
 : >"$pack_log"
 
 say() { local f="$1"; shift; printf '%s\n' "$*" | tee -a "$f"; }  # say <logfile> <line...>
+
+# The image bytes are pinned by a sidecar digest; check it before mounting, so a
+# truncated or swapped download cannot reach /Applications (warden F10,
+# docs/MACOS-SIGNING.md §11). The pack's *inner* MANIFEST.sha256 is checked later
+# by its own installer; this is only the image-level pin.
+verify_pin() { # <dmg> <logfile>
+  local dmg="$1" log="$2" out
+  if ! out="$(bash "$script_dir/verify-pins.sh" "$dmg" 2>&1)"; then
+    printf '%s\n' "$out" | tee -a "$log"
+    echo "::error::$(basename "$dmg") does not match its published digest" | tee -a "$log"
+    exit 1
+  fi
+  printf '%s\n' "$out" | tee -a "$log"
+}
 
 # ---------------------------------------------------------------- environment
 {
@@ -34,6 +49,7 @@ say() { local f="$1"; shift; printf '%s\n' "$*" | tee -a "$f"; }  # say <logfile
 # ------------------------------------------------------------------- the app
 appdmg="$(find "$in_dir" -name 'EZ-Convert-*-macos-universal.dmg' | head -1)"
 [ -n "$appdmg" ] || { echo "::error::no app DMG artifact under $in_dir"; exit 1; }
+verify_pin "$appdmg" "$app_log"
 app_mnt="${RUNNER_TEMP:-/tmp}/app-mnt"
 rm -rf "$app_mnt"; mkdir -p "$app_mnt"
 hdiutil attach -nobrowse -readonly -mountpoint "$app_mnt" "$appdmg" >/dev/null
@@ -66,6 +82,7 @@ say "$app_log" "Contents/Resources carries no engine payload: OK"
 # ------------------------------------------------------------- the engine pack
 packdmg="$(find "$in_dir" -name 'EZ-Convert-Engine-Pack-*.dmg' | head -1)"
 [ -n "$packdmg" ] || { echo "::error::no engine-pack DMG artifact under $in_dir"; exit 1; }
+verify_pin "$packdmg" "$pack_log"
 pack_mnt="${RUNNER_TEMP:-/tmp}/pack-mnt"
 rm -rf "$pack_mnt"; mkdir -p "$pack_mnt"
 hdiutil attach -nobrowse -readonly -mountpoint "$pack_mnt" "$packdmg" >/dev/null
