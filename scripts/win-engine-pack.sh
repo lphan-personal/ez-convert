@@ -238,6 +238,31 @@ fi
 [ -d "$LO_OUT/share" ] || die "share/ is not at the pack root — not a LibreOffice tree"
 note "$(find "$LO_OUT" -type f | wc -l | tr -d ' ') files, $(du -sb "$LO_OUT" | cut -f1) B before the strip"
 
+# Top-level inventory: an administrative install lays out *everything* the MSI
+# can place, which is not the same set as an installed program directory. Print
+# it, because the next decision (`Fonts/`) is made from these numbers.
+for d in "$LO_OUT"/*/; do
+  [ -d "$d" ] || continue
+  printf '    %-14s %6s files %12s B\n' "$(basename "$d")" \
+    "$(find "$d" -type f | wc -l | tr -d ' ')" "$(du -sb "$d" | cut -f1)"
+done
+
+# `Fonts/` is the MSI's copy of the fonts the Windows installer drops into
+# C:\Windows\Fonts — not something LibreOffice loads from a program directory
+# (it reads fonts from the OS, and its own `share/fonts/truetype` for the
+# document-embedded set). Two reasons it does not belong in the pack:
+#   * it duplicates ~5,500 files of payload the engine never opens, and
+#   * it carries the five GPL-2.0 Culmus families, which the licence decision
+#     (t_20fae747) strips everywhere else — shipping them here would put GPL
+#     font software back into a PDF that embeds them.
+# An installed app has those fonts from the OS, so dropping the tree keeps the
+# pack equivalent to the installed layout.
+if [ -d "$LO_OUT/Fonts" ]; then
+  note "dropping Fonts/ ($(find "$LO_OUT/Fonts" -type f | wc -l | tr -d ' ') files, $(du -sb "$LO_OUT/Fonts" | cut -f1) B)"
+  rm -rf "$LO_OUT/Fonts"
+  if [ -d "$LO_OUT/Fonts" ]; then die "could not remove the MSI font payload"; fi
+fi
+
 # ------------------------------------------------------------------ 5. strip
 step "5/9 strip the content the licence decision removed (t_20fae747)"
 if [ "$SKIP_STRIP" = "1" ]; then
