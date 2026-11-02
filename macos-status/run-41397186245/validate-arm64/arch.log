@@ -1,0 +1,5 @@
+host arch: arm64
+app binary lipo: x86_64 arm64
+engine vips/vips                                          Mach-O 64-bit executable arm64
+engine ffmpeg/ffmpeg                                      Mach-O 64-bit executable arm64
+engine soffice/LibreOffice.app/Contents/MacOS/soffice     Mach-O 64-bit executable arm64
