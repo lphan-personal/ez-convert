@@ -1,0 +1,155 @@
+{
+  "os": "macos",
+  "arch": "aarch64",
+  "probe": "overlay",
+  "monitors": [
+    {
+      "device": [
+        0,
+        0,
+        1024,
+        768
+      ],
+      "work": [
+        0,
+        31,
+        1024,
+        708
+      ]
+    }
+  ],
+  "cursor_before": [
+    10,
+    10
+  ],
+  "placement": {
+    "x": 0,
+    "y": 31,
+    "width": 520,
+    "height": 520,
+    "cursor_x": 10,
+    "cursor_y": 10,
+    "monitor_index": 0,
+    "placed": true,
+    "grab_note": null,
+    "cursor_inside_rect": false,
+    "monitor_in_range": true
+  },
+  "window": {
+    "found": true,
+    "visible": true,
+    "focused": false,
+    "always_on_top": true,
+    "decorated": false,
+    "outer_position": [
+      0,
+      31
+    ],
+    "outer_size": [
+      520,
+      520
+    ],
+    "scale_factor": 1.0,
+    "region_type": null,
+    "non_activating": null,
+    "ignores_mouse_events": true
+  },
+  "click": {
+    "method": "window-shift",
+    "centre": [
+      260,
+      291
+    ],
+    "centre_cursor": [
+      10,
+      10
+    ],
+    "centre_inside_disc": true,
+    "centre_ignores_mouse_events": false,
+    "corner": [
+      6,
+      37
+    ],
+    "corner_cursor": [
+      10,
+      10
+    ],
+    "corner_inside_disc": false,
+    "corner_ignores_mouse_events": true,
+    "corner_window_is_ours": null,
+    "warped": false
+  },
+  "hotkey": {
+    "configured": "Ctrl+Alt+Shift+D",
+    "configured_canonical": "Ctrl+Alt+Shift+D",
+    "registered": "Ctrl+Alt+Shift+D",
+    "status": "Ctrl+Alt+Shift+D registered",
+    "state": "registered",
+    "matches_configured": true,
+    "carbon": {
+      "key_code": 2,
+      "modifiers": 6656
+    },
+    "input_posting_trusted": true,
+    "presses": [
+      {
+        "method": "cg-post-own-pid",
+        "delivered": false
+      },
+      {
+        "method": "cg-post-hid",
+        "delivered": true
+      }
+    ],
+    "summons_before": 2,
+    "summons_after": 3,
+    "delivered_by": "cg-post-hid",
+    "note": ""
+  },
+  "main_focused_before": true,
+  "main_focused_after": true,
+  "render_ms": 34,
+  "cold_render_ms": 195,
+  "page_ready": true,
+  "checks": {
+    "always-on-top": true,
+    "click-through-sampled": true,
+    "corner-ignores-mouse-events": true,
+    "cursor-at-wheel-or-clamped": true,
+    "disc-accepts-mouse-events": true,
+    "hotkey-press-summons": true,
+    "hotkey-registered": true,
+    "hotkey-state-registered": true,
+    "main-window-keeps-focus": true,
+    "monitor-index-in-range": true,
+    "overlay-not-key": true,
+    "placement-reported": true,
+    "position-matches-placement": true,
+    "rendered-within-150ms": true,
+    "size-matches-wheel": true,
+    "undecorated": true,
+    "window-created": true,
+    "window-visible": true
+  },
+  "asserted": [
+    "window-created",
+    "window-visible",
+    "placement-reported",
+    "position-matches-placement",
+    "size-matches-wheel",
+    "always-on-top",
+    "undecorated",
+    "overlay-not-key",
+    "main-window-keeps-focus",
+    "rendered-within-150ms",
+    "cursor-at-wheel-or-clamped",
+    "monitor-index-in-range",
+    "click-through-sampled",
+    "disc-accepts-mouse-events",
+    "corner-ignores-mouse-events",
+    "hotkey-registered",
+    "hotkey-state-registered",
+    "hotkey-press-summons"
+  ],
+  "ok": true
+}

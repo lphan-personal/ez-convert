@@ -1,0 +1,27 @@
+OVERLAY_PROBE host=Darwin/arm64
+OVERLAY_PROBE facts=overlay-evidence/overlay-facts.json exit=0
+OVERLAY_PROBE screenshot=captured crop=ring-visible
+OVERLAY_PROBE ok=true render_ms=34 cold_render_ms=195 page_ready=true
+OVERLAY_PROBE placement=x0 y31 monitor=0 placed=true cursor=10,10
+OVERLAY_HOTKEY configured=Ctrl+Alt+Shift+D registered=Ctrl+Alt+Shift+D state=registered
+OVERLAY_HOTKEY matches_configured=true input_posting_trusted=True delivered_by=cg-post-hid summons=2->3
+OVERLAY_HOTKEY press=cg-post-own-pid delivered=false
+OVERLAY_HOTKEY press=cg-post-hid delivered=true
+OVERLAY_CHECK window-created=pass
+OVERLAY_CHECK window-visible=pass
+OVERLAY_CHECK placement-reported=pass
+OVERLAY_CHECK position-matches-placement=pass
+OVERLAY_CHECK size-matches-wheel=pass
+OVERLAY_CHECK always-on-top=pass
+OVERLAY_CHECK undecorated=pass
+OVERLAY_CHECK overlay-not-key=pass
+OVERLAY_CHECK main-window-keeps-focus=pass
+OVERLAY_CHECK rendered-within-150ms=pass
+OVERLAY_CHECK cursor-at-wheel-or-clamped=pass
+OVERLAY_CHECK monitor-index-in-range=pass
+OVERLAY_CHECK click-through-sampled=pass
+OVERLAY_CHECK disc-accepts-mouse-events=pass
+OVERLAY_CHECK corner-ignores-mouse-events=pass
+OVERLAY_CHECK hotkey-registered=pass
+OVERLAY_CHECK hotkey-state-registered=pass
+OVERLAY_CHECK hotkey-press-summons=pass
