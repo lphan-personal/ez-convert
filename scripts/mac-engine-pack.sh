@@ -334,6 +334,37 @@ else
   # licence gate asserts on the shipped binary; --disable-nonfree keeps the
   # build redistributable.
   note "configure"
+  # ffmpeg's configure needs pkg-config metadata for libmp3lame (`lame >= 3.98`).
+  # Homebrew's lame keg does not always install `lame.pc`, which is what run
+  # 41379287298 died on: "ERROR: libmp3lame >= 3.98.3 not found". Describe the
+  # installed keg when the file is absent — the version comes from the keg's own
+  # header, not from a guess, and the diagnostics are printed either way.
+  LAME_PREFIX="$(brew --prefix lame)"
+  note "lame pkgconfig: $(ls "$LAME_PREFIX/lib/pkgconfig" 2>/dev/null | tr '\n' ' ' || echo '<none>')"
+  if ! pkg-config --exists lame 2>/dev/null; then
+    LAME_MAJOR="$(sed -nE 's/^#define LAME_MAJOR_VERSION[[:space:]]+([0-9]+).*/\1/p' "$LAME_PREFIX/include/lame/lame.h" | head -1)"
+    LAME_MINOR="$(sed -nE 's/^#define LAME_MINOR_VERSION[[:space:]]+([0-9]+).*/\1/p' "$LAME_PREFIX/include/lame/lame.h" | head -1)"
+    if [ -z "$LAME_MAJOR" ] || [ -z "$LAME_MINOR" ]; then
+      echo "cannot describe the installed lame keg: no lame.pc and no version macros in $LAME_PREFIX/include/lame/lame.h" >&2
+      exit 1
+    fi
+    mkdir -p "$WORK/pc"
+    {
+      echo "prefix=$LAME_PREFIX"
+      echo "exec_prefix=\${prefix}"
+      echo "libdir=\${exec_prefix}/lib"
+      echo "includedir=\${prefix}/include"
+      echo "Name: lame"
+      echo "Description: MP3 encoding library (keg description written by mac-engine-pack.sh)"
+      echo "Version: ${LAME_MAJOR}.${LAME_MINOR}"
+      echo "Libs: -L\${libdir} -lmp3lame"
+      echo "Cflags: -I\${includedir}"
+    } > "$WORK/pc/lame.pc"
+    export PKG_CONFIG_PATH="$WORK/pc${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+    note "lame.pc synthesised for $(pkg-config --modversion lame) at $LAME_PREFIX"
+  else
+    note "lame $(pkg-config --modversion lame) found by pkg-config"
+  fi
   ( cd "$WORK/downloads/ffmpeg-src" && ./configure \
       --prefix="$WORK/downloads/ffmpeg" \
       --disable-gpl --disable-nonfree --disable-debug --disable-doc \
