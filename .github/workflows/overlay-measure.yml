@@ -1,0 +1,136 @@
+# overlay-measure.yml — the acceptance measurement for the wheel overlay.
+#
+# Why its own workflow: the acceptance card is about a window on a real desktop
+# (position at the cursor, click-through outside the disc, never taking the key
+# window, visible inside 150 ms). No Linux unit test can answer that, and the
+# build/validate workflows answer a different question (does the artifact install and
+# convert). This one builds the app, runs the unit tests that ARE portable (the Cocoa
+# flip maths, the dismissal rules, the screenshot checker), then runs the app in
+# `--overlay-probe` mode and publishes the facts JSON, the screenshot and the verdict.
+#
+# The verdict is the process exit code of the probe: 0 only when every asserted check
+# passed. A screenshot the runner cannot take (no console session) is recorded, never
+# faked.
+name: overlay-measure
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "overlay/**"
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  macos:
+    name: "overlay (macOS arm64)"
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Portable unit tests (PNG checker in both directions)
+        run: python3 scripts/test-png-nonblank.py 2>&1 | tee unit-png.log
+
+      - name: Rust unit tests (Cocoa flip maths, dismissal rules)
+        run: |
+          set -o pipefail
+          cd src-tauri
+          cargo test --release --lib 2>&1 | tee ../unit-rust.log
+
+      - name: Build the app
+        run: |
+          set -o pipefail
+          cd src-tauri
+          cargo build --release 2>&1 | tee ../build.log
+
+      - name: Measure the overlay
+        # The probe is the gate: its exit code is the verdict, and it is the app
+        # itself (same summon path as the hotkey) that produced the numbers.
+        run: BIN="$PWD/src-tauri/target/release/ez-convert" bash scripts/overlay-probe.sh overlay-evidence
+
+      - name: Evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: overlay-macos
+          path: |
+            overlay-evidence
+            unit-png.log
+            unit-rust.log
+            build.log
+
+      - name: Publish the facts to overlay-status
+        if: always()
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch -q origin overlay-status:refs/remotes/origin/overlay-status 2>/dev/null || true
+          git checkout -q -B overlay-status origin/overlay-status 2>/dev/null || git checkout -q -B overlay-status
+          mkdir -p "overlay-status/run-${GITHUB_RUN_ID}/macos"
+          cp -r overlay-evidence/* "overlay-status/run-${GITHUB_RUN_ID}/macos/" 2>/dev/null || true
+          cp build.log unit-rust.log "overlay-status/run-${GITHUB_RUN_ID}/macos/" 2>/dev/null || true
+          git add -f overlay-status
+          git commit -q -m "overlay-status: run ${GITHUB_RUN_ID} macos ${{ job.status }}" || echo "nothing to commit"
+          git push origin overlay-status || { git pull --rebase -q origin overlay-status && git push origin overlay-status; }
+
+  windows:
+    name: "overlay (Windows x64)"
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Portable unit tests (PNG checker in both directions)
+        run: python3 scripts/test-png-nonblank.py 2>&1 | tee unit-png.log
+
+      - name: Rust unit tests (dismissal rules, geometry)
+        run: |
+          set -o pipefail
+          cd src-tauri
+          cargo test --release --lib 2>&1 | tee ../unit-rust.log
+
+      - name: Build the app
+        run: |
+          set -o pipefail
+          cd src-tauri
+          cargo build --release 2>&1 | tee ../build.log
+
+      - name: Measure the overlay
+        run: BIN="$PWD/src-tauri/target/release/ez-convert.exe" bash scripts/overlay-probe.sh overlay-evidence
+
+      - name: Evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: overlay-windows
+          path: |
+            overlay-evidence
+            unit-png.log
+            unit-rust.log
+            build.log
+
+      - name: Publish the facts to overlay-status
+        if: always()
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch -q origin overlay-status:refs/remotes/origin/overlay-status 2>/dev/null || true
+          git checkout -q -B overlay-status origin/overlay-status 2>/dev/null || git checkout -q -B overlay-status
+          mkdir -p "overlay-status/run-${GITHUB_RUN_ID}/windows"
+          cp -r overlay-evidence/* "overlay-status/run-${GITHUB_RUN_ID}/windows/" 2>/dev/null || true
+          cp build.log unit-rust.log "overlay-status/run-${GITHUB_RUN_ID}/windows/" 2>/dev/null || true
+          git add -f overlay-status
+          git commit -q -m "overlay-status: run ${GITHUB_RUN_ID} windows ${{ job.status }}" || echo "nothing to commit"
+          git push origin overlay-status || { git pull --rebase -q origin overlay-status && git push origin overlay-status; }

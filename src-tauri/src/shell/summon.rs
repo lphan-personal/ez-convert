@@ -54,24 +54,63 @@ pub struct SummonPayload {
 /// cannot diverge. Returns the payload (also emitted as an event) for the caller to
 /// log or assert on.
 pub fn summon(app: &AppHandle) -> SummonPayload {
+    // Stamped before the placement query so the millisecond figure the acceptance
+    // card asks for covers everything the user waits for, not just the paint.
+    crate::shell::overlay::mark_summon();
     let payload = placement(app);
 
-    if let Some(window) = app.get_webview_window("wheel") {
-        if payload.placed {
-            let _ = window.set_position(tauri::PhysicalPosition::new(payload.x, payload.y));
-            let _ = window.set_size(tauri::PhysicalSize::new(payload.width, payload.height));
-        }
-        let _ = window.show();
-    }
+    // Creates the window if it is somehow gone, then positions, shows without taking
+    // the key window, and starts the dismiss watcher. Until this module existed the
+    // lookup here was the only thing between a hotkey press and a silent no-op.
+    crate::shell::overlay::present(app, &payload);
 
     let _ = app.emit(EVENT_SUMMON, &payload);
     payload
 }
 
+/// The macOS screen list from the right thread.
+///
+/// `NSScreen` is `MainThreadOnly`, while the global hotkey fires on its own thread.
+/// Off the main thread the query is marshalled and waited for (a few hundred µs); on
+/// the main thread it runs directly — waiting there would deadlock, and the
+/// measurement probe calls this from the main thread.
+fn summon_rect(
+    app: &AppHandle,
+    size: (i32, i32),
+) -> Option<(
+    crate::shell::screen::Cursor,
+    crate::shell::geometry::Rect,
+    usize,
+)> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::sync::mpsc;
+        use std::time::Duration;
+        if crate::shell::screen::can_query_geometry() {
+            return crate::shell::screen::summon_rect(size);
+        }
+        let (tx, rx) = mpsc::channel();
+        if app
+            .run_on_main_thread(move || {
+                let _ = tx.send(crate::shell::screen::summon_rect(size));
+            })
+            .is_err()
+        {
+            return None;
+        }
+        return rx.recv_timeout(Duration::from_millis(500)).ok().flatten();
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        crate::shell::screen::summon_rect(size)
+    }
+}
+
 /// The placement decision on its own — no window, no event. This is the half the
 /// acceptance spike asserts against.
 pub fn placement(app: &AppHandle) -> SummonPayload {
-    let (cursor, rect, monitor_index) = match crate::shell::screen::summon_rect(WHEEL_SIZE) {
+    let (cursor, rect, monitor_index) = match summon_rect(app, WHEEL_SIZE) {
         Some(answer) => answer,
         None => {
             return SummonPayload {
@@ -84,7 +123,7 @@ pub fn placement(app: &AppHandle) -> SummonPayload {
                 monitor_index: 0,
                 placed: false,
                 grabbed: Vec::new(),
-                grab_note: Some("this platform cannot report the cursor or its monitors".into()),
+                grab_note: Some(crate::shell::screen::unavailable_reason().into()),
             }
         }
     };

@@ -76,6 +76,11 @@ mod win32 {
     #[link(name = "user32")]
     extern "system" {
         fn GetCursorPos(point: *mut Point) -> Bool;
+        fn SetCursorPos(x: i32, y: i32) -> Bool;
+        /// High bit set == the key is down now. Used by the overlay's dismiss
+        /// watcher for Esc and the primary button, so dismissal needs no hook and
+        /// no permission.
+        fn GetAsyncKeyState(virtual_key: i32) -> i16;
         fn GetSystemMetrics(index: i32) -> i32;
         fn MonitorFromPoint(point: Point, flags: u32) -> Handle;
         fn GetMonitorInfoW(monitor: Handle, info: *mut MonitorInfoW) -> Bool;
@@ -189,19 +194,208 @@ mod win32 {
             info.rc_work.bottom,
         ))
     }
+
+    const VK_LBUTTON: i32 = 0x01;
+    const VK_ESCAPE: i32 = 0x1B;
+
+    /// `GetAsyncKeyState` reports the state as it is *now*, with no hook and no
+    /// permission — the overlay's dismiss watcher polls it while it is on screen.
+    pub fn key_down(virtual_key: i32) -> bool {
+        // SAFETY: plain value call; a key code is always in range.
+        (unsafe { GetAsyncKeyState(virtual_key) } as u16) & 0x8000 != 0
+    }
+
+    pub fn escape_down() -> bool {
+        key_down(VK_ESCAPE)
+    }
+
+    pub fn primary_button_down() -> bool {
+        key_down(VK_LBUTTON)
+    }
+
+    /// Moves the pointer. Only the measurement probe calls it (to sample the
+    /// click-through boundary at a known point); the app never warps the cursor.
+    pub fn warp_pointer(x: i32, y: i32) -> bool {
+        // SAFETY: plain value call.
+        unsafe { SetCursorPos(x, y) } != 0
+    }
 }
 
-#[cfg(windows)]
-pub use win32::{cursor, cursor_monitor_work, layout};
+// ---- Cocoa ↔ virtual-desktop mathematics ---------------------------------
+//
+// AppKit reports geometry in **Cocoa screen coordinates**: the origin is the
+// bottom-left corner of the *primary* screen and y grows **upward**. Every other
+// module here (and `tauri::PhysicalPosition`) uses the Win32 convention: the origin
+// is the top-left corner of the primary screen and y grows **downward**. The
+// conversion is a reflection about the primary screen's top edge, which is exactly
+// what makes negative-origin monitors (a screen left of, or above, the primary) come
+// out right without a special case:
+//
+//     y_virtual = reference_max_y - y_cocoa - height_cocoa
+//
+// `reference_max_y` is the primary screen's `frame.maxY` (its height, because the
+// primary's Cocoa origin is (0, 0)). Kept as pure functions so the flip is unit
+// tested on every host, not only on a Mac.
 
-#[cfg(not(windows))]
+/// A Cocoa rect (origin bottom-left of the primary, y up) as a virtual-desktop rect.
+pub fn cocoa_rect_to_virtual(
+    reference_max_y: f64,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Rect {
+    Rect::new(
+        x.round() as i32,
+        (reference_max_y - y - height).round() as i32,
+        (x + width).round() as i32,
+        (reference_max_y - y).round() as i32,
+    )
+}
+
+/// A Cocoa point as a virtual-desktop point. `NSEvent.mouseLocation` is in Cocoa
+/// coordinates, so this is the call that stops "the wheel is upside down on the
+/// second monitor" from shipping.
+pub fn cocoa_point_to_virtual(reference_max_y: f64, x: f64, y: f64) -> (i32, i32) {
+    (x.round() as i32, (reference_max_y - y).round() as i32)
+}
+
+#[cfg(target_os = "macos")]
+mod macos {
+    use super::*;
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSEvent, NSScreen};
+    use objc2_foundation::NSRect;
+
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        /// Key state straight from the HID system: no event tap, no Accessibility
+        /// grant. 53 is `kVK_Escape`.
+        fn CGEventSourceKeyState(state: i32, key: u16) -> bool;
+        fn CGWarpMouseCursorPosition(point: CGPoint) -> i32;
+    }
+
+    #[repr(C)]
+    #[derive(Debug, Clone, Copy, Default)]
+    struct CGPoint {
+        x: f64,
+        y: f64,
+    }
+
+    /// `kCGEventSourceStateHIDSystemState`.
+    const HID_SYSTEM_STATE: i32 = 1;
+    /// `kVK_Escape`.
+    const VK_ESCAPE_MAC: u16 = 53;
+
+    /// `NSScreen` is `MainThreadOnly`: an off-thread call is a programming error, so
+    /// this is the guard the caller checks before marshalling (`shell::summon`).
+    pub fn on_main_thread() -> bool {
+        MainThreadMarker::new().is_some()
+    }
+
+    /// The primaries' reflection line plus every screen as a monitor. `None` off the
+    /// main thread (AppKit is not safe there) so the caller can say so instead of
+    /// inventing a geometry.
+    fn screens() -> Option<(f64, Vec<Monitor>)> {
+        let marker = MainThreadMarker::new()?;
+        let list = NSScreen::screens(marker);
+        let mut pairs: Vec<(NSRect, NSRect)> = Vec::new();
+        for screen in list.iter() {
+            pairs.push((screen.frame(), screen.visibleFrame()));
+        }
+        // The primary screen is the one whose Cocoa origin is (0, 0); its `maxY` is
+        // the reflection line. Falling back to the first screen keeps a headless
+        // session from producing a nonsensical flip.
+        let reference = pairs
+            .iter()
+            .find(|(frame, _)| frame.origin.x.abs() < 0.5 && frame.origin.y.abs() < 0.5)
+            .or_else(|| pairs.first())
+            .map(|(frame, _)| frame.origin.y + frame.size.height)
+            .unwrap_or(0.0);
+        let monitors = pairs
+            .iter()
+            .map(|(frame, visible)| {
+                Monitor::new(
+                    cocoa_rect_to_virtual(
+                        reference,
+                        frame.origin.x,
+                        frame.origin.y,
+                        frame.size.width,
+                        frame.size.height,
+                    ),
+                    cocoa_rect_to_virtual(
+                        reference,
+                        visible.origin.x,
+                        visible.origin.y,
+                        visible.size.width,
+                        visible.size.height,
+                    ),
+                )
+            })
+            .collect();
+        Some((reference, monitors))
+    }
+
+    pub fn cursor() -> Cursor {
+        let Some((reference, _)) = screens() else {
+            return Cursor { x: 0, y: 0 };
+        };
+        let point = NSEvent::mouseLocation();
+        let (x, y) = cocoa_point_to_virtual(reference, point.x, point.y);
+        Cursor { x, y }
+    }
+
+    pub fn layout() -> Layout {
+        match screens() {
+            Some((_, monitors)) => Layout { monitors },
+            None => Layout {
+                monitors: Vec::new(),
+            },
+        }
+    }
+
+    /// The work area of the monitor the cursor is on, by the same nearest-monitor
+    /// rule the placement uses (`NSScreen.visibleFrame` is already the work area:
+    /// menu bar and Dock excluded).
+    pub fn cursor_monitor_work(cursor: Cursor) -> Option<Rect> {
+        let layout = layout();
+        let index = layout.monitor_of(cursor)?;
+        Some(layout.monitors[index].work)
+    }
+
+    pub fn escape_down() -> bool {
+        // SAFETY: plain value call.
+        unsafe { CGEventSourceKeyState(HID_SYSTEM_STATE, VK_ESCAPE_MAC) }
+    }
+
+    pub fn primary_button_down() -> bool {
+        // Bit 0 of `pressedMouseButtons` is the left button.
+        NSEvent::pressedMouseButtons() & 1 != 0
+    }
+
+    /// Only the measurement probe warps the pointer (to sample the click-through
+    /// boundary at a known point); the app never does.
+    pub fn warp_pointer(x: i32, y: i32) -> bool {
+        let Some((reference, _)) = screens() else {
+            return false;
+        };
+        // Warping takes Cocoa coordinates, so the conversion runs backwards.
+        let point = CGPoint {
+            x: x as f64,
+            y: reference - y as f64,
+        };
+        // SAFETY: plain value call; a point outside every display is clamped by the
+        // window server, never a fault.
+        unsafe { CGWarpMouseCursorPosition(point) } == 0
+    }
+}
+
+/// Non-Windows, non-macOS hosts (the Linux CI and dev containers) answer nothing.
+/// A caller that sees `None` must treat the summon as failed, not as "place at 0,0".
+#[cfg(not(any(windows, target_os = "macos")))]
 mod other {
     use super::*;
 
-    /// PLANNED: macOS uses `NSEvent::mouseLocation` + `NSScreen::screens`. Both are
-    /// unmeasured on this project (`ARCHITECTURE.md` §10.5), so this returns the
-    /// empty/None shapes rather than an invented geometry. A caller that sees `None`
-    /// must treat the summon as failed, not as "place at 0,0".
     pub fn cursor() -> Cursor {
         Cursor { x: 0, y: 0 }
     }
@@ -215,20 +409,69 @@ mod other {
             monitors: Vec::new(),
         }
     }
+
+    pub fn escape_down() -> bool {
+        false
+    }
+
+    pub fn primary_button_down() -> bool {
+        false
+    }
+
+    pub fn warp_pointer(_x: i32, _y: i32) -> bool {
+        false
+    }
 }
 
-#[cfg(not(windows))]
-pub use other::{cursor, cursor_monitor_work, layout};
+#[cfg(windows)]
+pub use win32::{
+    cursor, cursor_monitor_work, escape_down, layout, primary_button_down, warp_pointer,
+};
+
+#[cfg(target_os = "macos")]
+pub use macos::{cursor, cursor_monitor_work, escape_down, layout, primary_button_down, warp_pointer};
+
+#[cfg(not(any(windows, target_os = "macos")))]
+pub use other::{cursor, cursor_monitor_work, escape_down, layout, primary_button_down, warp_pointer};
+
+/// Why a platform answered nothing, for the payload's `grab_note`. A summon that is
+/// not placed must say which of the two reasons it was.
+pub fn unavailable_reason() -> &'static str {
+    #[cfg(target_os = "macos")]
+    {
+        if !macos::on_main_thread() {
+            return "the macOS screen list is main-thread only and this call was not marshalled";
+        }
+    }
+    "this platform cannot report the cursor or its monitors"
+}
+
+/// True when the caller is on a thread that may ask AppKit for screen geometry.
+/// Non-macOS platforms have no such restriction.
+pub fn can_query_geometry() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        macos::on_main_thread()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
 
 /// The whole summon decision in one call: cursor → layout → wheel rect. Returns the
 /// rect plus the monitor index, or `None` when the platform cannot answer.
 pub fn summon_rect(size: (i32, i32)) -> Option<(Cursor, Rect, usize)> {
+    if !can_query_geometry() {
+        return None;
+    }
     let cursor = cursor();
     let layout = layout();
     let rect = layout.wheel_rect(cursor, size)?;
     let index = layout.monitor_of(cursor)?;
     Some((cursor, rect, index))
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -246,5 +489,77 @@ mod tests {
             assert!((rect.left..rect.right).contains(&cursor.x));
             assert!((rect.top..rect.bottom).contains(&cursor.y));
         }
+    }
+
+    // ---- Cocoa → virtual-desktop conversion -------------------------------
+    //
+    // These run on every host because the maths is pure: the flip is the part that
+    // used to be "PLANNED: unmeasured" and it must not depend on having a Mac.
+
+    /// 1920×1080 primary, a second screen to its left (negative x) and a third
+    /// above it (negative y once flipped) — the two cases a naive flip gets wrong.
+    const REFERENCE: f64 = 1080.0;
+
+    #[test]
+    fn the_primary_screen_maps_onto_itself() {
+        let rect = cocoa_rect_to_virtual(REFERENCE, 0.0, 0.0, 1920.0, 1080.0);
+        assert_eq!(rect, Rect::new(0, 0, 1920, 1080));
+    }
+
+    #[test]
+    fn a_screen_to_the_left_keeps_negative_x_and_lands_at_the_same_top() {
+        let rect = cocoa_rect_to_virtual(REFERENCE, -1920.0, 0.0, 1920.0, 1080.0);
+        assert_eq!(rect, Rect::new(-1920, 0, 0, 1080));
+    }
+
+    #[test]
+    fn a_screen_above_the_primary_becomes_negative_y() {
+        // Cocoa: sitting on top of the primary means a positive y origin.
+        let rect = cocoa_rect_to_virtual(REFERENCE, 0.0, 1080.0, 1920.0, 1080.0);
+        assert_eq!(rect, Rect::new(0, -1080, 1920, 0));
+    }
+
+    #[test]
+    fn a_screen_below_the_primary_becomes_a_positive_y() {
+        let rect = cocoa_rect_to_virtual(REFERENCE, 0.0, -1080.0, 1920.0, 1080.0);
+        assert_eq!(rect, Rect::new(0, 1080, 1920, 2160));
+    }
+
+    #[test]
+    fn the_visible_frame_is_inset_from_the_top_by_the_menu_bar() {
+        // A 25 pt menu bar at the top of the primary screen.
+        let work = cocoa_rect_to_virtual(REFERENCE, 0.0, 0.0, 1920.0, 1055.0);
+        assert_eq!(work, Rect::new(0, 25, 1920, 1080));
+    }
+
+    #[test]
+    fn a_cocoa_point_flips_about_the_primaries_top_edge() {
+        // 200 pt above the bottom of the primary = 880 px below its top.
+        assert_eq!(cocoa_point_to_virtual(REFERENCE, 100.0, 200.0), (100, 880));
+        // The very top-left corner of the primary.
+        assert_eq!(cocoa_point_to_virtual(REFERENCE, 0.0, 1080.0), (0, 0));
+        // One row above the primary's top edge (a screen placed above it).
+        assert_eq!(cocoa_point_to_virtual(REFERENCE, 0.0, 1081.0), (0, -1));
+        // Into the screen to the left: x is unchanged, y still flips.
+        assert_eq!(cocoa_point_to_virtual(REFERENCE, -100.0, 540.0), (-100, 540));
+    }
+
+    #[test]
+    fn a_flipped_cursor_and_a_flipped_screen_agree_on_the_monitor() {
+        // The end-to-end shape of the macOS bug: flip the screens, flip the cursor,
+        // then run the ordinary placement rule.
+        let primary = cocoa_rect_to_virtual(REFERENCE, 0.0, 0.0, 1920.0, 1080.0);
+        let left = cocoa_rect_to_virtual(REFERENCE, -1920.0, 0.0, 1920.0, 1080.0);
+        let monitors = vec![Monitor::plain(primary.left, primary.top, primary.right, primary.bottom),
+                            Monitor::plain(left.left, left.top, left.right, left.bottom)];
+        let (cx, cy) = cocoa_point_to_virtual(REFERENCE, -100.0, 540.0);
+        assert_eq!(crate::shell::geometry::monitor_at(&monitors, cx, cy), Some(1));
+        let wheel = crate::shell::geometry::place_on_layout(
+            &monitors,
+            (cx, cy),
+            crate::shell::geometry::WHEEL_SIZE,
+        )
+        .expect("layout");
+        assert!(wheel.right <= 0, "wheel {wheel:?} crossed onto the primary");
     }
 }

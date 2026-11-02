@@ -736,6 +736,9 @@ name = "ez-convert"
 version = "0.0.1"
 dependencies = [
  "lofty",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
  "serde",
  "serde_json",
  "sha2",

@@ -38,5 +38,8 @@
   <script src="model.js"></script>
   <script src="spring.js"></script>
   <script src="wheel.js"></script>
+  <!-- The bridge to the real window. Inert in a plain browser: it returns early
+       when `window.__TAURI__` is absent, so the prototype stays a prototype. -->
+  <script src="overlay.js"></script>
 </body>
 </html>

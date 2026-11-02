@@ -36,6 +36,24 @@ lofty = "0.22"
 # not a new crate — docs/LICENSES.md lists it either way.
 sha2 = "0.10"
 
+# macOS only: the overlay needs AppKit itself.
+#   - `NSEvent.mouseLocation` + `NSScreen.screens` are the cursor and monitor
+#     geometry (ARCHITECTURE.md §10.5, which used to read "PLANNED: unmeasured");
+#   - `NSWindow.ignoresMouseEvents` is the click-through read-back the acceptance
+#     probe asserts on.
+# All three crates are already in the graph transitively (tao/tauri use them), so
+# this is a direct-dependency pin with features, not a new dependency tree. MIT OR
+# Apache-2.0 — see docs/LICENSES.md.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+    "std",
+    "NSScreen",
+    "NSEvent",
+    "NSWindow",
+] }
+
 [profile.release]
 codegen-units = 1
 lto = true

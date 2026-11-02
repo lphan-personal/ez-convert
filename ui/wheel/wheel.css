@@ -280,3 +280,44 @@ html, body {
   .surface { border: 1px solid rgba(255, 255, 255, 0.6); }
   .label.selected { background: #000; outline: 2px solid #fff; }
 }
+
+/* ---- overlay mode ---------------------------------------------------------
+ * Applied by `overlay.js` only when the page really is the Tauri overlay window
+ * (`html.overlay`). A browser prototype keeps the opaque page and the demo chrome.
+ *
+ * The window is exactly 520x520 and transparent, so the ring must be the only
+ * painted pixel and must sit at the origin: no page background, no padding, no demo.
+ * Anything opaque here would be a grey square floating over the user's work. */
+html.overlay,
+html.overlay body {
+  background: transparent;
+  overflow: hidden;
+  height: 100%;
+}
+
+html.overlay .stage {
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  gap: 0;
+  place-content: center;
+}
+
+html.overlay .demo,
+html.overlay .log {
+  display: none;
+}
+
+/* The springs write transform/opacity every frame; no CSS transition may compete
+ * with them (a transition cannot be caught mid-flight). */
+html.overlay .wheel {
+  margin: 0;
+  transition: none;
+  will-change: transform, opacity;
+  transform-origin: 50% 50%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The bridge snaps instead of springing; opacity only, as a legibility aid. */
+  html.overlay .wheel { transition: opacity 90ms linear; }
+}

@@ -9,6 +9,8 @@ pub mod geometry;
 pub mod grab;
 pub mod hotkey;
 pub mod ipc;
+pub mod overlay;
+pub mod probe;
 pub mod screen;
 pub mod summon;
 pub mod tray;

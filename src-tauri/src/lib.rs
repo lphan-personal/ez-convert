@@ -21,6 +21,7 @@ use shell::ipc::{
     queue_set_target, queue_set_target_all, queue_snapshot, settings_apply, settings_apply_many,
     settings_reload, settings_view, undo_last, AppState,
 };
+use shell::overlay::{overlay_closed, overlay_dismiss, overlay_ready, overlay_rendered};
 use shell::summon::{
     hotkey_rebind, hotkey_view, smart_grab_now_cmd, smart_grab_set, smart_grab_view, wheel_placement,
     wheel_summon,
@@ -69,7 +70,16 @@ pub fn run() {
             if let Err(error) = shell::tray::build(&handle) {
                 eprintln!("tray unavailable: {error}");
             }
+            // The overlay window is created here, hidden, so the first summon is a
+            // position + show + paint instead of a webview construction (the card's
+            // 150 ms budget is measured from the summon call).
+            shell::overlay::install(&handle);
             shell::summon::start_hotkeys(&handle);
+            // `--overlay-probe`: the overlay acceptance measurement, driven by the
+            // app itself because only a real window on a real desktop can answer it.
+            if let Some(out) = shell::probe::requested() {
+                shell::probe::run(handle.clone(), out);
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -99,6 +109,11 @@ pub fn run() {
             smart_grab_set,
             smart_grab_view,
             smart_grab_now_cmd,
+            // the overlay window itself
+            overlay_ready,
+            overlay_rendered,
+            overlay_dismiss,
+            overlay_closed,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
