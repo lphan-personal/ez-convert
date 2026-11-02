@@ -1,0 +1,20 @@
+OVERLAY_PROBE host=MINGW64_NT-10.0-26100/x86_64
+OVERLAY_PROBE facts=overlay-evidence/overlay-facts.json exit=1
+OVERLAY_PROBE screenshot=unavailable crop=not-checked
+OVERLAY_PROBE ok=false render_ms=-1
+OVERLAY_PROBE placement=x252 y124 monitor=0 placed=true cursor=512,384
+OVERLAY_CHECK window-created=pass
+OVERLAY_CHECK window-visible=pass
+OVERLAY_CHECK placement-reported=pass
+OVERLAY_CHECK position-matches-placement=pass
+OVERLAY_CHECK size-matches-wheel=pass
+OVERLAY_CHECK always-on-top=pass
+OVERLAY_CHECK undecorated=pass
+OVERLAY_CHECK overlay-not-key=FAIL
+OVERLAY_CHECK main-window-keeps-focus=pass
+OVERLAY_CHECK rendered-within-150ms=FAIL
+OVERLAY_CHECK cursor-inside-wheel-rect=pass
+OVERLAY_CHECK monitor-index-in-range=pass
+OVERLAY_CHECK pointer-warps=pass
+OVERLAY_CHECK window-region-is-ellipse=pass
+OVERLAY_CHECK corner-belongs-to-another-window=pass
