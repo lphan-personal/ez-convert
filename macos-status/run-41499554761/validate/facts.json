@@ -1,0 +1,9 @@
+{
+  "run_id": 41499554761,
+  "source_run": "41494303742",
+  "sha": "b441ee3643963cf32f24fead4321a63e36fe7d61",
+  "run_url": "https://github.com/lphan-personal/ez-convert/actions/runs/41499554761",
+  "intel_label": "macos-15-intel",
+  "results": {"arm64": "success", "intel": "success"},
+  "published_at": "2026-11-02T18:23:41Z"
+}
