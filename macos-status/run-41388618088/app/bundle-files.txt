@@ -1,0 +1,4 @@
+./Contents/_CodeSignature/CodeResources
+./Contents/Info.plist
+./Contents/MacOS/ez-convert
+./Contents/Resources/icon.icns
