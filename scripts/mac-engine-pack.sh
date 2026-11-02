@@ -150,6 +150,18 @@ step "2/8 strip the content the licence decision removed (t_20fae747)"
 python3 "$REPO_ROOT/scripts/strip-engine-pack.py" --pack "$PACK/engines/soffice" \
   --manifest "$WORK/downloads/strip-manifest.tsv"
 note "$(wc -l < "$WORK/downloads/strip-manifest.tsv" | tr -d ' ') paths removed"
+# The gate's per-group rows are written against the Windows/Linux pack paths
+# (`share/fonts/truetype/DavidCLM-*`), while the macOS pack nests LibreOffice
+# under `engines/soffice/`, so the failure-closed "not-shipped" check cannot see
+# a survivor here. Assert the removal directly instead: a strip that silently
+# did nothing must not pass as a licence decision.
+for gone in "$PACK/engines/soffice/share/gallery" "$PACK/engines/soffice/help"; do
+  [ ! -e "$gone" ] || { echo "strip incomplete: $gone still in the pack" >&2; exit 1; }
+done
+survivor="$(find "$PACK/engines/soffice" \( -name 'DavidCLM-*' -o -name 'FrankRuehlCLM-*' \
+  -o -name 'MiriamCLM-*' -o -name 'MiriamMonoCLM-*' -o -name 'NachlieliCLM-*' \) -print -quit)"
+[ -z "$survivor" ] || { echo "strip incomplete: GPL-2.0 Culmus font still shipped: $survivor" >&2; exit 1; }
+note "strip verified: gallery, help and the five Culmus families are gone"
 
 # -------------------------------------------------------------------- 3. vips
 step "3/8 libvips ($ARCH) — Homebrew bottle, relocated to the pack"
@@ -220,15 +232,31 @@ rewrite() { # <mach-o> [rpaths...]
     install_name_tool -add_rpath "$rpath" "$file" 2>/dev/null || true
   done
 }
-for lib in "$VIPS_OUT"/lib/*.dylib; do rewrite "$lib" "@loader_path"; done
-rewrite "$VIPS_OUT/vips" "@executable_path/lib"
-rewrite "$VIPS_OUT/vipsheader" "@executable_path/lib"
-find "$VIPS_OUT" -name '*.so' -type f | while IFS= read -r module; do
-  rewrite "$module" "@loader_path/../lib" "@loader_path"
-done
 
-leftover="$(find "$VIPS_OUT" -type f \( -name '*.dylib' -o -name 'vips' -o -name 'vipsheader' -o -name '*.so' \) -print0 \
-  | xargs -0 otool -L 2>/dev/null | grep -E '/opt/homebrew|/usr/local/' | head -5 || true)"
+# Every Mach-O in the pack, found by content rather than by extension. The vips
+# *modules* are what the extension-based list missed in run 41376620641: they
+# are not all `.so` on macOS, so libvips/glib/libheif stayed absolute in them and
+# the leftover check refused the pack (correctly).
+macho_list() {
+  find "$VIPS_OUT" -type f -print0 | xargs -0 file 2>/dev/null | grep -E 'Mach-O' \
+    | sed -E 's/ \(for architecture [^)]*\)$//' | cut -d: -f1 | sort -u
+}
+macho_list > "$WORK/vips-macho.txt"
+while IFS= read -r macho; do
+  rewrite "$macho" "@loader_path" "@loader_path/../lib" "@executable_path/lib"
+done < "$WORK/vips-macho.txt"
+note "$(wc -l < "$WORK/vips-macho.txt" | tr -d ' ') Mach-O objects re-pointed at @rpath"
+
+# Post-condition, per file, naming the offender: the failure mode is a pack that
+# only runs on the build machine.
+leftover=""
+while IFS= read -r macho; do
+  while IFS= read -r dep; do
+    case "$dep" in
+      /opt/homebrew/*|/usr/local/*) leftover="${leftover}${macho}: ${dep}"$'\n' ;;
+    esac
+  done < <(deps_of "$macho")
+done < "$WORK/vips-macho.txt"
 if [ -n "$leftover" ]; then
   echo "relocation incomplete — absolute build paths still linked:" >&2
   printf '%s\n' "$leftover" >&2
