@@ -1,0 +1,13 @@
+4798 /Applications/EZ Convert.app/Contents/MacOS/ez-convert
+lsappinfo:
+34) "EZ Convert" ASN:0x0-0x2d02d: (in front) 
+    bundle path="/Applications/EZ Convert.app"
+    executable path="/Applications/EZ Convert.app/Contents/MacOS/ez-convert"
+35) "EZ Convert Networking" ASN:0x0-0x2e02e: 
+36) "EZ Convert Web Content" ASN:0x0-0x2f02f: 
+    parentASN="EZ Convert Networking" ASN:0x0-0x2e02e: 
+1
+/Users/runner/work/ez-convert/ez-convert/gui.png
+  pixelWidth: 1024
+  pixelHeight: 768
+screenshot: captured gui.png (313047 B)
