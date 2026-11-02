@@ -106,6 +106,12 @@ classify() {
 check_inventory() {
   local n=0 fails=0 warns=0 line kind comp ver path lic url sha status notes verdict
   while IFS=$'\t' read -r kind comp ver path lic url sha status notes; do
+    # A Windows checkout is CRLF unless .gitattributes says otherwise (it does,
+    # for *.tsv): a blank line then arrives as a lone "\r" and every field ends
+    # with one, which turns "blank" into "unknown kind" and breaks digest
+    # comparisons. Strip it here too, so the gate is correct for the *caller's*
+    # inventory as well — the same class of bug the Windows engine-pack job hit.
+    kind="${kind%$'\r'}"; lic="${lic%$'\r'}"; status="${status%$'\r'}"
     case "$kind" in ''|'#'*) continue ;; esac
     n=$((n + 1))
     if [ "$kind" != "app" ] && [ "$kind" != "binary" ] && [ "$kind" != "font" ] \
@@ -150,15 +156,64 @@ row_pattern() { # the glob in column 4 (strip "win64: "/"linux64: " style prefix
 }
 
 M_KIND=""; M_COMP=""; M_VER=""; M_PAT=""; M_LIC=""; M_URL=""; M_SHA=""; M_STATUS=""; M_NOTES=""
-match_row() { # <relpath> -> sets M_* globals for the best (longest-pattern) matching row
-  local rel="$1" base pat matched=-1 kind comp ver path lic url sha status notes
-  base="${rel##*/}"
-  M_KIND=""
+# The inventory is parsed ONCE per process and matched in memory.
+#
+# Why: the previous shape ran `while read` over the file inside match_row, so an
+# 8,300-file LibreOffice tree re-read 119 rows 8,300 times (≈1M `read`s) — measured
+# 2m06s for one tree on Linux and several times that on an MSYS2 runner, which is
+# most of the wall clock of the Windows engine-pack job. Same rules, same
+# longest-pattern ranking, no per-file disk I/O.
+INV_N=0
+INV_SOURCE=""
+INV_KIND=(); INV_COMP=(); INV_VER=(); INV_PAT=()
+INV_LIC=(); INV_URL=(); INV_SHA=(); INV_STATUS=(); INV_NOTES=()
+INV_LIT=(); INV_SLASH=()
+load_inventory() {
+  [ "$INV_SOURCE" = "$INVENTORY" ] && return 0
+  INV_KIND=(); INV_COMP=(); INV_VER=(); INV_PAT=()
+  INV_LIC=(); INV_URL=(); INV_SHA=(); INV_STATUS=(); INV_NOTES=()
+  INV_LIT=(); INV_SLASH=()
+  local kind comp ver path lic url sha status notes lit
   while IFS=$'\t' read -r kind comp ver path lic url sha status notes; do
+    # CRLF tolerance, as in check_inventory: `path` and `sha` decide attribution
+    # and digest equality, so a trailing "\r" on them fails a correct file.
+    kind="${kind%$'\r'}"; path="${path%$'\r'}"; lic="${lic%$'\r'}"
+    sha="${sha%$'\r'}"; status="${status%$'\r'}"
     case "$kind" in ''|'#'*) continue ;; esac
     row_pattern "$path"
-    pat="$RP_PAT"
-    local hit=0
+    INV_KIND+=("$kind"); INV_COMP+=("$comp"); INV_VER+=("$ver"); INV_PAT+=("$RP_PAT")
+    INV_LIC+=("$lic"); INV_URL+=("$url"); INV_SHA+=("$sha")
+    INV_STATUS+=("$status"); INV_NOTES+=("$notes")
+    # Index for the cheap necessary-condition filter in match_row: the literal
+    # text before the pattern's first glob, and whether the pattern is
+    # path-qualified. A file whose path (or basename, for a bare-basename row)
+    # does not start with that literal cannot match this row at all, so the
+    # expensive glob evaluations are never run for it.
+    lit="${RP_PAT%%\**}"
+    INV_LIT+=("$lit")
+    case "$RP_PAT" in */*) INV_SLASH+=(1) ;; *) INV_SLASH+=(0) ;; esac
+  done < "$INVENTORY"
+  INV_N="${#INV_PAT[@]}"
+  INV_SOURCE="$INVENTORY"
+}
+
+match_row() { # <relpath> -> sets M_* globals for the best (longest-pattern) matching row
+  local rel="$1" base pat matched=-1 i=0 hit pfx tll
+  base="${rel##*/}"
+  M_KIND=""
+  load_inventory
+  for ((i = 0; i < INV_N; i++)); do
+    pat="${INV_PAT[i]}"
+    # Cheap necessary condition first: a path-qualified row can only match a file
+    # whose relative path starts with the row's literal prefix, and a bare-basename
+    # row only a file whose basename does. This removes ~95 % of the glob work
+    # without changing any verdict (it is a filter, not a rule).
+    if [ "${INV_SLASH[i]}" = "1" ]; then
+      case "$rel" in "${INV_LIT[i]}"*) : ;; *) continue ;; esac
+    else
+      case "$base" in "${INV_LIT[i]}"*) : ;; *) continue ;; esac
+    fi
+    hit=0
     case "$pat" in
       */\*\*) case "$rel" in "${pat%/**}/"*) hit=1 ;; esac ;;
       */\*)   case "$rel" in "${pat%/*}/"*) hit=1 ;; esac ;;
@@ -172,7 +227,7 @@ match_row() { # <relpath> -> sets M_* globals for the best (longest-pattern) mat
     case "$pat" in
       */*\**)
         if [ "$hit" -eq 0 ]; then
-          local pfx="${pat%/*}" tll="${pat##*/}"
+          pfx="${pat%/*}"; tll="${pat##*/}"
           case "$rel" in
             "${pfx}/"*) case "$base" in ${tll}) hit=1 ;; esac ;;
           esac
@@ -191,15 +246,22 @@ match_row() { # <relpath> -> sets M_* globals for the best (longest-pattern) mat
     fi
     if [ "$hit" -eq 1 ] && [ "${#pat}" -gt "$matched" ]; then
       matched="${#pat}"
-      M_KIND="$kind"; M_COMP="$comp"; M_VER="$ver"; M_PAT="$pat"
-      M_LIC="$lic"; M_URL="$url"; M_SHA="$sha"; M_STATUS="$status"; M_NOTES="$notes"
+      M_KIND="${INV_KIND[i]}"; M_COMP="${INV_COMP[i]}"; M_VER="${INV_VER[i]}"; M_PAT="$pat"
+      M_LIC="${INV_LIC[i]}"; M_URL="${INV_URL[i]}"; M_SHA="${INV_SHA[i]}"
+      M_STATUS="${INV_STATUS[i]}"; M_NOTES="${INV_NOTES[i]}"
     fi
-  done < "$INVENTORY"
+  done
   [ "$matched" -ge 0 ]
 }
 
 scan_tree() {
-  local root="$1" fails=0 files=0 rel verdict
+  local root="$1" fails=0 files=0 rel verdict key
+  # One-entry memo for the classifier: `classify` forks (grep/sed) several times
+  # per call, and `find` hands back files grouped by directory, so consecutive
+  # files almost always share the row they matched. Without this the LibreOffice
+  # tree paid ~7 process spawns per file — 1m20s for 8,327 files on Linux and far
+  # worse on MSYS2, where every fork is a Windows process creation.
+  local memo_key="__none__" memo_verdict=""
   [ -d "$root" ] || { log "usage: --scan <dir>"; exit 2; }
   while IFS= read -r -d '' f; do
     rel="${f#"${root%/}"/}"
@@ -213,7 +275,13 @@ scan_tree() {
         log "FAIL $rel :: inventory row '${M_COMP}' is marked ${M_STATUS}, but the file is in the shipped tree — a strip/drop decision is only real once the file is gone"
         fails=$((fails + 1)); continue ;;
     esac
-    classify "$M_KIND" "$M_LIC" "$M_STATUS"
+    key="$M_KIND|$M_LIC|$M_STATUS"
+    if [ "$key" = "$memo_key" ]; then
+      C_VERDICT="$memo_verdict"
+    else
+      classify "$M_KIND" "$M_LIC" "$M_STATUS"
+      memo_key="$key"; memo_verdict="$C_VERDICT"
+    fi
     case "$C_VERDICT" in
       OK) ;;
       WARN*) log "WARN $rel :: ${C_VERDICT#WARN }" ;;
@@ -403,6 +471,13 @@ EOF
   # 10: the REAL inventory must pass classification
   bash "${BASH_SOURCE[0]}" --check-inventory >/dev/null 2>&1
   expect_pass "real shipped-inventory.tsv" $?
+
+  # 11: the same inventory with CRLF endings must classify identically. This is
+  #    the Windows checkout shape (blank lines arrive as a lone "\r"); the gate
+  #    failed 3 rows on it in the windows-engine-pack job before the fix.
+  sed 's/$/\r/' "$INVENTORY" > "$tmp/inv-crlf.tsv"
+  INVENTORY="$tmp/inv-crlf.tsv" bash "${BASH_SOURCE[0]}" --check-inventory >/dev/null 2>&1
+  expect_pass "CRLF inventory (Windows checkout)" $?
 
   log "selftest: $([ "$status" -eq 0 ] && echo ALL PASS || echo FAILURES PRESENT)"
   return "$status"

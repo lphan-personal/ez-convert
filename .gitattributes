@@ -26,6 +26,7 @@
 *.css    text eol=lf
 *.txt    text eol=lf
 *.csv    text eol=lf
+*.tsv    text eol=lf
 *.ps1    text eol=lf
 *.cfb    text eol=lf
 

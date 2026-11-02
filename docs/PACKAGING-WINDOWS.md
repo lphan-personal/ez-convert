@@ -100,6 +100,78 @@ What it does, in order:
 `stage-engines.sh --pdfium <exe>` exists so the binary can be added the day that sidecar
 lands, and the gate rejects it until the sha256 row is in the inventory.
 
+## The engine pack (built without a network-connected Windows host)
+
+The Windows *test* host (`win11-dev`) has no outbound network — no TCP to
+`1.1.1.1`/`8.8.8.8`/github, no DNS via any server — so it cannot fetch the engine
+sources, and the installer it can produce carries the app shell only. The engines
+are therefore built on a GitHub-hosted Windows runner by
+`.github/workflows/windows-engine-pack.yml`, which runs
+`scripts/win-engine-pack.sh` and publishes `windows-engine-pack-x86_64.zip`.
+
+The zip is the same layout `EnginePaths::from_root` resolves (`src-tauri/src/engine/proc.rs`),
+i.e. exactly what `adopt_pack()` accepts, and what `stage-engines.sh` consumes:
+
+```
+engines/vips/{vips.exe, vipsheader.exe, vipsthumbnail.exe, *.dll, licenses/}
+engines/ffmpeg/{ffmpeg.exe, ffprobe.exe}
+engines/soffice/program/soffice.com + share/ readmes/ presets/ LICENSE* NOTICE …
+licenses/        notices + build record (configure output, MSI digest, strip manifest, gate output)
+MANIFEST.sha256  every shipped file, hashed
+README.txt       what the pack is and how to install it
+```
+
+| input | pinned by |
+|---|---|
+| libvips 8.18.7 "spec-aom" dist (43 files, the S2 build) | tarball sha256 in the script; every per-file digest in `docs/shipped-inventory.tsv` |
+| BtbN FFmpeg-Builds LGPL, dated tag `autobuild-2026-11-01-12-49` | zip + `ffmpeg.exe` + `ffprobe.exe` digests (the two exe digests are the inventory rows) |
+| LibreOffice 26.8.2 Win x86-64 MSI (TDF) | MSI sha256, measured by S3 |
+
+The pack is the **installed** LibreOffice program directory, not an `msiexec /a`
+extraction: the administrative install lays out 19,418 files / 1.60 GB — including
+`Fonts/` (the copy the installer drops into `C:\Windows\Fonts`, which carries the
+GPL-2.0 Culmus families the licence decision strips) and `System{,64}/` — while the
+installed tree is 13,836 files / 734 MB and is the tree the licence gate was made
+green against (`evidence/p2-windows-installer.md` §2).
+
+Gates, all fail-closed, all in the job log:
+
+1. **Pinned inputs** — every download is digest-checked before it is unpacked.
+2. **Engines run from the pack** — `vips.exe --version` from the relocated tree,
+   `vips-config.txt` shows `image quantisation … false` and `… with libheif: true`,
+   `ffmpeg -buildconf` has no `--enable-gpl`/`--enable-nonfree`,
+   `soffice.com --version` reports 26.8.2.
+3. **Strip** — `gallery`, `help` and the five Culmus families are asserted gone
+   independently of the script that removed them.
+4. **Dependency closure** — the Windows counterpart of the macOS `otool` gate: every
+   imported DLL in every shipped PE object must resolve to a file in the pack or to a
+   Windows system DLL, and a separate banned-import audit refuses
+   imagequant/poppler/magick/x265/x264/jbig.
+5. **Licence gate** — `scripts/dist-license-gate.sh --check-inventory` plus `--scan`
+   over each engine tree, from its own root, against `docs/shipped-inventory.tsv`.
+6. **Smoke, judged by the product** — `png → jpg` (dimensions compared with the
+   source), `heic → jpg` (libheif decode), `wav → mp3` (ffprobe says `mp3`),
+   `mp4 → webm` (ffprobe says `vp9`, the app's own route: `libvpx-vp9` + `libopus`),
+   `docx → pdf` (header, `%%EOF`, page object) and `docx → txt` carrying
+   `MARKER-ALPHA` and `café` from the fixture. LibreOffice's exit code is never
+   consulted — its *output* is.
+
+To reproduce on any Windows machine with MSYS2:
+
+```bash
+bash scripts/win-engine-pack.sh --out dist          # ~10 min: 535 MB of downloads
+```
+
+To feed the pack into the installer instead of a bare installer build:
+
+```bash
+scripts/stage-engines.sh \
+  --vips   <pack>/engines/vips \
+  --ffmpeg <pack>/engines/ffmpeg \
+  --lo-pack <pack>/engines/soffice \
+  --out src-tauri
+```
+
 ## Verifying that Tauri signs the sidecars
 
 `bundle.windows.signCommand` (schema 2.12.5) is the hook: Tauri runs the command for each
