@@ -1,0 +1,4 @@
+VALIDATION arm64 install=pass launch=pass engine-discovery=pass conversion=pass (4/4)
+VALIDATION rosetta-x86_64 launch=pass conversion=pass
+VALIDATION overlay installed-binary=true (scripts/overlay-probe.sh, /Applications/EZ Convert.app)
+VALIDATION gui-window screenshot=captured

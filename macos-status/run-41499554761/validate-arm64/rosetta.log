@@ -1,0 +1,5 @@
+hw.optional.arm64=1
+proc_translated(shell)=0
+rosetta: already installed
+x86_64
+proc_translated(child)=1
