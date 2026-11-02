@@ -1,0 +1,23 @@
+host       sjc20-cw757-4a0713f9-c0cd-48ed-b9a9-7c85a157e108-6A8BCDD23377.local
+uname -m   x86_64
+sw_vers    15.7.9 (24G830)
+rosetta    not translated / no sysctl
+volume EZ-Convert-0.0.1-macos-universal.dmg:
+total 1856
+drwxr-xr-x@ 5 runner  staff     238 Nov  2 04:32 .
+drwxr-xr-x  6 runner  staff     192 Nov  2 05:05 ..
+-rw-r--r--@ 1 runner  staff  944161 Nov  2 04:32 .VolumeIcon.icns
+lrwxr-xr-x  1 runner  staff      13 Nov  2 04:32 Applications -> /Applications
+drwxr-xr-x  3 runner  staff     102 Nov  2 04:32 EZ Convert.app
+installed app bundle:
+total 8
+drwxr-xr-x  3 runner  staff    96 Nov  2 04:32 _CodeSignature
+drwxr-xr-x  6 runner  staff   192 Nov  2 04:32 .
+drwxr-xr-x  3 runner  staff    96 Nov  2 04:32 ..
+-rw-r--r--  1 runner  staff  1058 Nov  2 04:32 Info.plist
+drwxr-xr-x  3 runner  staff    96 Nov  2 04:32 MacOS
+drwxr-xr-x  3 runner  staff    96 Nov  2 04:32 Resources
+lipo: x86_64 arm64
+codesign --verify --strict: OK
+installed size:  12M
+Contents/Resources carries no engine payload: OK
