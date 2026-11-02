@@ -1,0 +1,262 @@
+name: macos-dmg
+
+# macOS packaging (P3): a universal app DMG and the separate engine pack, both
+# built on the GitHub-hosted macOS runner, then installed and exercised on it.
+#
+# Why a separate workflow: the Windows install path is P2's, and this job needs
+# a macOS runner plus a much longer budget than the 3-OS build matrix. The two
+# never share a checkout step.
+#
+# Results are published to the `macos-status` branch (Contents scope is enough,
+# the Actions API is not available to packaging agents): one directory per run
+# with the logs and a facts.json.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/macos-dmg.yml"
+      - "src-tauri/**"
+      - "scripts/mac-engine-pack.sh"
+      - "packaging/macos/**"
+      - "ui/**"
+      - "fixtures/**"
+  workflow_dispatch:
+
+concurrency:
+  group: macos-dmg-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  EZC_VERSION: "0.0.1"
+
+jobs:
+  # ------------------------------------------------------------- app DMG
+  app:
+    name: app (universal DMG)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Icon for macOS (icns from the committed PNGs)
+        run: |
+          set -euo pipefail
+          src=src-tauri/icons/icon.png
+          [ -f "$src" ] || src=src-tauri/icons/icon-256.png
+          rm -rf /tmp/icon.iconset && mkdir -p /tmp/icon.iconset
+          for spec in "16 16x16" "32 16x16@2x" "32 32x32" "64 32x32@2x" "128 128x128" "256 128x128@2x" "256 256x256" "512 256x256@2x" "512 512x512" "1024 512x512@2x"; do
+            size=${spec%% *}; name=${spec##* }
+            sips -z "$size" "$size" "$src" --out "/tmp/icon.iconset/icon_${name}.png" >/dev/null
+          done
+          iconutil -c icns /tmp/icon.iconset -o src-tauri/icons/icon.icns
+          file src-tauri/icons/icon.icns
+
+      - name: Tauri CLI
+        run: |
+          set -euo pipefail
+          npm install -g @tauri-apps/cli@^2 >/dev/null
+          tauri --version
+
+      - name: Rust toolchain (both macOS targets)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # `tauri.macos.conf.json` turns bundling on and keeps the platform details
+      # (dmg layout, minimum macOS, ad-hoc identity) out of the shared config
+      # that the Windows installer card owns.
+      - name: tauri build (universal)
+        run: |
+          set -o pipefail
+          tauri build --target universal-apple-darwin \
+            --config src-tauri/tauri.macos.conf.json 2>&1 | tee tauri-build.log
+
+      - name: Sign inside-out (ad-hoc for v1)
+        run: bash packaging/macos/sign-app.sh "${{ github.workspace }}/src-tauri/target/universal-apple-darwin/release/bundle/macos/EZ Convert.app"
+
+      - name: Verify the bundle and both architectures
+        run: |
+          set -euo pipefail
+          app="src-tauri/target/universal-apple-darwin/release/bundle/macos/EZ Convert.app"
+          codesign --verify --deep --strict --verbose=2 "$app" 2>&1 | tee -a sign.log || true
+          codesign --verify --strict "$app"
+          lipo -archs "$app/Contents/MacOS/ez-convert" | tee -a sign.log
+          lipo -archs "$app/Contents/MacOS/ez-convert" | grep -q arm64
+          lipo -archs "$app/Contents/MacOS/ez-convert" | grep -q x86_64
+          echo "bundle: OK $(du -sh "$app" | cut -f1)"
+
+      - name: Package and rename the DMG
+        run: |
+          set -euo pipefail
+          src=$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -name '*.dmg' | head -1)
+          [ -n "$src" ] || { echo "::error::tauri produced no DMG"; exit 1; }
+          mkdir -p dist
+          cp "$src" "dist/EZ-Convert-${EZC_VERSION}-macos-universal.dmg"
+          codesign --force --sign - "dist/EZ-Convert-${EZC_VERSION}-macos-universal.dmg"
+          shasum -a 256 "dist/EZ-Convert-${EZC_VERSION}-macos-universal.dmg" | tee dist/app-dmg.sha256
+          ls -lh dist
+
+      - name: Upload the app DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-app-dmg
+          path: dist/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Evidence
+        if: always()
+        run: bash packaging/macos/publish-evidence.sh app "${{ job.status }}" tauri-build.log sign.log
+
+  # --------------------------------------------------------- engine pack
+  pack:
+    name: pack (engine pack DMG)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Build dependencies for the LGPL ffmpeg (no GPL library is installed):
+      # libvpx BSD, libaom BSD, opus BSD, libvorbis BSD, lame LGPL-2.1.
+      - name: Install engine dependencies
+        run: |
+          set -euo pipefail
+          brew install libvpx libaom opus libvorbis lame vips 2>&1 | tail -5
+
+      - name: Build, strip, sign and package the engine pack
+        run: |
+          set -o pipefail
+          EZC_WORK="$RUNNER_TEMP/ezc-pack" bash scripts/mac-engine-pack.sh --out dist 2>&1 | tee pack.log
+
+      - name: Upload the engine pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-engine-pack
+          path: dist/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Evidence
+        if: always()
+        run: bash packaging/macos/publish-evidence.sh pack "${{ job.status }}" pack.log
+
+  # ------------------------------------------------- install + convert test
+  install-test:
+    name: install-test (DMG install + real conversions)
+    needs: [app, pack]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download both DMGs
+        uses: actions/download-artifact@v4
+        with:
+          path: in
+
+      - name: Install the app from its DMG
+        run: |
+          set -euo pipefail
+          appdmg=$(find in -name 'EZ-Convert-*-macos-universal.dmg' | head -1)
+          [ -n "$appdmg" ] || { echo "::error::no app DMG artifact"; exit 1; }
+          mnt="$RUNNER_TEMP/app-mnt"; mkdir -p "$mnt"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$appdmg" >/dev/null
+          ls -la "$mnt" | tee install.log
+          # Install the way a user does: drag the app to /Applications.
+          sudo rm -rf "/Applications/EZ Convert.app"
+          sudo ditto "$mnt/EZ Convert.app" "/Applications/EZ Convert.app"
+          hdiutil detach "$mnt" >/dev/null
+          /usr/sbin/pkgutil --pkgs >/dev/null 2>&1 || true
+          ls -la "/Applications/EZ Convert.app/Contents"
+          lipo -archs "/Applications/EZ Convert.app/Contents/MacOS/ez-convert" | tee -a install.log
+          codesign --verify --strict "/Applications/EZ Convert.app" | tee -a install.log
+          # App Translocation is the classic "works in target/, dies from /Applications" bug;
+          # running it from /Applications is the point of this job.
+          echo "installed: $(du -sh "/Applications/EZ Convert.app" | cut -f1)" | tee -a install.log
+
+      - name: Install the engine pack from its DMG
+        run: |
+          set -euo pipefail
+          packdmg=$(find in -name 'EZ-Convert-Engine-Pack-*.dmg' | head -1)
+          [ -n "$packdmg" ] || { echo "::error::no engine-pack DMG artifact"; exit 1; }
+          mnt="$RUNNER_TEMP/pack-mnt"; mkdir -p "$mnt"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$packdmg" >/dev/null
+          bash "$mnt/Install Engine Pack.command" 2>&1 | tee install-pack.log
+          hdiutil detach "$mnt" >/dev/null
+          ls -la "$HOME/Library/Application Support/app.ezconvert.desktop/engines" | tee -a install-pack.log
+
+      - name: The installed app must find the engines and convert
+        run: |
+          set -o pipefail
+          set +e
+          "/Applications/EZ Convert.app/Contents/MacOS/ez-convert" --diagnostics \
+            --fixtures "${{ github.workspace }}/fixtures" --work "$RUNNER_TEMP/diag" 2>&1 | tee diag.log
+          code=${PIPESTATUS[0]}
+          set -e
+          grep -q 'SUMMARY' diag.log || { echo "::error::the diagnostics run produced no summary"; exit 1; }
+          grep -E '^engine ' diag.log | grep -q MISSING && { echo "::error::a required engine was not found"; exit 1; }
+          if [ "$code" -ne 0 ]; then
+            grep -E '^FAMILY .* FAIL' diag.log || true
+            echo "::error::the installed app failed a conversion family"
+            exit 1
+          fi
+          echo "installed app: 4/4 families converted"
+
+      - name: Evidence
+        if: always()
+        run: bash packaging/macos/publish-evidence.sh install-test "${{ job.status }}" install.log install-pack.log diag.log
+
+  # ------------------------------------------------------------- evidence
+  evidence:
+    name: evidence (publish to macos-status)
+    needs: [app, pack, install-test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compose run facts
+        env:
+          APP: ${{ needs.app.result }}
+          PACK: ${{ needs.pack.result }}
+          INSTALL: ${{ needs.install-test.result }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/facts
+          cat > /tmp/facts/facts.json <<JSON
+          {
+            "run_id": ${GITHUB_RUN_ID},
+            "sha": "${GITHUB_SHA}",
+            "run_url": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}",
+            "results": {"app_dmg": "${APP}", "engine_pack": "${PACK}", "install_test": "${INSTALL}"},
+            "published_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          JSON
+          cat /tmp/facts/facts.json
+
+      - name: Push the facts to macos-status
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch -q origin macos-status:refs/remotes/origin/macos-status 2>/dev/null || true
+          if git checkout -q -B macos-status origin/macos-status 2>/dev/null; then :; else git checkout -q -B macos-status; fi
+          mkdir -p "macos-status/run-${GITHUB_RUN_ID}"
+          cp /tmp/facts/facts.json "macos-status/run-${GITHUB_RUN_ID}/"
+          cp /tmp/facts/facts.json macos-status/latest.json
+          git add -f macos-status
+          git commit -q -m "macos-status: run ${GITHUB_RUN_ID} app=${APP} pack=${PACK} install=${INSTALL}" || echo "nothing to commit"
+          git push origin macos-status || { git pull --rebase -q origin macos-status && git push origin macos-status; }

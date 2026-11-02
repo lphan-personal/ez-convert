@@ -170,6 +170,9 @@ impl EnginePaths {
         if let Some(dir) = absolute_env_dir("EZC_SOFFICE_DIR") {
             paths.set_soffice_dir(&dir);
         }
+        if let Some(pack) = Self::pack_root_from_env() {
+            paths.adopt_pack(&pack);
+        }
         paths
     }
 
@@ -180,6 +183,43 @@ impl EnginePaths {
     pub fn set_soffice_dir(&mut self, dir: &Path) {
         self.soffice = dir.join(if cfg!(windows) { "soffice.com" } else { "soffice" });
         self.soffice_dir = dir.to_path_buf();
+    }
+
+    /// Adopt a separate engine pack — the macOS layout (docs/MACOS-PACKAGING.md).
+    ///
+    /// A pack root is the same shape as a bundle's resource dir: it holds
+    /// `engines/{vips,ffmpeg,soffice/program}`. Every engine the app bundle did
+    /// not provide is taken from the pack; an engine the bundle *did* provide is
+    /// never overridden. `pack_root` is the directory that contains `engines/`
+    /// (on macOS that is `~/Library/Application Support/app.ezconvert.desktop`),
+    /// and a path that already ends in `engines` is accepted too.
+    pub fn adopt_pack(&mut self, pack_root: &Path) {
+        let root = if pack_root.join("engines").is_dir() {
+            pack_root.to_path_buf()
+        } else {
+            pack_root.parent().map(Path::to_path_buf).unwrap_or_default()
+        };
+        let pack = Self::from_root(&root);
+        if !self.vips.is_file() && pack.vips.is_file() {
+            self.vips = pack.vips;
+            self.vipsheader = pack.vipsheader;
+            self.vips_dir = pack.vips_dir;
+        }
+        if !self.ffmpeg.is_file() && pack.ffmpeg.is_file() {
+            self.ffmpeg = pack.ffmpeg;
+            self.ffprobe = pack.ffprobe;
+            self.ffmpeg_dir = pack.ffmpeg_dir;
+        }
+        if !self.soffice.is_file() && pack.soffice.is_file() {
+            self.set_soffice_dir(&pack.soffice_dir);
+        }
+    }
+
+    /// `EZC_ENGINE_PACK`: an absolute directory holding an engine pack, for a
+    /// test that must not touch the user's application data. Only absolute
+    /// paths are honoured, like every other override in this module.
+    pub fn pack_root_from_env() -> Option<PathBuf> {
+        absolute_env_dir("EZC_ENGINE_PACK")
     }
 
     pub fn program(&self, program: Program) -> (&Path, &Path) {

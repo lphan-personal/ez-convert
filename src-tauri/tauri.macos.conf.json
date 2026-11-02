@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "icon": ["icons/icon.icns"],
+    "category": "Utility",
+    "shortDescription": "Offline file conversion",
+    "longDescription": "EZ Convert converts images, audio, video and documents locally. No network calls, no telemetry.",
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "hardenedRuntime": false,
+      "signingIdentity": "-",
+      "dmg": {
+        "windowSize": { "width": 660, "height": 400 },
+        "appPosition": { "x": 180, "y": 170 },
+        "applicationFolderPosition": { "x": 480, "y": 170 }
+      }
+    }
+  }
+}

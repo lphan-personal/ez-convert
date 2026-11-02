@@ -9,6 +9,7 @@
 //! `model/` and `job/` must stay Tauri-free (§2.1); a test below greps for it so
 //! the boundary is enforced mechanically, not by intention.
 
+pub mod diag;
 pub mod engine;
 pub mod job;
 pub mod model;
@@ -47,8 +48,15 @@ pub fn run() {
                 .path()
                 .app_cache_dir()
                 .unwrap_or_else(|_| std::env::temp_dir());
+            // macOS keeps every engine in the separate engine pack
+            // (docs/MACOS-PACKAGING.md); `adopt_pack` fills in whatever the
+            // bundle itself did not provide and never overrides a bundled engine.
+            let pack = app.path().app_data_dir().ok();
             std::thread::spawn(move || {
-                let paths = engine::engines_in(&root);
+                let mut paths = engine::engines_in(&root);
+                if let Some(pack) = &pack {
+                    paths.adopt_pack(pack);
+                }
                 let outcome = engine::soffice::warm_up_at_startup(&paths, &cache);
                 eprintln!("document warm-up: {outcome}");
             });
