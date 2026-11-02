@@ -320,17 +320,28 @@ measured on the runner image (`ubuntu-26.04`, LibreOffice 26.2.6.3, apt vips 8.1
   and points `EZC_FFMPEG_DIR` at it. Nothing is bundled; the licence gate never sees it.
   `stdbuf -o0 -e0 tee` so a run that is cut off ends its log at the last row, not at a 4 KiB
   stdio boundary. Cap: 30 → **20 minutes** (measured job ≈ 3.5 min).
-- `e2e/q3/suite.rs` — every row is flushed, the document queue is printed before the first
-  spawn (so a stall names the directions still owed), and each row is appended to
-  `<report>/rows.tsv` as it happens: a cancelled run now uploads the table it reached.
+- `e2e/q3/suite.rs` — every row is flushed and the document queue is printed before the first
+  spawn, so a log cut off mid-run ends at the last row the suite printed and names the
+  directions still owed (build #97 ended on a section header and named nothing).
 
-### Measured after the fix (`ci/e2e-verify`, same runner image)
+### Measured after the fix
+
+On the same runner image (`ci/e2e-verify`, run 41456608207), and then on **main**:
 
 | leg | wall | rows |
 |---|---|---|
 | `--docs-only` | **74 s** | 42/42 documents PASS, `SUMMARY GREEN` |
 | full suite | **90 s** | `advertised=154 pass=143 fail=0 skip=11 controls=13/13 caught` |
 | `--media-only --inject=drop-output` | **27 s** | `SUMMARY RED`, exit 1 |
+
+Main: run **41458029863** (build #98, `4814052a`), job `e2e` 125319620756, 14:01:19Z →
+14:04:10Z (2 m 51 s, cap 20), conclusion **success**; artifact `q3-e2e-report` id 13148391100
+contains `report.tsv` (334 lines), `report.json`, `matrix.md` (335 rows) and `e2e.log`, with
+`image 37/26 pass/0 fail/11 skip`, `audio 49/49/0/0`, `video 20/20/0/0`,
+`document 42/42/0/0`, `advertised=154 pass=143 fail=0 skip=11 controls=13/13 caught`,
+`SUMMARY GREEN`. The four directions that used to die at exactly 120 s now read
+`csv->pdf` 1748 ms (20,559 B, 1 page), `csv->txt` 1341 ms, `csv->xlsx` 1356 ms,
+`doc->docx` 1355 ms, and the fault-injection step still exits 1 before the upload.
 
 The 11 SKIPs are engine availability on the apt dist, and each row says so: 6 `→ avif`
 (no AV1 encoder in apt vips) and 5 `heic → …` (no libheif decode plugin in apt vips). They are
