@@ -355,17 +355,34 @@ dev/CI only: the engine pack ships its plugins beside the sidecar and the OS loa
 #### 6.0.3 Timeouts, output caps, reaping
 
 - Wall-clock timeout per invocation, enforced by a monitor that kills the child and its
-  process group (Windows: job object; POSIX: kill the pid, then sweep orphans by job id).
-- Defaults: `vips` 600 s, `ezc-pdf` 120 s, `resvg` 60 s, `soffice` 240 s (S3 used 240 s per
-  run and its worst measured cold case was 1217 ms), `ffmpeg` no fixed cap but a stall
-  detector (no progress line for 120 s ⇒ kill). The vips cap is not a performance claim: a
-  Windows first run of a freshly unpacked pack has to survive an AV scan of the whole tree
-  (96.5 s once the scanner has seen it, **216.9 s on the genuine first touch** — the old
-  120 s cap killed that conversion on 2026-11-02, found by the v1.0.1 Windows acceptance
-  run). **All of these defaults are untested against large inputs** — they are safety
-  limits.
+  process group (Windows: job object; POSIX: `process_group(0)` at spawn, then
+  `kill(-pgid, SIGKILL)`). The POSIX half was documented but not implemented until
+  `t_0819575f`: killing only the direct child left `soffice`'s `oosplash`/`soffice.bin`
+  running with our pipes open, so the capture's `join()` never returned and the CI `e2e`
+  job sat silent for 29 minutes until its cap cancelled it.
+- Defaults: `vips` 600 s, `ezc-pdf` 120 s, `resvg` 60 s, `soffice` 120 s (`S3` used 240 s and
+  its worst measured cold case was 1217 ms; `proc.rs` is what enforces the number), `ffmpeg`
+  no fixed cap but a stall detector (no progress line for 120 s ⇒ kill). The vips cap is not
+  a performance claim: a Windows first run of a freshly unpacked pack has to survive an AV
+  scan of the whole tree (96.5 s once the scanner has seen it, **216.9 s on the genuine first
+  touch** — the old 120 s cap killed that conversion on 2026-11-02, found by the v1.0.1
+  Windows acceptance run). **All of these defaults are untested against large inputs** — they
+  are safety limits.
 - stdout/stderr are captured to bounded buffers (1 MiB each, head + tail kept) and written to
-  the job log. A pathological engine cannot exhaust the app's memory.
+  the job log. A pathological engine cannot exhaust the app's memory. The capture is also
+  bounded in *wall time*: once the engine is gone the readers get 2 s and whatever arrived is
+  kept, so a descendant that outlives the engine can cost the log tail but never the job.
+- **A document batch also ends when its work product is complete** (`proc::Settle`,
+  `Kill::Settled`). LibreOffice can finish an export and then stay alive in its own event
+  loop: measured on Ubuntu 26.04 with LibreOffice 26.2.6 (`t_0819575f`), `sample.csv` →
+  PDF was on disk in 0.5 s while `soffice.bin` kept running (`utime` growing, the `PipeIPC`
+  thread parked in `accept(2)`), and the same argv from a plain shell exited in 0.4 s.
+  Waiting for the process turned a correct conversion into a 120 s `engine killed
+  (Timeout)` failure on every document direction. So a batch is finished once every input has
+  a non-empty output in the outdir that has not changed for 1 s; the process is then killed
+  with its group, `Kill::Settled` is **not** fatal, and the normal output/attribute/verify
+  rules decide pass or fail — the outputs are the claim, not the exit. When the engine exits
+  on its own first (the shipping Windows/macOS dists), nothing changes.
 
 #### 6.0.4 "Exit 0 is not success" — the stderr rule engine
 

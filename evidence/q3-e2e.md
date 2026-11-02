@@ -263,6 +263,79 @@ Artifacts: `windows.txt` (full transcript), `windows-report.tsv`,
 `windows-report.json`, `windows-matrix.md` (the 154 rows),
 `windows-fault-injection.txt` (the injected run).
 
+## The CI leg — why `e2e` was cancelled on every build run (card `t_0819575f`)
+
+`build.yml`'s `e2e` job had been ending `cancelled` at its 30-minute cap on every recent push,
+on commits older than v1.0.1 as well, and the verdict publisher recorded `e2e: cancelled`.
+Measured from the artifact, not the job page: run **41443566030** (`13b9a43`), job
+125271468844, artifact `q3-e2e-report` id 13143680014, file `e2e.log` (27,263 B, 350 lines).
+The upload step runs `if: always()`, so a cancelled run does publish — it published this:
+
+| leg | rows | result |
+|---|---|---|
+| preflight | 6 | PASS |
+| image | 32 | 26 PASS / 6 SKIP (avif) |
+| audio | 49 | 49 PASS |
+| video | 20 | 8 PASS / **12 FAIL** — `Unknown encoder 'libopenh264'`, 137 ms each |
+| documents | 42 | **0 rows emitted** — the log ends at `soffice warm-up: bootstrapped=true` |
+
+`End-to-end suite` step: started 12:19:30Z, killed 12:49:20Z. Three separate defects, all
+measured on the runner image (`ubuntu-26.04`, LibreOffice 26.2.6.3, apt vips 8.18.0):
+
+1. **The document leg waited out the engine's 120 s cap on every direction.** The suite's own
+   `--docs-only` leg, run alone on the same image, produced no row for 900 s. With the engine's
+   kill path fixed (below) it spoke: `FAIL document csv->pdf 120024 ms soffice failed: engine
+   killed (Timeout)`, then the same for `csv->txt`, `csv->xlsx`, `doc->docx`. Arithmetic: 42
+   directions × 120 s = 84 minutes of floor, which is why raising the job cap could never have
+   produced a table.
+2. **The engine could not end a batch whose work was done.** `/proc` while stalled: the export
+   was already on disk (`out/sample.pdf`), `soffice.bin` alive (`utime` growing) with its
+   `PipeIPC` thread parked in `accept(2)` and its main thread in a futex loop — LibreOffice
+   finished the conversion and stayed alive in its own event loop. The same argv, same env,
+   same seeded profile, from a plain shell on the same runner exits in 0.34-0.84 s (four cases
+   measured, `ci/e2e-bisect-probe`). Waiting for the process was therefore a false failure;
+   two more engine defects turned it into a silent one — `proc::run` killed only the direct
+   child (`oosplash`) at the cap, and then joined its capture threads **without a bound**, and
+   `oosplash`'s child kept the pipes open. That is the 29-minute silence with no output.
+3. **CI never had an H.264 encoder.** The job installed the runner's `ffmpeg` (libx264 present,
+   `libopenh264` absent) while the shipped plan names `libopenh264` — every H.264 output
+   direction failed at `engine exited 8`, independent of the cap. The shipping Windows/macOS
+   packs convert all 20 video directions.
+
+### The fixes
+
+- `src-tauri/src/engine/proc.rs` — the child leads its own process group (`process_group(0)`)
+  and a timeout kills the **group** (`kill(-pgid, SIGKILL)`); the capture wait is bounded at
+  2 s with the partial capture kept; a new `Settle` rule ends a document batch once every input
+  has a non-empty output that has not changed for 1 s, and `Kill::Settled` is **not** fatal —
+  the outputs are then verified by the existing attribute/verify rules. Two new tests
+  (`a_settled_batch_ends_without_waiting_for_the_engine_to_exit`,
+  `a_timed_out_engine_returns_a_timeout_outcome`, plus the escaped-pipe capture test).
+  `docs/ARCHITECTURE.md` §6.0.3 states the rule; the POSIX group kill it already claimed is now
+  what the code does.
+- `.github/workflows/build.yml` — the `e2e` job fetches the **shipped** linux64 ffmpeg pin
+  (BtbN `ffmpeg-N-128273-g836436cfb9-linux64-lgpl`, archive `b4a4236c…`, `ffmpeg`
+  `cf745359…`, `ffprobe` `f9af0178…` — the `docs/SHIPPED-INVENTORY.md` §3 rows) into
+  `$RUNNER_TEMP`, re-hashes all three, asserts `--enable-libopenh264` and no `--enable-gpl`,
+  and points `EZC_FFMPEG_DIR` at it. Nothing is bundled; the licence gate never sees it.
+  `stdbuf -o0 -e0 tee` so a run that is cut off ends its log at the last row, not at a 4 KiB
+  stdio boundary. Cap: 30 → **20 minutes** (measured job ≈ 3.5 min).
+- `e2e/q3/suite.rs` — every row is flushed, the document queue is printed before the first
+  spawn (so a stall names the directions still owed), and each row is appended to
+  `<report>/rows.tsv` as it happens: a cancelled run now uploads the table it reached.
+
+### Measured after the fix (`ci/e2e-verify`, same runner image)
+
+| leg | wall | rows |
+|---|---|---|
+| `--docs-only` | **74 s** | 42/42 documents PASS, `SUMMARY GREEN` |
+| full suite | **90 s** | `advertised=154 pass=143 fail=0 skip=11 controls=13/13 caught` |
+| `--media-only --inject=drop-output` | **27 s** | `SUMMARY RED`, exit 1 |
+
+The 11 SKIPs are engine availability on the apt dist, and each row says so: 6 `→ avif`
+(no AV1 encoder in apt vips) and 5 `heic → …` (no libheif decode plugin in apt vips). They are
+`Proven` on the shipping dists; `--strict` turns any SKIP into a red run.
+
 ## How to run it
 
 ```bash

@@ -510,10 +510,12 @@ jobs:
   e2e:
     name: e2e (one run per advertised direction)
     runs-on: ubuntu-latest
-    # Free-tier minutes are the budget. Run 59's e2e leg sat in one step for
-    # 90+ minutes with no cap, and because `report` needs it, the whole run's
-    # verdict never reached ci-status. Every job here carries a cap now.
-    timeout-minutes: 30
+    # Measured on ubuntu-26.04 (`ci/e2e-verify`, card t_0819575f): engines 35 s,
+    # the shipped-ffmpeg pin 3 s, the suite 90 s, the fault-injection leg 27 s —
+    # ~3.5 minutes for the job. The cap is 20 minutes, i.e. enough for a
+    # congested runner and still short enough that a stall fails the job instead
+    # of burning the 30 minutes a cancelled `e2e` used to spend saying nothing.
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash
@@ -522,12 +524,42 @@ jobs:
 
       # Test-only engines: apt builds on the runner. The *shipped* dist is built
       # and licence-checked elsewhere (license-assert); nothing here is bundled.
+      # LibreOffice and vips come from apt. ffmpeg does not — see the next step.
       - name: Install engines
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libvips-tools ffmpeg libreoffice-core libreoffice-writer \
             libreoffice-calc libreoffice-impress fonts-dejavu-core
+
+      # The media directions must run against the encoder set the app ships, not
+      # apt's. Ubuntu's ffmpeg has libx264 but no libopenh264, while every H.264
+      # output direction in the plan names libopenh264 (the shipped pack is LGPL
+      # and disables x264/x265). On apt's ffmpeg all twelve H.264 directions fail
+      # with "Unknown encoder 'libopenh264'" — measured on run 41443566030, where
+      # that was 12 of the 20 video rows. This is the exact linux64 pin in
+      # docs/SHIPPED-INVENTORY.md §3; archive and both binaries are re-hashed.
+      # It stays in RUNNER_TEMP, outside the tree, so the licence gate never sees
+      # a downloaded binary.
+      - name: Fetch the shipped LGPL ffmpeg pin (test-only)
+        env:
+          ARCHIVE: ffmpeg-N-128273-g836436cfb9-linux64-lgpl.tar.xz
+          ARCHIVE_SHA256: b4a4236cdb2a52931a42a2b7d08c8af1f2946cae1879a785375f81cf23ce5e7a
+          FFMPEG_SHA256: cf745359b4e58b9a4e6f9821dccfe2109e64665631efd1738f8f0a7a5542eeb7
+          FFPROBE_SHA256: f9af0178f3a1daf1993d1bdf26846aa0d5d4a1b8037fd97e4d3991b5f5e886ef
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/shipped-ffmpeg"
+          mkdir -p "$dest"
+          curl -fsSL -o "$RUNNER_TEMP/$ARCHIVE" \
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-11-01-12-49/$ARCHIVE"
+          echo "$ARCHIVE_SHA256  $RUNNER_TEMP/$ARCHIVE" | sha256sum -c -
+          tar -xJf "$RUNNER_TEMP/$ARCHIVE" -C "$dest" --strip-components=1
+          echo "$FFMPEG_SHA256  $dest/bin/ffmpeg" | sha256sum -c -
+          echo "$FFPROBE_SHA256  $dest/bin/ffprobe" | sha256sum -c -
+          "$dest/bin/ffmpeg" -hide_banner -encoders | grep -q libopenh264
+          ! "$dest/bin/ffmpeg" -version | grep -qE -- '--enable-gpl'
+          "$dest/bin/ffmpeg" -version | head -1
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -537,11 +569,14 @@ jobs:
           EZC_E2E_WORK: ${{ github.workspace }}/.e2e-work
           EZC_E2E_REPORT: ${{ github.workspace }}/e2e-report
           EZC_VIPS_DIR: /usr/bin
-          EZC_FFMPEG_DIR: /usr/bin
+          EZC_FFMPEG_DIR: ${{ runner.temp }}/shipped-ffmpeg/bin
           EZC_SOFFICE_DIR: /usr/lib/libreoffice/program
         run: |
           set -o pipefail
-          bash scripts/e2e.sh 2>&1 | tee e2e.log
+          # `stdbuf` so a run that is cut off ends its log at the last row the
+          # suite printed, not at a 4 KiB stdio boundary in `tee` (run
+          # 41443566030: 29 minutes of silence and no way to tell what stalled).
+          bash scripts/e2e.sh 2>&1 | stdbuf -o0 -e0 tee e2e.log
 
       # A green run only means something if the gate can go red: delete one
       # converted output before it is checked and require a FAIL row + exit 1.
@@ -549,7 +584,7 @@ jobs:
         env:
           EZC_E2E_WORK: ${{ github.workspace }}/.e2e-inject
           EZC_VIPS_DIR: /usr/bin
-          EZC_FFMPEG_DIR: /usr/bin
+          EZC_FFMPEG_DIR: ${{ runner.temp }}/shipped-ffmpeg/bin
           EZC_SOFFICE_DIR: /usr/lib/libreoffice/program
         run: |
           set +e

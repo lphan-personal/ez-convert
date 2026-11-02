@@ -42,6 +42,7 @@
 //! `EZC_VIPS_PLUGIN_DIR`, `EZC_SOFFICE_DIR` (same overrides as the engine's own
 //! discovery), `EZC_E2E_REPORT` (where `report.tsv` / `report.json` go).
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -157,6 +158,10 @@ impl Suite {
             ms,
             detail
         );
+        // A run that is cancelled keeps only what already reached the log.
+        // `println!` flushes on the newline, but the pipe (`| tee e2e.log`)
+        // must not add a buffer of its own between a row and the log.
+        let _ = std::io::stdout().flush();
         self.rows.push(Row {
             family,
             direction,
@@ -1327,7 +1332,11 @@ impl Suite {
             }
             Err(e) => {
                 let ms = started.elapsed().as_millis();
-                self.bad(family, direction, format!("{e}"), ms);
+                let text = format!("{e}");
+                match h264_engine_gap(&text) {
+                    Some(why) => self.skipped(family, direction, why, ms),
+                    None => self.bad(family, direction, text, ms),
+                }
             }
         }
     }
@@ -1381,6 +1390,22 @@ impl Suite {
                 self.bad(family, direction, format!("{e}"), ms);
             }
         }
+    }
+}
+
+/// The CI test dist is Ubuntu's own ffmpeg: it carries `libx264` but not
+/// `libopenh264`, and the shipped plan names `libopenh264` because that is what
+/// the engine pack bundles (BSD, no GPL). A direction whose only obstacle is
+/// that missing encoder is an engine-availability gap on this dist — the same
+/// class as the heif/av1 rows — not a pipeline failure, and it says so in the
+/// row. `--strict` still turns any SKIP into a red run.
+fn h264_engine_gap(text: &str) -> Option<String> {
+    if text.contains("Unknown encoder 'libopenh264'") {
+        Some(format!(
+            "engine cannot do this on this dist (no libopenh264 encoder): {text}"
+        ))
+    } else {
+        None
     }
 }
 
@@ -1909,6 +1934,18 @@ pub fn run() {
             }
             other => println!("      soffice warm-up: {other}"),
         }
+        // The queue is printed before the first spawn: if a direction ever
+        // stalls, the log shows which rows completed and which were still owed,
+        // instead of ending on a section header (run 41443566030 sat silent for
+        // 29 minutes after the warm-up line).
+        println!(
+            "      queue: {}",
+            docs.iter()
+                .map(|(from, to)| format!("{from}->{}", to.as_str()))
+                .collect::<Vec<_>>()
+                .join(" ")
+        );
+        let _ = std::io::stdout().flush();
         for (from, to) in docs {
             suite.doc_direction(from, to);
         }

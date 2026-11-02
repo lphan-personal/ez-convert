@@ -18,7 +18,7 @@
 //! The user-facing text of every failure is the §14 message table, verbatim.
 
 use std::path::{Path, PathBuf};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use super::proc::{self, EnginePaths, Outcome, Program};
 use super::soffice::{self, BatchSpec, DocRoute};
@@ -166,6 +166,12 @@ impl BatchReport {
         self.produced.iter().map(|p| p.outputs.len()).sum()
     }
 }
+
+/// How long a document batch's outputs must be unchanged before the batch counts
+/// as finished even though the engine is still running (see `proc::Settle`).
+/// One second: LibreOffice writes an export in one pass (measured 0.4-0.8 s for
+/// every route on both legs), so a quiet second means the file is complete.
+const SETTLE_QUIET: Duration = Duration::from_secs(1);
 
 fn extension_for(target: TargetFormat) -> Result<&'static str, DocError> {
     verify::document_extension(target).ok_or(DocError::Io(format!(
@@ -317,7 +323,20 @@ pub fn convert_batch(
         outdir: &outdir,
         inputs: &admitted,
     };
-    let outcome = proc::run(paths, &spec.invocation(temp_dir))
+    // LibreOffice can finish an export and then stay alive in its own event loop
+    // (measured: LibreOffice 26.2.6 on Ubuntu 26.04, card t_0819575f — the PDF is
+    // on disk in 0.5 s and `soffice.bin` never returns; the same argv from a plain
+    // shell exits). Waiting for the process would turn a correct conversion into a
+    // 120 s `engine killed (Timeout)` failure, so a batch is also finished when
+    // every input has a non-empty output that has stopped changing. The outputs
+    // are then verified by the rules below, which is the same claim either way.
+    let settle = proc::Settle {
+        dir: outdir.clone(),
+        extension: extension_for(job.to)?.to_string(),
+        at_least: admitted.len(),
+        quiet: SETTLE_QUIET,
+    };
+    let outcome = proc::run_settling(paths, &spec.invocation(temp_dir), &settle)
         .map_err(|e| DocError::Engine(format!("could not spawn soffice: {e}")))?;
     if let Some(reason) = outcome.is_fatal() {
         let stderr = outcome.stderr.trim();

@@ -13,7 +13,7 @@ use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use super::stderr_rules;
@@ -490,13 +490,21 @@ pub enum Kill {
     Timeout,
     Stalled,
     Cancelled,
+    /// The engine finished writing and did not exit. Not a failure: the
+    /// outputs are the claim (see [`Settle`]).
+    Settled,
 }
 
 impl Outcome {
     /// `§6.0.4`: exit 0 alone is never success.
     pub fn is_fatal(&self) -> Option<FatalReason> {
         if let Some(kill) = self.killed {
-            return Some(FatalReason::Killed(kill));
+            // `Settled` is not a failure: the engine wrote its outputs and was
+            // taken out of an idle loop that never returns. The outputs are the
+            // claim, and the caller verifies them next (`Settle`).
+            if kill != Kill::Settled {
+                return Some(FatalReason::Killed(kill));
+            }
         }
         if let Some(code) = self.status {
             if code != 0 {
@@ -576,27 +584,171 @@ impl Buffer {
         }
     }
 
-    fn finish(self) -> String {
+    fn snapshot(&self) -> String {
         String::from_utf8_lossy(&self.head).into_owned()
     }
 }
 
-fn drain(mut stream: impl Read + Send + 'static, activity: Arc<AtomicU64>) -> std::thread::JoinHandle<String> {
+/// How long the capture threads get once the engine is gone. A killed engine
+/// can leave a descendant — LibreOffice's `oosplash` → `soffice.bin` is exactly
+/// that shape — holding the write end of our pipes, and a plain
+/// `JoinHandle::join()` waits for that descendant, not for the engine. If it
+/// never exits, the join never returns: that is how the CI `e2e` job sat silent
+/// for 29 minutes and was cancelled at its cap with no per-direction table
+/// (card t_0819575f). The wait is therefore bounded by wall clock.
+const DRAIN_GRACE: Duration = Duration::from_secs(2);
+
+fn drain(
+    mut stream: impl Read + Send + 'static,
+    activity: Arc<AtomicU64>,
+    sink: Arc<Mutex<Buffer>>,
+) -> std::thread::JoinHandle<()> {
     std::thread::spawn(move || {
-        let mut buf = Buffer::new();
         let mut chunk = [0u8; 8192];
         loop {
             match stream.read(&mut chunk) {
                 Ok(0) => break,
                 Ok(n) => {
-                    buf.push(&chunk[..n]);
+                    if let Ok(mut buf) = sink.lock() {
+                        buf.push(&chunk[..n]);
+                    }
                     activity.fetch_add(n as u64, Ordering::Relaxed);
                 }
                 Err(_) => break,
             }
         }
-        buf.finish()
     })
+}
+
+/// Whatever the reader captured, after at most [`DRAIN_GRACE`]. A reader still
+/// blocked on a pipe held by an escaped descendant is abandoned; its thread
+/// ends when that descendant closes the pipe, and its partial capture is still
+/// ours because it wrote through the shared buffer.
+fn collect(handle: std::thread::JoinHandle<()>, sink: &Arc<Mutex<Buffer>>) -> String {
+    let deadline = Instant::now() + DRAIN_GRACE;
+    while !handle.is_finished() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    sink.lock()
+        .map(|buf| buf.snapshot())
+        .unwrap_or_default()
+}
+
+/// Join the capture threads once the engine has exited or been killed.
+fn collect_both(
+    stdout: std::thread::JoinHandle<()>,
+    stderr: std::thread::JoinHandle<()>,
+    out_sink: &Arc<Mutex<Buffer>>,
+    err_sink: &Arc<Mutex<Buffer>>,
+) -> (String, String) {
+    let out = collect(stdout, out_sink);
+    let err = collect(stderr, err_sink);
+    (out, err)
+}
+
+/// Kill the engine *and its descendants*. The child leads its own process
+/// group (see [`run_with`]), so `kill(-pgid, SIGKILL)` reaches the launcher's
+/// children too. Killing only the direct child leaves `soffice.bin` running
+/// with our pipes open — a timeout that never ends.
+fn kill_tree(child: &mut std::process::Child) {
+    #[cfg(unix)]
+    {
+        // kill(2) is a three-line wrapper around a syscall the process already
+        // links; declaring it here keeps `libc` (and its licence entry) out of
+        // the dependency graph for one call.
+        extern "C" {
+            fn kill(pid: i32, sig: i32) -> i32;
+        }
+        const SIGKILL: i32 = 9;
+        let pgid = child.id() as i32;
+        // SAFETY: `kill` is the POSIX syscall; a negated pid means "the process
+        // group whose id this is". A stale pgid could only reach a group we
+        // created and have not reaped, and the call is best-effort.
+        unsafe {
+            kill(-pgid, SIGKILL);
+        }
+    }
+    let _ = child.kill();
+}
+
+/// A completion signal that does not depend on the engine exiting.
+///
+/// Measured on the CI runner (Ubuntu 26.04, LibreOffice 26.2.6, card
+/// t_0819575f): a document conversion writes its output in ~0.5 s and then the
+/// worker parks in its own event loop instead of returning — `soffice.bin` was
+/// observed alive with the finished PDF already in the outdir, `utime` growing,
+/// the `PipeIPC` thread blocked in `accept(2)`. The same argv from a plain shell
+/// exits in 0.4 s, so the exit path is the engine's business, not a contract we
+/// can rely on. Waiting for the process therefore means waiting for the 120 s
+/// cap and reporting a failure for a conversion that already succeeded.
+///
+/// So a document batch also ends when its *work product* is complete: at least
+/// `at_least` non-empty files with `extension` exist in `dir` and nothing about
+/// them has changed for `quiet`.
+#[derive(Debug, Clone)]
+pub struct Settle {
+    /// The directory the engine writes its outputs into.
+    pub dir: PathBuf,
+    /// Output extension, without the dot.
+    pub extension: String,
+    /// How many outputs have to exist before the quiet window starts counting.
+    pub at_least: usize,
+    /// How long the outputs must be unchanged before the batch counts as done.
+    pub quiet: Duration,
+}
+
+impl Settle {
+    /// `(count, total bytes, newest mtime in ns)` of the outputs present, or
+    /// `None` while fewer than `at_least` non-empty outputs exist.
+    fn look(&self) -> Option<(usize, u128, u128)> {
+        let mut count = 0usize;
+        let mut total = 0u128;
+        let mut newest = 0u128;
+        for entry in std::fs::read_dir(&self.dir).ok()?.flatten() {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let matches = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.eq_ignore_ascii_case(&self.extension))
+                .unwrap_or(false);
+            if !matches {
+                continue;
+            }
+            let meta = match entry.metadata() {
+                Ok(meta) => meta,
+                Err(_) => continue,
+            };
+            if meta.len() == 0 {
+                continue;
+            }
+            count += 1;
+            total += meta.len() as u128;
+            let mtime = meta
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_nanos())
+                .unwrap_or(0);
+            newest = newest.max(mtime);
+        }
+        if count < self.at_least {
+            return None;
+        }
+        Some((count, total, newest))
+    }
+}
+
+/// Spawn one engine invocation that may be graded by its outputs rather than by
+/// its exit (see [`Settle`]).
+pub fn run_settling(
+    paths: &EnginePaths,
+    inv: &Invocation,
+    settle: &Settle,
+) -> std::io::Result<Outcome> {
+    run_inner(paths, inv, &[], None, Some(settle))
 }
 
 /// Spawn one engine invocation. Everything the contract demands happens here:
@@ -613,6 +765,18 @@ pub fn run_with(
     paths: &EnginePaths,
     inv: &Invocation,
     extra_env: &[(OsString, OsString)],
+) -> std::io::Result<Outcome> {
+    run_inner(paths, inv, extra_env, None, None)
+}
+
+/// The one spawn path. `cap` exists for tests: the shipped caps come from
+/// [`Program::timeout`], and a test cannot wait 120 s to observe a kill.
+fn run_inner(
+    paths: &EnginePaths,
+    inv: &Invocation,
+    extra_env: &[(OsString, OsString)],
+    cap: Option<Duration>,
+    settle: Option<&Settle>,
 ) -> std::io::Result<Outcome> {
     let (program_path, engine_dir) = paths.program(inv.program);
     let started = Instant::now();
@@ -665,18 +829,31 @@ pub fn run_with(
         cmd.env(k, v);
     }
 
+    // §6.0.3: the engine leads its own process group, so a kill can reach the
+    // tree it creates. `soffice` is a shell wrapper that forks `oosplash` and
+    // `soffice.bin`; killing only the wrapper leaves the worker alive.
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+
     let mut child = cmd.spawn()?;
     let activity = Arc::new(AtomicU64::new(0));
     let stdout = child.stdout.take().expect("piped stdout");
     let stderr = child.stderr.take().expect("piped stderr");
-    let out_handle = drain(stdout, Arc::clone(&activity));
-    let err_handle = drain(stderr, Arc::clone(&activity));
+    let out_sink = Arc::new(Mutex::new(Buffer::new()));
+    let err_sink = Arc::new(Mutex::new(Buffer::new()));
+    let out_handle = drain(stdout, Arc::clone(&activity), Arc::clone(&out_sink));
+    let err_handle = drain(stderr, Arc::clone(&activity), Arc::clone(&err_sink));
 
-    let deadline = started + inv.program.timeout();
+    let deadline = started + cap.unwrap_or_else(|| inv.program.timeout());
     let stall_limit = inv.program.stall_limit();
     let mut last_seen = 0u64;
     let mut last_change = Instant::now();
     let mut killed = None;
+    let mut settle_seen: Option<(usize, u128, u128)> = None;
+    let mut settle_since: Option<Instant> = None;
 
     let status = loop {
         match child.try_wait() {
@@ -687,8 +864,28 @@ pub fn run_with(
         let now = Instant::now();
         if now >= deadline {
             killed = Some(Kill::Timeout);
-            let _ = child.kill();
+            kill_tree(&mut child);
             break child.wait()?;
+        }
+        if let Some(settle) = settle {
+            match settle.look() {
+                Some(fingerprint) if settle_seen == Some(fingerprint) => {
+                    let since = *settle_since.get_or_insert(now);
+                    if now.duration_since(since) >= settle.quiet {
+                        killed = Some(Kill::Settled);
+                        kill_tree(&mut child);
+                        break child.wait()?;
+                    }
+                }
+                Some(fingerprint) => {
+                    settle_seen = Some(fingerprint);
+                    settle_since = Some(now);
+                }
+                None => {
+                    settle_seen = None;
+                    settle_since = None;
+                }
+            }
         }
         if let Some(limit) = stall_limit {
             let seen = activity.load(Ordering::Relaxed);
@@ -697,15 +894,14 @@ pub fn run_with(
                 last_change = now;
             } else if now.duration_since(last_change) >= limit {
                 killed = Some(Kill::Stalled);
-                let _ = child.kill();
+                kill_tree(&mut child);
                 break child.wait()?;
             }
         }
         std::thread::sleep(Duration::from_millis(15));
     };
 
-    let stdout = out_handle.join().unwrap_or_default();
-    let stderr = err_handle.join().unwrap_or_default();
+    let (stdout, stderr) = collect_both(out_handle, err_handle, &out_sink, &err_sink);
 
     Ok(Outcome {
         program: inv.program,
@@ -796,8 +992,128 @@ mod tests {
         assert!(b.head.len() <= CAPTURE_CAP);
         assert!(b.tail.len() <= CAPTURE_CAP);
         assert_eq!(b.total, 4096 * 1024);
-        let s = b.finish();
+        let s = b.snapshot();
         assert_eq!(s.len(), CAPTURE_CAP);
+    }
+
+    /// The measured failure (card t_0819575f): the engine is killed at its cap,
+    /// but a descendant it started still holds the write end of our pipes, so
+    /// `join()` on the capture threads never returns and the conversion hangs
+    /// forever with no output. The capture has to be bounded by wall clock and
+    /// keep what already arrived.
+    #[cfg(unix)]
+    #[test]
+    fn a_descendant_holding_the_pipe_cannot_block_the_capture() {
+        if !std::path::Path::new("/usr/bin/setsid").exists() {
+            eprintln!("setsid absent: cannot build the escaped-descendant shape");
+            return;
+        }
+        // `setsid` puts the sleep in another session, so no process-group kill
+        // reaches it: only the reader's own bound can save the caller.
+        let mut child = Command::new("/bin/sh")
+            .arg("-c")
+            .arg("echo started; setsid /bin/sleep 30 &")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn sh");
+        let pipe = child.stdout.take().expect("piped stdout");
+        let sink = Arc::new(Mutex::new(Buffer::new()));
+        let handle = drain(pipe, Arc::new(AtomicU64::new(0)), Arc::clone(&sink));
+        let _ = child.wait();
+
+        let started = Instant::now();
+        let captured = collect(handle, &sink);
+        let waited = started.elapsed();
+        assert!(
+            waited < DRAIN_GRACE + Duration::from_secs(2),
+            "capture waited {waited:?}; a descendant must not set the wait"
+        );
+        assert!(
+            captured.contains("started"),
+            "partial capture was lost: {captured:?}"
+        );
+    }
+
+    /// The measured shape of the CI stall (card t_0819575f, LibreOffice 26.2.6 on
+    /// Ubuntu 26.04): the export lands and the engine then stays alive. A batch
+    /// graded by its outputs must end there, not at the 120 s cap, and the
+    /// outcome must not be a failure.
+    #[cfg(unix)]
+    #[test]
+    fn a_settled_batch_ends_without_waiting_for_the_engine_to_exit() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = std::env::temp_dir().join(format!("ezc-proc-settle-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let out = root.join("out");
+        std::fs::create_dir_all(&out).unwrap();
+        let launcher = root.join("soffice");
+        std::fs::write(
+            &launcher,
+            format!("#!/bin/sh\nprintf 'converted' > '{}'\n/bin/sleep 300\n", out.join("probe.pdf").display()),
+        )
+        .unwrap();
+        std::fs::set_permissions(&launcher, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let mut paths = EnginePaths::from_root(&root);
+        paths.soffice = launcher;
+        paths.soffice_dir = root.clone();
+        let inv = Invocation {
+            program: Program::Soffice,
+            args: vec![],
+            cwd: root.clone(),
+        };
+        let settle = Settle {
+            dir: out.clone(),
+            extension: "pdf".into(),
+            at_least: 1,
+            quiet: Duration::from_millis(300),
+        };
+
+        let started = Instant::now();
+        let outcome = run_inner(&paths, &inv, &[], None, Some(&settle)).expect("spawn fake");
+        let waited = started.elapsed();
+        assert_eq!(outcome.killed, Some(Kill::Settled));
+        assert!(outcome.ok(), "a settled batch is not a failure: {:?}", outcome.is_fatal());
+        assert!(waited < Duration::from_secs(6), "settle took {waited:?}");
+        assert_eq!(
+            std::fs::read_to_string(out.join("probe.pdf")).unwrap(),
+            "converted"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_timed_out_engine_returns_a_timeout_outcome() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = std::env::temp_dir().join(format!("ezc-proc-timeout-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let launcher = root.join("soffice");
+        std::fs::write(&launcher, "#!/bin/sh\necho wrapper-alive\n/bin/sleep 300\n").unwrap();
+        std::fs::set_permissions(&launcher, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let mut paths = EnginePaths::from_root(&root);
+        paths.soffice = launcher;
+        paths.soffice_dir = root.clone();
+        let inv = Invocation {
+            program: Program::Soffice,
+            args: vec![],
+            cwd: root.clone(),
+        };
+
+        let started = Instant::now();
+        let outcome = run_inner(&paths, &inv, &[], Some(Duration::from_millis(300)), None)
+            .expect("spawn fake launcher");
+        let waited = started.elapsed();
+        assert_eq!(outcome.killed, Some(Kill::Timeout));
+        assert!(matches!(outcome.is_fatal(), Some(FatalReason::Killed(Kill::Timeout))));
+        assert!(outcome.stdout.contains("wrapper-alive"), "{:?}", outcome.stdout);
+        assert!(
+            waited < Duration::from_secs(6),
+            "a capped engine took {waited:?} to return"
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
