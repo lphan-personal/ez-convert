@@ -104,6 +104,17 @@ print(f"OVERLAY_PROBE ok={str(facts.get('ok')).lower()} render_ms={facts.get('re
 print(f"OVERLAY_PROBE placement=x{facts['placement']['x']} y{facts['placement']['y']} "
       f"monitor={facts['placement']['monitor_index']} placed={str(facts['placement']['placed']).lower()} "
       f"cursor={facts['placement']['cursor_x']},{facts['placement']['cursor_y']}")
+hk = facts.get("hotkey") or {}
+print(f"OVERLAY_HOTKEY configured={hk.get('configured')} "
+      f"registered={hk.get('registered')} state={hk.get('state')}")
+print(f"OVERLAY_HOTKEY matches_configured={str(hk.get('matches_configured')).lower()} "
+      f"input_posting_trusted={hk.get('input_posting_trusted')} "
+      f"delivered_by={hk.get('delivered_by')} "
+      f"summons={hk.get('summons_before')}->{hk.get('summons_after')}")
+for press in hk.get("presses") or []:
+    print(f"OVERLAY_HOTKEY press={press.get('method')} delivered={str(press.get('delivered')).lower()}")
+if hk.get("note"):
+    print(f"OVERLAY_HOTKEY note={hk['note']}")
 for name in facts.get("asserted", []):
     print(f"OVERLAY_CHECK {name}={'pass' if facts['checks'].get(name) else 'FAIL'}")
 for name, value in facts.get("checks", {}).items():

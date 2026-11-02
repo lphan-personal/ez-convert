@@ -13,14 +13,19 @@
 //!   `RegisterHotKey(NULL, …)` posts `WM_HOTKEY` to the *registering thread's* queue.
 //!   The thread waits on an event so a rebind request can be serviced immediately
 //!   (a plain `GetMessage` loop would strand it).
-//! - **macOS**: PLANNED. `RegisterEventHotKey`/`CGEventTap` are unmeasured here
-//!   (`ARCHITECTURE.md` §10.5); the adapter reports `Failed` with an explicit reason
-//!   instead of pretending the chord was taken.
+//! - **macOS**: Carbon `RegisterEventHotKey` on the application event target, with an
+//!   `InstallEventHandler` handler for `kEventHotKeyPressed`. Carbon rather than
+//!   `CGEventTap` because a hot key registered this way needs **no** Accessibility
+//!   (TCC) grant, and `SPEC.md` §2 only asks for consent when the user turns smart
+//!   grab on. There is no hotkey thread here: `RegisterHotKey(NULL, …)` is
+//!   thread-scoped, but a Carbon hot key belongs to the *app's* event target, so it
+//!   is registered on the thread that owns the run loop (`.setup()` and the IPC
+//!   command both run there).
 //!
 //! Hand-rolled FFI for the same reason as `screen.rs`: the acceptance spike compiles
 //! this exact file.
 
-use crate::shell::accelerator::{self, Accelerator};
+use crate::shell::accelerator::{self, Accelerator, Key};
 
 /// `ERROR_HOTKEY_ALREADY_REGISTERED` (1409). The only error code that means "another
 /// application owns this chord"; every other code means our own call was wrong.
@@ -46,6 +51,171 @@ impl RegError {
     pub fn is_conflict(&self) -> bool {
         self.code == CONFLICT_CODE
     }
+}
+
+// ---- macOS: the portable half of the Carbon registrar --------------------
+//
+// Everything below is platform-free (`u32` masks and key codes, `i32` OSStatus —
+// no Carbon types), so the mapping and the conflict classification are unit-tested
+// on Linux, where the registration itself cannot run. `mod macos` is then a thin
+// wrapper around `RegisterEventHotKey`.
+
+/// Carbon `cmdKey` (`HIToolbox/Events.h`).
+pub const CARBON_CMD: u32 = 0x0100;
+/// Carbon `shiftKey`.
+pub const CARBON_SHIFT: u32 = 0x0200;
+/// Carbon `optionKey`.
+pub const CARBON_OPTION: u32 = 0x0800;
+/// Carbon `controlKey`.
+pub const CARBON_CONTROL: u32 = 0x1000;
+
+/// `eventHotKeyExistsErr` (-9878): the chord is already registered, by another
+/// application or by an earlier registration in this one. macOS's equivalent of
+/// `ERROR_HOTKEY_ALREADY_REGISTERED`, which is what keeps the conflict ladder and
+/// the `AllTaken` case working unchanged.
+pub const EVENT_HOTKEY_EXISTS_ERR: i32 = -9878;
+/// `paramErr` (-50).
+pub const PARAM_ERR: i32 = -50;
+/// `eventNotHandledErr` (-9874): the event was not ours, so Carbon may offer it to
+/// the next handler.
+pub const EVENT_NOT_HANDLED_ERR: i32 = -9874;
+
+/// The accelerator's modifiers as Carbon's mask.
+///
+/// `Ctrl` is Control, `Alt` is Option, `Meta`/`Win` is Command: the same meanings
+/// `accelerator.rs` gives them, so the chord a user configured is the chord they
+/// get. A chord spelled `Ctrl+Alt+Shift+D` therefore presses **Control+Option+
+/// Shift+D** on a Mac — the string in `settings.json` is not rewritten per platform.
+pub fn carbon_modifiers(accelerator: Accelerator) -> u32 {
+    let mut mask = 0;
+    if accelerator.ctrl {
+        mask |= CARBON_CONTROL;
+    }
+    if accelerator.alt {
+        mask |= CARBON_OPTION;
+    }
+    if accelerator.shift {
+        mask |= CARBON_SHIFT;
+    }
+    if accelerator.meta {
+        mask |= CARBON_CMD;
+    }
+    mask
+}
+
+/// The macOS virtual key code (`kVK_*`) for a key, or `None` when the key does not
+/// exist on a Mac keyboard.
+///
+/// `None` is a real answer, not a gap: `Insert` has no `kVK_` constant (the Help key
+/// sits in that position on Apple keyboards and cannot be told apart reliably), and
+/// the function keys stop at `F20`. Registering *something else* would give the user
+/// a chord they cannot press, so the registrar reports the chord as unusable.
+pub fn carbon_key_code(key: Key) -> Option<u32> {
+    let code = match key {
+        // Letters, ANSI layout (`kVK_ANSI_*`), in code order.
+        Key::Letter('A') => 0x00,
+        Key::Letter('S') => 0x01,
+        Key::Letter('D') => 0x02,
+        Key::Letter('F') => 0x03,
+        Key::Letter('H') => 0x04,
+        Key::Letter('G') => 0x05,
+        Key::Letter('Z') => 0x06,
+        Key::Letter('X') => 0x07,
+        Key::Letter('C') => 0x08,
+        Key::Letter('V') => 0x09,
+        Key::Letter('B') => 0x0B,
+        Key::Letter('Q') => 0x0C,
+        Key::Letter('W') => 0x0D,
+        Key::Letter('E') => 0x0E,
+        Key::Letter('R') => 0x0F,
+        Key::Letter('Y') => 0x10,
+        Key::Letter('T') => 0x11,
+        Key::Letter('O') => 0x1F,
+        Key::Letter('U') => 0x20,
+        Key::Letter('I') => 0x22,
+        Key::Letter('P') => 0x23,
+        Key::Letter('L') => 0x25,
+        Key::Letter('J') => 0x26,
+        Key::Letter('K') => 0x28,
+        Key::Letter('N') => 0x2D,
+        Key::Letter('M') => 0x2E,
+        Key::Letter(_) => return None,
+        // Digits are not in numeric order: that is the layout, not a typo.
+        Key::Digit(1) => 0x12,
+        Key::Digit(2) => 0x13,
+        Key::Digit(3) => 0x14,
+        Key::Digit(4) => 0x15,
+        Key::Digit(6) => 0x16,
+        Key::Digit(5) => 0x17,
+        Key::Digit(9) => 0x19,
+        Key::Digit(7) => 0x1A,
+        Key::Digit(8) => 0x1C,
+        Key::Digit(0) => 0x1D,
+        Key::Digit(_) => return None,
+        Key::Function(1) => 0x7A,
+        Key::Function(2) => 0x78,
+        Key::Function(3) => 0x63,
+        Key::Function(4) => 0x76,
+        Key::Function(5) => 0x60,
+        Key::Function(6) => 0x61,
+        Key::Function(7) => 0x62,
+        Key::Function(8) => 0x64,
+        Key::Function(9) => 0x65,
+        Key::Function(10) => 0x6D,
+        Key::Function(11) => 0x67,
+        Key::Function(12) => 0x6F,
+        Key::Function(13) => 0x69,
+        Key::Function(14) => 0x6B,
+        Key::Function(15) => 0x71,
+        Key::Function(16) => 0x6A,
+        Key::Function(17) => 0x40,
+        Key::Function(18) => 0x4F,
+        Key::Function(19) => 0x50,
+        Key::Function(20) => 0x5A,
+        Key::Function(_) => return None,
+        Key::Enter => 0x24,
+        Key::Tab => 0x30,
+        Key::Space => 0x31,
+        Key::Backspace => 0x33,
+        Key::Escape => 0x35,
+        Key::Delete => 0x75,
+        Key::Home => 0x73,
+        Key::End => 0x77,
+        Key::PageUp => 0x74,
+        Key::PageDown => 0x79,
+        Key::Left => 0x7B,
+        Key::Right => 0x7C,
+        Key::Down => 0x7D,
+        Key::Up => 0x7E,
+        // No `kVK_` constant on macOS.
+        Key::Insert => return None,
+    };
+    Some(code)
+}
+
+/// Turns a Carbon `OSStatus` into the one thing callers branch on: *was this a
+/// conflict?*
+///
+/// `eventHotKeyExistsErr` becomes `RegError::CONFLICT_CODE` so the existing ladder
+/// walks to the next rung and `AllTaken` still means what it says; every other
+/// status keeps its own (absolute) code and names the call, because a bad key code
+/// must stop the ladder rather than retry it.
+pub fn classify_carbon_status(status: i32, call: &str) -> RegError {
+    if status == EVENT_HOTKEY_EXISTS_ERR {
+        return RegError::new(
+            CONFLICT_CODE,
+            format!("another application already owns this chord ({call}: eventHotKeyExistsErr {status})"),
+        );
+    }
+    let meaning = match status {
+        PARAM_ERR => " (paramErr: the key code or modifier mask was rejected)",
+        EVENT_NOT_HANDLED_ERR => " (eventNotHandledErr)",
+        _ => "",
+    };
+    RegError::new(
+        status.unsigned_abs(),
+        format!("{call} failed with OSStatus {status}{meaning}"),
+    )
 }
 
 /// One registration attempt, recorded so the outcome can explain itself.
@@ -466,15 +636,320 @@ mod win32 {
 #[cfg(windows)]
 pub use win32::{Hotkeys as PlatformHotkeys};
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+mod macos {
+    use super::*;
+    use std::ffi::c_void;
+    use std::sync::Mutex;
+
+    type OSStatus = i32;
+    type EventTargetRef = *mut c_void;
+    type EventHotKeyRef = *mut c_void;
+    type EventHandlerRef = *mut c_void;
+    type EventRef = *mut c_void;
+    type EventHandlerCallRef = *mut c_void;
+
+    /// `EventHotKeyID` — our signature plus one id.
+    #[repr(C)]
+    #[derive(Debug, Clone, Copy, Default)]
+    struct EventHotKeyId {
+        signature: u32,
+        id: u32,
+    }
+
+    #[repr(C)]
+    #[derive(Debug, Clone, Copy)]
+    struct EventTypeSpec {
+        event_class: u32,
+        event_kind: u32,
+    }
+
+    type EventHandlerProc = extern "C" fn(EventHandlerCallRef, EventRef, *mut c_void) -> OSStatus;
+
+    #[link(name = "Carbon", kind = "framework")]
+    extern "C" {
+        fn GetApplicationEventTarget() -> EventTargetRef;
+        fn InstallEventHandler(
+            target: EventTargetRef,
+            handler: EventHandlerProc,
+            num_types: usize,
+            types: *const EventTypeSpec,
+            user_data: *mut c_void,
+            out: *mut EventHandlerRef,
+        ) -> OSStatus;
+        fn RegisterEventHotKey(
+            key_code: u32,
+            modifiers: u32,
+            hotkey_id: EventHotKeyId,
+            target: EventTargetRef,
+            options: u32,
+            out: *mut EventHotKeyRef,
+        ) -> OSStatus;
+        fn UnregisterEventHotKey(hotkey: EventHotKeyRef) -> OSStatus;
+        fn GetEventParameter(
+            event: EventRef,
+            name: u32,
+            desired_type: u32,
+            out_type: *mut u32,
+            buffer_size: usize,
+            out_size: *mut usize,
+            out_data: *mut c_void,
+        ) -> OSStatus;
+    }
+
+    /// `kEventClassKeyboard` (`'keyb'`).
+    const EVENT_CLASS_KEYBOARD: u32 = 0x6B65_7962;
+    /// `kEventHotKeyPressed`.
+    const EVENT_HOTKEY_PRESSED: u32 = 5;
+    /// `kEventParamDirectObject` (`'----'`) carrying a `typeEventHotKeyID` (`'hkid'`).
+    const EVENT_PARAM_DIRECT_OBJECT: u32 = 0x2D2D_2D2D;
+    const TYPE_EVENT_HOTKEY_ID: u32 = 0x686B_6964;
+    /// Ours (`'EZC1'`), so a hot key belonging to some other app can never fire our
+    /// callback even if the handler is offered one.
+    const HOTKEY_SIGNATURE: u32 = 0x455A_4331;
+    const HOTKEY_ID: u32 = 1;
+
+    type Fire = Box<dyn FnMut(Accelerator) + Send>;
+
+    /// The callback the app installed. A Carbon handler is a plain function pointer,
+    /// so the closure has to live somewhere static: one app, one hotkey
+    /// (`SPEC.md` §2).
+    static ON_FIRE: Mutex<Option<Fire>> = Mutex::new(None);
+    /// The accelerator actually registered, so a press reports the chord that fired.
+    static ACTIVE: Mutex<Option<Accelerator>> = Mutex::new(None);
+    /// The installed handler as an `EventHandlerRef`; 0 until installed.
+    static HANDLER: Mutex<isize> = Mutex::new(0);
+
+    /// Carbon's hot-key handler. Runs on the thread that dispatched the event — the
+    /// main thread, where the app's run loop lives.
+    extern "C" fn on_hotkey_pressed(
+        _call: EventHandlerCallRef,
+        event: EventRef,
+        _user: *mut c_void,
+    ) -> OSStatus {
+        let mut id = EventHotKeyId::default();
+        // SAFETY: `event` is the event Carbon is delivering to us and the buffer is
+        // exactly `EventHotKeyId`, which is what the requested type says it is.
+        let status = unsafe {
+            GetEventParameter(
+                event,
+                EVENT_PARAM_DIRECT_OBJECT,
+                TYPE_EVENT_HOTKEY_ID,
+                std::ptr::null_mut(),
+                std::mem::size_of::<EventHotKeyId>(),
+                std::ptr::null_mut(),
+                &mut id as *mut EventHotKeyId as *mut c_void,
+            )
+        };
+        if status != 0 || id.signature != HOTKEY_SIGNATURE {
+            return EVENT_NOT_HANDLED_ERR;
+        }
+        let active = *ACTIVE.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(accelerator) = active {
+            // The callback runs with the slot held: a rebind cannot land in the
+            // middle of a press, and the callback must not re-enter `acquire`.
+            let mut slot = ON_FIRE.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(fire) = slot.as_mut() {
+                fire(accelerator);
+            }
+        }
+        0
+    }
+
+    /// Installs the handler once, on the app's event target.
+    fn install_handler() -> Result<(), RegError> {
+        let mut installed = HANDLER.lock().unwrap_or_else(|e| e.into_inner());
+        if *installed != 0 {
+            return Ok(());
+        }
+        let spec = EventTypeSpec {
+            event_class: EVENT_CLASS_KEYBOARD,
+            event_kind: EVENT_HOTKEY_PRESSED,
+        };
+        let mut handler: EventHandlerRef = std::ptr::null_mut();
+        // SAFETY: the target is the app's own event target; `spec` outlives the call
+        // and `handler` is a valid out-pointer.
+        let status = unsafe {
+            InstallEventHandler(
+                GetApplicationEventTarget(),
+                on_hotkey_pressed,
+                1,
+                &spec,
+                std::ptr::null_mut(),
+                &mut handler,
+            )
+        };
+        if status != 0 {
+            return Err(classify_carbon_status(status, "InstallEventHandler"));
+        }
+        *installed = handler as isize;
+        Ok(())
+    }
+
+    /// One live registration. The `EventHotKeyRef` is kept as `isize` so the handle
+    /// type stays `Send + Sync` without an `unsafe impl` — it is only ever handed
+    /// back to `UnregisterEventHotKey`.
+    #[derive(Debug, Clone, Copy)]
+    struct Registration {
+        reference: isize,
+        accelerator: Accelerator,
+    }
+
+    /// The OS-facing half for one `acquire` run, holding the registration it owns so
+    /// the shared ladder can try rung after rung.
+    struct CarbonRegistrar {
+        registration: Option<Registration>,
+    }
+
+    impl CarbonRegistrar {
+        fn release(&mut self) {
+            if let Some(registration) = self.registration.take() {
+                // SAFETY: the reference came from a successful
+                // `RegisterEventHotKey` and is unregistered exactly once.
+                unsafe {
+                    UnregisterEventHotKey(registration.reference as EventHotKeyRef);
+                }
+            }
+            *ACTIVE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        }
+    }
+
+    impl Registrar for CarbonRegistrar {
+        fn register(&mut self, accelerator: Accelerator) -> Result<(), RegError> {
+            self.release();
+            let key_code = carbon_key_code(accelerator.key).ok_or_else(|| {
+                RegError::new(
+                    PARAM_ERR.unsigned_abs(),
+                    format!(
+                        "{} has no macOS key code (the key does not exist on a Mac keyboard)",
+                        accelerator.canonical()
+                    ),
+                )
+            })?;
+            let mut reference: EventHotKeyRef = std::ptr::null_mut();
+            // SAFETY: the app's event target, a key code and mask from the tables in
+            // this file, and a valid out-pointer.
+            let status = unsafe {
+                RegisterEventHotKey(
+                    key_code,
+                    carbon_modifiers(accelerator),
+                    EventHotKeyId {
+                        signature: HOTKEY_SIGNATURE,
+                        id: HOTKEY_ID,
+                    },
+                    GetApplicationEventTarget(),
+                    0,
+                    &mut reference,
+                )
+            };
+            if status != 0 || reference.is_null() {
+                return Err(classify_carbon_status(status, "RegisterEventHotKey"));
+            }
+            self.registration = Some(Registration {
+                reference: reference as isize,
+                accelerator,
+            });
+            *ACTIVE.lock().unwrap_or_else(|e| e.into_inner()) = Some(accelerator);
+            Ok(())
+        }
+
+        fn unregister(&mut self, _accelerator: Accelerator) {
+            self.release();
+        }
+    }
+
+    /// Handle to macOS hot-key registration. Dropping it unregisters the chord.
+    pub struct Hotkeys {
+        active: Mutex<Option<Registration>>,
+    }
+
+    impl Hotkeys {
+        /// Installs the event handler and remembers `on_fire`.
+        ///
+        /// Call this on the thread that owns the app's run loop (`.setup()` does),
+        /// because the handler hangs off the *application* event target rather than
+        /// off a thread's message queue.
+        pub fn start<F>(on_fire: F) -> std::io::Result<Self>
+        where
+            F: FnMut(Accelerator) + Send + 'static,
+        {
+            install_handler()
+                .map_err(|error| std::io::Error::other(error.detail.clone()))?;
+            *ON_FIRE.lock().unwrap_or_else(|e| e.into_inner()) = Some(Box::new(on_fire));
+            Ok(Self {
+                active: Mutex::new(None),
+            })
+        }
+
+        /// Registers `wanted`, falling through `fallbacks` on conflict.
+        pub fn acquire(&self, wanted: Accelerator, fallbacks: Vec<Accelerator>) -> Acquisition {
+            let mut guard = self.active.lock().unwrap_or_else(|e| e.into_inner());
+            let mut registrar = CarbonRegistrar {
+                registration: guard.take(),
+            };
+            let outcome = acquire(&mut registrar, wanted, &fallbacks);
+            *guard = registrar.registration;
+            outcome
+        }
+
+        /// Registers whatever `settings.json` says, with the standard ladder. The
+        /// parse + ladder + conflict walk is the shared free function, so macOS
+        /// cannot drift from Windows.
+        pub fn acquire_from_settings(&self, configured: &str) -> Acquisition {
+            let mut guard = self.active.lock().unwrap_or_else(|e| e.into_inner());
+            let mut registrar = CarbonRegistrar {
+                registration: guard.take(),
+            };
+            let outcome = super::acquire_from_settings(&mut registrar, configured);
+            *guard = registrar.registration;
+            outcome
+        }
+
+        /// Unregisters the active chord (used when the user turns the hotkey off).
+        pub fn clear(&self) {
+            let mut guard = self.active.lock().unwrap_or_else(|e| e.into_inner());
+            let mut registrar = CarbonRegistrar {
+                registration: guard.take(),
+            };
+            registrar.release();
+            *guard = registrar.registration;
+        }
+
+        /// The chord currently registered, for the measurement probe.
+        pub fn active(&self) -> Option<Accelerator> {
+            self.active
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .map(|registration| registration.accelerator)
+        }
+    }
+
+    impl Drop for Hotkeys {
+        fn drop(&mut self) {
+            let mut guard = self.active.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(registration) = guard.take() {
+                // SAFETY: as in `CarbonRegistrar::release`.
+                unsafe {
+                    UnregisterEventHotKey(registration.reference as EventHotKeyRef);
+                }
+            }
+            *ON_FIRE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub use macos::{Hotkeys as PlatformHotkeys};
+
+/// Every other host (Linux CI and dev containers): no global hotkey, and said so.
+///
+/// This is the *only* remaining `Failed` platform, and it is honest about why — a
+/// settings panel that claimed "registered" here would be lying about a chord no
+/// desktop will deliver.
+#[cfg(not(any(windows, target_os = "macos")))]
 mod other {
     use super::*;
 
-    /// PLANNED on macOS: `RegisterEventHotKey` needs Carbon, or `CGEventTap` needs
-    /// Accessibility consent — and `SPEC.md` §2 says consent is asked **only** when
-    /// the user turns smart grab on. So the hotkey itself must not depend on a
-    /// permission prompt, which is one more reason this is unmeasured rather than
-    /// guessed. Reports `Failed` with a reason the UI can show verbatim.
     pub struct PlatformHotkeys;
 
     impl PlatformHotkeys {
@@ -490,8 +965,7 @@ mod other {
                 attempts: vec![Attempt {
                     accelerator: wanted.canonical(),
                     code: 0,
-                    detail: "global hotkeys are not implemented on this platform (macOS unmeasured)"
-                        .into(),
+                    detail: "this platform cannot register a global hotkey".into(),
                 }],
             }
         }
@@ -513,7 +987,7 @@ mod other {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 pub use other::PlatformHotkeys;
 
 #[cfg(test)]
@@ -645,5 +1119,172 @@ mod tests {
         assert!(matches!(outcome, Acquisition::Failed { .. }));
         assert!(outcome.describe().contains("Banana"));
         assert!(registrar.asked.is_empty());
+    }
+
+    // ---- the macOS half: everything measurable without a Mac ---------------
+
+    #[test]
+    fn carbon_masks_are_the_hitoolbox_constants() {
+        let accel = accelerator::parse("Ctrl+Alt+Shift+D").unwrap();
+        assert_eq!(
+            carbon_modifiers(accel),
+            CARBON_CONTROL | CARBON_OPTION | CARBON_SHIFT,
+            "a chord with Ctrl+Alt+Shift must be Control+Option+Shift on a Mac"
+        );
+        // The exact literal matters: a wrong constant would register a different
+        // chord silently.
+        assert_eq!(carbon_modifiers(accel), 0x1A00);
+
+        let with_command = accelerator::parse("Ctrl+Alt+Shift+Win+D").unwrap();
+        assert_eq!(
+            carbon_modifiers(with_command),
+            0x1A00 | CARBON_CMD,
+            "Win/Meta is Command on a Mac"
+        );
+        // Each modifier on its own, so a swapped pair cannot cancel out.
+        assert_eq!(carbon_modifiers(accelerator::parse("Ctrl+D").unwrap()), 0x1000);
+        assert_eq!(carbon_modifiers(accelerator::parse("Alt+D").unwrap()), 0x0800);
+        assert_eq!(carbon_modifiers(accelerator::parse("Win+D").unwrap()), 0x0100);
+        // Shift alone cannot parse, so its mask is read from a valid chord.
+        assert_eq!(
+            carbon_modifiers(accelerator::parse("Ctrl+Shift+D").unwrap()) & CARBON_SHIFT,
+            CARBON_SHIFT
+        );
+    }
+
+    #[test]
+    fn the_default_chord_is_kvk_ansi_d_with_control_option_shift() {
+        let accel = accelerator::parse("Ctrl+Alt+Shift+D").unwrap();
+        assert_eq!(carbon_key_code(accel.key), Some(0x02), "kVK_ANSI_D");
+        assert_eq!(carbon_key_code(Key::Escape), Some(0x35), "kVK_Escape");
+        assert_eq!(carbon_key_code(Key::Space), Some(0x31), "kVK_Space");
+        assert_eq!(carbon_key_code(Key::Function(1)), Some(0x7A), "kVK_F1");
+        assert_eq!(carbon_key_code(Key::Digit(0)), Some(0x1D), "kVK_ANSI_0");
+        assert_eq!(carbon_key_code(Key::Up), Some(0x7E), "kVK_UpArrow");
+        assert_eq!(carbon_key_code(Key::Delete), Some(0x75), "kVK_ForwardDelete");
+        assert_eq!(carbon_key_code(Key::Backspace), Some(0x33), "kVK_Delete");
+    }
+
+    #[test]
+    fn every_key_macos_has_gets_its_own_code() {
+        // 80-odd table entries; a duplicated code would make two different chords
+        // the same chord, and a wrong one would fire a different key. Both are
+        // caught here rather than on a user's Mac.
+        let mut keys: Vec<Key> = Vec::new();
+        for letter in 'A'..='Z' {
+            keys.push(Key::Letter(letter));
+        }
+        for digit in 0..=9u8 {
+            keys.push(Key::Digit(digit));
+        }
+        for function in 1..=20u8 {
+            keys.push(Key::Function(function));
+        }
+        keys.extend([
+            Key::Space,
+            Key::Enter,
+            Key::Escape,
+            Key::Tab,
+            Key::Backspace,
+            Key::Delete,
+            Key::Home,
+            Key::End,
+            Key::PageUp,
+            Key::PageDown,
+            Key::Up,
+            Key::Down,
+            Key::Left,
+            Key::Right,
+        ]);
+
+        let mut seen = std::collections::HashMap::new();
+        for key in keys {
+            let code = carbon_key_code(key).unwrap_or_else(|| panic!("{key:?} has no code"));
+            if let Some(previous) = seen.insert(code, key) {
+                panic!("{key:?} and {previous:?} both map to kVK 0x{code:02X}");
+            }
+        }
+        assert!(
+            seen.len() >= 70,
+            "expected the whole macOS key table, mapped {} keys",
+            seen.len()
+        );
+    }
+
+    #[test]
+    fn keys_that_do_not_exist_on_a_mac_are_refused_rather_than_guessed() {
+        // macOS has no Insert key and no F21-F24: reporting `None` is what makes the
+        // registrar say "this chord cannot be used" instead of registering something
+        // the user can never press.
+        assert_eq!(carbon_key_code(Key::Insert), None);
+        for function in 21..=24u8 {
+            assert_eq!(carbon_key_code(Key::Function(function)), None, "F{function}");
+        }
+    }
+
+    #[test]
+    fn a_taken_mac_chord_is_classified_as_a_conflict_and_nothing_else_is() {
+        let taken = classify_carbon_status(EVENT_HOTKEY_EXISTS_ERR, "RegisterEventHotKey");
+        assert!(taken.is_conflict(), "eventHotKeyExistsErr must be a conflict");
+        assert_eq!(taken.code, CONFLICT_CODE, "the shared 1409 code");
+        assert!(taken.detail.contains("already owns"), "{}", taken.detail);
+        assert!(taken.detail.contains("-9878"), "keep the OS status: {}", taken.detail);
+
+        let bad = classify_carbon_status(PARAM_ERR, "RegisterEventHotKey");
+        assert!(!bad.is_conflict(), "paramErr must stop the ladder, not walk it");
+        assert_eq!(bad.code, 50, "the code survives as an absolute value");
+        assert!(bad.detail.contains("-50"), "{}", bad.detail);
+
+        let other = classify_carbon_status(-1, "InstallEventHandler");
+        assert!(!other.is_conflict());
+        assert_eq!(other.code, 1);
+        assert!(other.detail.contains("InstallEventHandler"));
+    }
+
+    #[test]
+    fn a_mac_conflict_walks_the_same_ladder_as_a_windows_one() {
+        // A registrar that refuses the first chord with a Carbon conflict — the
+        // whole point of mapping -9878 onto the shared code.
+        struct MacStub {
+            first: String,
+            asked: Vec<String>,
+        }
+        impl Registrar for MacStub {
+            fn register(&mut self, accelerator: Accelerator) -> Result<(), RegError> {
+                let name = accelerator.canonical();
+                self.asked.push(name.clone());
+                if name == self.first {
+                    return Err(classify_carbon_status(
+                        EVENT_HOTKEY_EXISTS_ERR,
+                        "RegisterEventHotKey",
+                    ));
+                }
+                Ok(())
+            }
+            fn unregister(&mut self, _accelerator: Accelerator) {}
+        }
+
+        let wanted = default_hotkey();
+        let mut stub = MacStub {
+            first: wanted.canonical(),
+            asked: Vec::new(),
+        };
+        let outcome = acquire(&mut stub, wanted, &accelerator::conflict_ladder(wanted));
+        let Acquisition::Registered {
+            accelerator,
+            attempts,
+        } = outcome
+        else {
+            panic!("a Mac conflict must fall through to the next rung, got {outcome:?}");
+        };
+        assert_ne!(accelerator, wanted, "the taken chord is never claimed");
+        assert_eq!(attempts.len(), 1);
+        assert_eq!(attempts[0].code, CONFLICT_CODE);
+        assert_eq!(
+            stub.asked.len(),
+            2,
+            "asked for the wanted chord then one rung: {:?}",
+            stub.asked
+        );
     }
 }

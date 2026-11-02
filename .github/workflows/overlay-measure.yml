@@ -18,6 +18,7 @@ on:
   push:
     branches:
       - "overlay/**"
+      - "hotkey/**"
 
 permissions:
   contents: write
@@ -38,10 +39,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Portable unit tests (PNG checker in both directions)
-        run: python3 scripts/test-png-nonblank.py 2>&1 | tee unit-png.log
+      - name: Portable unit tests (PNG checker, hotkey verdict checker)
+        # Both checkers decide a card from generated data, so both are proved in
+        # both directions before they are trusted with the measurement.
+        run: |
+          set -o pipefail
+          python3 scripts/test-png-nonblank.py 2>&1 | tee unit-png.log
+          python3 scripts/test-hotkey-verdict.py 2>&1 | tee -a unit-png.log
 
-      - name: Rust unit tests (Cocoa flip maths, dismissal rules)
+      - name: Rust unit tests (Cocoa flip maths, dismissal rules, hotkey mapping)
         run: |
           set -o pipefail
           cd src-tauri
@@ -55,8 +61,21 @@ jobs:
 
       - name: Measure the overlay
         # The probe is the gate: its exit code is the verdict, and it is the app
-        # itself (same summon path as the hotkey) that produced the numbers.
+        # itself (same summon path as the hotkey) that produced the numbers. It also
+        # registers the configured accelerator, reads `hotkey_view` back and — where
+        # the session allows input posting — presses the chord.
         run: BIN="$PWD/src-tauri/target/release/ez-convert" bash scripts/overlay-probe.sh overlay-evidence
+
+      - name: Hotkey — registration read back, chord pressed
+        # A named step, so the hotkey result is not a line buried in the overlay
+        # verdict. `hotkey-verdict.py` fails on a registration that does not match
+        # settings; a refused injection is reported, not failed (the card allows
+        # asserting only the registration when the runner forbids synthesising
+        # input, and pretending otherwise would be a fabricated pass).
+        if: always()
+        run: |
+          set -o pipefail
+          python3 scripts/hotkey-verdict.py overlay-evidence/overlay-facts.json 2>&1 | tee hotkey-verdict.txt
 
       - name: Evidence
         if: always()
@@ -68,6 +87,7 @@ jobs:
             unit-png.log
             unit-rust.log
             build.log
+            hotkey-verdict.txt
 
       - name: Publish the facts to overlay-status
         if: always()

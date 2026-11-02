@@ -271,6 +271,15 @@ pub fn page_ready() -> bool {
     PAGE_READY.load(Ordering::SeqCst)
 }
 
+/// How many times the overlay has been summoned in this process.
+///
+/// The measurement probe reads it before and after pressing the chord: a count that
+/// moved is the difference between "the chord summoned the wheel" and "the process
+/// was busy doing something else".
+pub fn summons() -> u64 {
+    SUMMONS.load(Ordering::SeqCst)
+}
+
 /// Measurement helper: puts the overlay so `cursor` sits at `offset` inside it.
 ///
 /// The probe uses it when the platform refuses to warp the pointer (a CI session with

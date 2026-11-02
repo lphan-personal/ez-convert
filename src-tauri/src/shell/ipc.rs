@@ -25,9 +25,10 @@ pub struct AppState {
     pub settings: Mutex<SettingsStore>,
     pub queue: Mutex<Queue>,
     pub started: Instant,
-    /// The global-hotkey thread (Windows). `None` until `summon::start_hotkeys` runs,
-    /// and `None` on platforms where registration is not implemented — the settings
-    /// panel shows the reason instead of a fake "registered".
+    /// The global-hotkey thread/registrar. `None` until `summon::start_hotkeys`
+    /// runs, and `None` on a platform where registration is not implemented (the
+    /// Linux containers) — the settings panel shows the reason instead of a fake
+    /// "registered".
     pub hotkeys: Mutex<Option<crate::shell::hotkey::PlatformHotkeys>>,
     /// The last registration outcome, so the UI can explain a conflict without
     /// re-registering (which would be a side effect on every render).

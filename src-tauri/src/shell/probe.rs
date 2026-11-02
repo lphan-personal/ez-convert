@@ -110,6 +110,7 @@ struct Facts {
     placement: PlacementFacts,
     window: WindowFacts,
     click: ClickSamples,
+    hotkey: HotkeyFacts,
     main_focused_before: bool,
     main_focused_after: bool,
     /// ms from the summon call to the webview's first painted frame.
@@ -142,6 +143,55 @@ struct PlacementFacts {
     monitor_in_range: bool,
 }
 
+/// What the Carbon registration was actually given, so the mapping this card
+/// implements is visible in the evidence rather than inferred from a source file.
+#[derive(Debug, Serialize)]
+struct CarbonFacts {
+    key_code: Option<u32>,
+    modifiers: u32,
+}
+
+/// One attempt to press the chord at the OS level.
+#[derive(Debug, Serialize)]
+struct HotkeyPress {
+    /// `cg-post-own-pid` (a key event addressed to this process),
+    /// `cg-post-hid` (the system event stream, which needs Accessibility consent).
+    method: &'static str,
+    /// The overlay's summon counter moved after the press.
+    delivered: bool,
+}
+
+/// The global hotkey, as the app reports it about itself.
+///
+/// `configured`/`registered`/`status` are exactly the fields the `hotkey_view` IPC
+/// command returns — the probe calls the same `summon::hotkey_snapshot`, so what CI
+/// asserts on is what the settings panel would show the user.
+#[derive(Debug, Serialize)]
+struct HotkeyFacts {
+    configured: String,
+    /// The canonical spelling of `configured`, when it parses.
+    configured_canonical: Option<String>,
+    registered: Option<String>,
+    status: String,
+    /// `registered` | `all-taken` | `failed` | `not-started`.
+    state: &'static str,
+    /// The acceptance criterion: the chord the OS holds is the chord settings ask
+    /// for.
+    matches_configured: bool,
+    /// The key code + modifier mask handed to `RegisterEventHotKey`.
+    carbon: Option<CarbonFacts>,
+    /// `AXIsProcessTrusted()` — whether this process may post synthetic key events.
+    input_posting_trusted: Option<bool>,
+    presses: Vec<HotkeyPress>,
+    summons_before: u64,
+    summons_after: u64,
+    /// Which press method moved the summon counter, if any.
+    delivered_by: Option<&'static str>,
+    /// Why no key event was delivered, when that is what happened. Recorded, never
+    /// asserted away.
+    note: String,
+}
+
 fn rect_array(rect: Rect) -> [i32; 4] {
     [rect.left, rect.top, rect.right, rect.bottom]
 }
@@ -155,6 +205,228 @@ fn on_main<T: Send + 'static>(app: &AppHandle, job: impl FnOnce() -> T + Send + 
     })
     .ok()?;
     rx.recv_timeout(Duration::from_millis(2000)).ok()
+}
+
+/// Reads the hotkey's registration and, where the session permits it, presses the
+/// chord and watches the summon counter.
+///
+/// The press is a *measurement*: the app never synthesises its own input. Injection
+/// needs the process to be allowed to post events, which a CI runner usually is not —
+/// so a refusal is recorded with its cause instead of being reported as a failure of
+/// the hotkey.
+fn hotkey_facts(app: &AppHandle) -> HotkeyFacts {
+    use crate::shell::accelerator;
+    use crate::shell::hotkey;
+    use crate::shell::ipc::AppState;
+    use crate::shell::summon;
+
+    let state = app.try_state::<AppState>();
+    let view = state
+        .as_ref()
+        .map(|state| summon::hotkey_snapshot(state));
+    let (configured, registered, status) = match view {
+        Some(view) => (view.configured, view.registered, view.status),
+        None => (
+            String::new(),
+            None,
+            "app state unavailable".to_string(),
+        ),
+    };
+    let configured_canonical = accelerator::parse(&configured).ok().map(|a| a.canonical());
+    let acquisition = state.as_ref().and_then(|state| state.hotkey_status());
+    let state_name = match &acquisition {
+        Some(hotkey::Acquisition::Registered { .. }) => "registered",
+        Some(hotkey::Acquisition::AllTaken { .. }) => "all-taken",
+        Some(hotkey::Acquisition::Failed { .. }) => "failed",
+        None => "not-started",
+    };
+    let matches_configured = match (&registered, &configured_canonical) {
+        (Some(registered), Some(canonical)) => registered == canonical,
+        _ => false,
+    };
+    // The chord the OS is actually listening for — the ladder may have substituted a
+    // fallback, and pressing the *configured* chord would then measure nothing.
+    let effective = registered
+        .as_deref()
+        .or(Some(configured.as_str()))
+        .and_then(|spelling| accelerator::parse(spelling).ok());
+    let carbon = effective.map(|accelerator| CarbonFacts {
+        key_code: hotkey::carbon_key_code(accelerator.key),
+        modifiers: hotkey::carbon_modifiers(accelerator),
+    });
+
+    let mut facts = HotkeyFacts {
+        configured,
+        configured_canonical,
+        registered,
+        status,
+        state: state_name,
+        matches_configured,
+        carbon,
+        input_posting_trusted: None,
+        presses: Vec::new(),
+        summons_before: crate::shell::overlay::summons(),
+        summons_after: 0,
+        delivered_by: None,
+        note: String::new(),
+    };
+
+    #[cfg(target_os = "macos")]
+    {
+        match effective {
+            Some(accelerator) => match hotkey::carbon_key_code(accelerator.key) {
+                Some(key_code) => {
+                    let flags = macos_input::cg_flags(hotkey::carbon_modifiers(accelerator));
+                    facts.input_posting_trusted = Some(macos_input::trusted());
+                    // Own-process first: it is the least privileged way to deliver a
+                    // key event to the app's own hot key manager. The HID stream is
+                    // the fallback and is the one a TCC grant gates.
+                    for (method, target) in [
+                        ("cg-post-own-pid", Some(std::process::id() as i32)),
+                        ("cg-post-hid", None),
+                    ] {
+                        let before = crate::shell::overlay::summons();
+                        macos_input::post_chord(key_code as u16, flags, target);
+                        let delivered = wait_for_summons(before, Duration::from_millis(1500));
+                        facts.presses.push(HotkeyPress { method, delivered });
+                        if delivered {
+                            facts.delivered_by = Some(method);
+                            break;
+                        }
+                    }
+                    if facts.delivered_by.is_none() {
+                        let tried = facts.presses.len();
+                        let trusted = match facts.input_posting_trusted {
+                            Some(true) => "true",
+                            Some(false) => "false",
+                            None => "unknown",
+                        };
+                        facts.note = format!(
+                            "no synthetic key event reached the hot key manager: {tried} \
+                             method(s) tried, AXIsProcessTrusted={trusted}"
+                        );
+                    }
+                }
+                None => {
+                    facts.note =
+                        "the registered chord's key has no macOS key code, so no press was attempted"
+                            .to_string();
+                }
+            },
+            None => {
+                facts.note = "no registered chord to press".to_string();
+            }
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = effective;
+        facts.note = "this platform's probe presses no chord (the hotkey measurement is macOS-scoped)"
+            .to_string();
+    }
+
+    facts.summons_after = crate::shell::overlay::summons();
+    facts
+}
+
+/// Polls the overlay's summon counter for `limit`.
+#[cfg(target_os = "macos")]
+fn wait_for_summons(before: u64, limit: Duration) -> bool {
+    let deadline = std::time::Instant::now() + limit;
+    while std::time::Instant::now() < deadline {
+        if crate::shell::overlay::summons() > before {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    false
+}
+
+/// Synthetic key events, for the measurement only.
+///
+/// Kept apart from `shell::hotkey` on purpose: posting input is not something the
+/// product does, and nothing outside `--overlay-probe` calls this.
+#[cfg(target_os = "macos")]
+mod macos_input {
+    use crate::shell::hotkey;
+    use std::ffi::c_void;
+
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGEventCreateKeyboardEvent(
+            source: *mut c_void,
+            virtual_key: u16,
+            key_down: bool,
+        ) -> *mut c_void;
+        fn CGEventSetFlags(event: *mut c_void, flags: u64);
+        fn CGEventPost(tap: u32, event: *mut c_void);
+        fn CGEventPostToPid(pid: i32, event: *mut c_void);
+    }
+
+    #[link(name = "CoreFoundation", kind = "framework")]
+    extern "C" {
+        fn CFRelease(cf: *mut c_void);
+    }
+
+    #[link(name = "ApplicationServices", kind = "framework")]
+    extern "C" {
+        fn AXIsProcessTrusted() -> bool;
+    }
+
+    /// `kCGEventFlagMaskShift`/`Control`/`Alternate`/`Command`.
+    const CG_SHIFT: u64 = 0x0002_0000;
+    const CG_CONTROL: u64 = 0x0004_0000;
+    const CG_ALTERNATE: u64 = 0x0008_0000;
+    const CG_COMMAND: u64 = 0x0010_0000;
+    /// `kCGHIDEventTap`.
+    const HID_EVENT_TAP: u32 = 0;
+
+    /// The Carbon mask as the CoreGraphics event flags the key event must carry.
+    pub fn cg_flags(carbon: u32) -> u64 {
+        let mut flags = 0;
+        if carbon & hotkey::CARBON_SHIFT != 0 {
+            flags |= CG_SHIFT;
+        }
+        if carbon & hotkey::CARBON_CONTROL != 0 {
+            flags |= CG_CONTROL;
+        }
+        if carbon & hotkey::CARBON_OPTION != 0 {
+            flags |= CG_ALTERNATE;
+        }
+        if carbon & hotkey::CARBON_CMD != 0 {
+            flags |= CG_COMMAND;
+        }
+        flags
+    }
+
+    /// Whether this process may post synthetic events at all.
+    pub fn trusted() -> bool {
+        // SAFETY: a value call with no arguments.
+        unsafe { AXIsProcessTrusted() }
+    }
+
+    /// Posts the chord (key down, then key up) either to `pid` or to the system HID
+    /// stream.
+    pub fn post_chord(key_code: u16, flags: u64, pid: Option<i32>) {
+        // SAFETY: the event is created, configured, posted and released in this
+        // scope; `CFRelease` pairs with `CGEventCreateKeyboardEvent`'s create rule.
+        unsafe {
+            for down in [true, false] {
+                let event = CGEventCreateKeyboardEvent(std::ptr::null_mut(), key_code, down);
+                if event.is_null() {
+                    return;
+                }
+                CGEventSetFlags(event, flags);
+                match pid {
+                    Some(pid) => CGEventPostToPid(pid, event),
+                    None => CGEventPost(HID_EVENT_TAP, event),
+                }
+                CFRelease(event);
+            }
+        }
+        // Give the event loop a moment to dispatch before the caller polls.
+        std::thread::sleep(std::time::Duration::from_millis(80));
+    }
 }
 
 fn measure(app: &AppHandle) -> Facts {
@@ -320,6 +592,12 @@ fn measure(app: &AppHandle) -> Facts {
         );
     }
 
+    // ---- the global hotkey -------------------------------------------------
+    // The registration is read through the same snapshot the `hotkey_view` IPC
+    // command returns, and the chord is pressed where the session allows it. This
+    // runs last because a successful press re-summons the overlay.
+    let hotkey = hotkey_facts(app);
+
     // ---- checks ---------------------------------------------------------
     let mut checks: BTreeMap<String, bool> = BTreeMap::new();
     checks.insert("window-created".into(), window_facts.found);
@@ -350,6 +628,21 @@ fn measure(app: &AppHandle) -> Facts {
         "click-through-sampled".into(),
         centre_inside != corner_inside,
     );
+    // The hotkey half. `hotkey-registered` is the card's acceptance criterion: the
+    // chord the OS holds is the chord `settings.json` asks for.
+    checks.insert("hotkey-registered".into(), hotkey.matches_configured);
+    checks.insert(
+        "hotkey-state-registered".into(),
+        hotkey.state == "registered",
+    );
+    // Only recorded when a press was actually attempted, so "we could not inject"
+    // never masquerades as "the chord does nothing".
+    if !hotkey.presses.is_empty() {
+        checks.insert(
+            "hotkey-press-summons".into(),
+            hotkey.delivered_by.is_some(),
+        );
+    }
 
     // Which of the two click-through mechanisms the platform actually has. Each is
     // asserted only where it is implemented and observable.
@@ -406,26 +699,38 @@ fn measure(app: &AppHandle) -> Facts {
     .map(|name| name.to_string())
     .collect();
     #[cfg(target_os = "macos")]
-    let asserted: Vec<String> = vec![
-        "window-created",
-        "window-visible",
-        "placement-reported",
-        "position-matches-placement",
-        "size-matches-wheel",
-        "always-on-top",
-        "undecorated",
-        "overlay-not-key",
-        "main-window-keeps-focus",
-        "rendered-within-150ms",
-        "cursor-at-wheel-or-clamped",
-        "monitor-index-in-range",
-        "click-through-sampled",
-        "disc-accepts-mouse-events",
-        "corner-ignores-mouse-events",
-    ]
-    .into_iter()
-    .map(|name| name.to_string())
-    .collect();
+    let asserted: Vec<String> = {
+        let mut asserted: Vec<String> = vec![
+            "window-created",
+            "window-visible",
+            "placement-reported",
+            "position-matches-placement",
+            "size-matches-wheel",
+            "always-on-top",
+            "undecorated",
+            "overlay-not-key",
+            "main-window-keeps-focus",
+            "rendered-within-150ms",
+            "cursor-at-wheel-or-clamped",
+            "monitor-index-in-range",
+            "click-through-sampled",
+            "disc-accepts-mouse-events",
+            "corner-ignores-mouse-events",
+            // The card's acceptance criterion, and the reason this workflow exists.
+            "hotkey-registered",
+            "hotkey-state-registered",
+        ]
+        .into_iter()
+        .map(|name| name.to_string())
+        .collect();
+        // Asserted only when the runner let a key event reach the hot key manager.
+        // A refused injection is stated in `hotkey.note` (and the verdict line), not
+        // turned into a green check it did not earn.
+        if hotkey.delivered_by.is_some() {
+            asserted.push("hotkey-press-summons".into());
+        }
+        asserted
+    };
     #[cfg(not(any(windows, target_os = "macos")))]
     let asserted: Vec<String> = vec!["placement-reported".to_string()];
 
@@ -468,6 +773,7 @@ fn measure(app: &AppHandle) -> Facts {
         },
         main_focused_before,
         main_focused_after,
+        hotkey,
         render_ms,
         cold_render_ms,
         page_ready,
