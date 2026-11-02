@@ -74,7 +74,7 @@ pub fn run() -> i32 {
     let cases: [(&str, CanonicalType, TargetFormat); 4] = [
         ("image", CanonicalType::Png, TargetFormat::Jpg),
         ("audio", CanonicalType::Wav, TargetFormat::Mp3),
-        ("video", CanonicalType::Mp4, TargetFormat::WebM),
+        ("video", CanonicalType::Mp4, TargetFormat::Webm),
         ("document", CanonicalType::Docx, TargetFormat::Pdf),
     ];
 
