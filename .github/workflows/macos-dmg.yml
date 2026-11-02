@@ -42,6 +42,9 @@ jobs:
   app:
     name: app (universal DMG)
     runs-on: macos-latest
+    # Spend guard (2026-11-02): a macOS minute bills at 10x. This job has
+    # never needed more than a few minutes; cap it so a hang cannot eat the quota.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -124,6 +127,9 @@ jobs:
   pack:
     name: pack (engine pack DMG)
     runs-on: macos-latest
+    # Spend guard (2026-11-02): a macOS minute bills at 10x. This job has
+    # never needed more than a few minutes; cap it so a hang cannot eat the quota.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -163,6 +169,9 @@ jobs:
     name: install-test (DMG install + real conversions)
     needs: [app, pack]
     runs-on: macos-latest
+    # Spend guard (2026-11-02): a macOS minute bills at 10x. This job has
+    # never needed more than a few minutes; cap it so a hang cannot eat the quota.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
