@@ -29,3 +29,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# Staged bundle inputs (assembled by scripts/stage-engines.sh; ~1 GB, never committed)
+/src-tauri/binaries/
+/src-tauri/resources/
