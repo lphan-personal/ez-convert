@@ -198,27 +198,56 @@ find "$VIPS_OUT" -name '*.so' -type f >> "$QUEUE" 2>/dev/null || true
 
 deps_of() { otool -L "$1" 2>/dev/null | tail -n +2 | awk '{print $1}'; }
 
-while :; do
-  pending="$(sort -u "$QUEUE" | comm -23 - <(sort -u "$SEEN") || true)"
-  [ -n "$pending" ] || break
-  # `while read`, not `for file in $pending`: LibreOffice ships paths with
-  # spaces, and word splitting turns each of those into two bogus filenames.
-  while IFS= read -r file; do
-    [ -n "$file" ] || continue
-    printf '%s\n' "$file" >> "$SEEN"
+# Every Mach-O in the pack, found by content rather than by extension: the vips
+# *modules* are not all `.so` on macOS (run 41376620641), and BSD `file` adds one
+# parenthetical line per architecture of a universal binary.
+macho_list() {
+  find "$VIPS_OUT" -type f -print0 | xargs -0 file 2>/dev/null | grep -E 'Mach-O' \
+    | sed -E 's/ \(for architecture [^)]*\)//g' | cut -d: -f1 | sort -u
+}
+
+# Where a linked dependency actually lives on this machine. Homebrew bottles mix
+# absolute paths with @rpath references (openexr's libOpenEXR refers to
+# @rpath/libIlmThread-3_5.34.dylib), so an @rpath dep is looked up in the source
+# prefix — otherwise it is never staged and the relocated libvips aborts with
+# "Library not loaded" (run 41378731944).
+BREW_LIB="$(brew --prefix)/lib"
+source_dep() { # <dep> -> absolute source path, empty if unresolvable
+  local dep="$1" base dir
+  case "$dep" in
+    @rpath/*|@loader_path/*|@executable_path/*) base="$(basename "$dep")" ;;
+    /*) printf '%s' "$dep"; return 0 ;;
+    *) return 0 ;;
+  esac
+  for dir in "$VIPS_PREFIX/lib" "$VIPS_SRC/lib" "$BREW_LIB"; do
+    if [ -f "$dir/$base" ]; then printf '%s' "$dir/$base"; return 0; fi
+  done
+}
+
+# Dependency closure: everything the pack links that is not a system library.
+# Iterated to a fixed point over every Mach-O in the tree, so a dependency two
+# hops away (@rpath -> sibling -> third) is not missed.
+for _pass in 1 2 3 4 5 6; do
+  added=0
+  while IFS= read -r macho; do
     while IFS= read -r dep; do
       case "$dep" in
-        /usr/lib/*|/System/*|@rpath/*|@loader_path/*|@executable_path/*) continue ;;
+        /usr/lib/*|/System/*|@loader_path/*|@executable_path/*) continue ;;
       esac
       base="$(basename "$dep")"
       [ -f "$VIPS_OUT/lib/$base" ] && continue
-      [ -f "$dep" ] || { echo "missing dependency $dep (needed by $file)" >&2; exit 1; }
-      cp "$dep" "$VIPS_OUT/lib/$base"
-      printf '%s\n' "$VIPS_OUT/lib/$base" >> "$QUEUE"
-    done < <(deps_of "$file")
-  done <<< "$pending"
+      src="$(source_dep "$dep")"
+      if [ -z "$src" ] || [ ! -f "$src" ]; then
+        echo "unresolvable dependency: $dep (linked by $macho)" >&2
+        exit 1
+      fi
+      cp "$src" "$VIPS_OUT/lib/$base"
+      added=$((added + 1))
+    done < <(deps_of "$macho")
+  done < <(macho_list)
+  [ "$added" -eq 0 ] && break
 done
-note "$(find "$VIPS_OUT/lib" -maxdepth 1 -name '*.dylib' | wc -l | tr -d ' ') dylibs in the closure"
+note "$(find "$VIPS_OUT/lib" -maxdepth 1 -type f | wc -l | tr -d ' ') dylibs in the closure"
 
 # Rewrite install names: no /opt/homebrew (or /usr/local) path may survive, or
 # the pack only runs on the build machine.
@@ -238,27 +267,37 @@ rewrite() { # <mach-o> [rpaths...]
   done
 }
 
-# Every Mach-O in the pack, found by content rather than by extension. The vips
-# *modules* are what the extension-based list missed in run 41376620641: they
-# are not all `.so` on macOS, so libvips/glib/libheif stayed absolute in them and
-# the leftover check refused the pack (correctly).
-macho_list() {
-  find "$VIPS_OUT" -type f -print0 | xargs -0 file 2>/dev/null | grep -E 'Mach-O' \
-    | sed -E 's/ \(for architecture [^)]*\)$//' | cut -d: -f1 | sort -u
-}
 macho_list > "$WORK/vips-macho.txt"
 while IFS= read -r macho; do
   rewrite "$macho" "@loader_path" "@loader_path/../lib" "@executable_path/lib"
 done < "$WORK/vips-macho.txt"
 note "$(wc -l < "$WORK/vips-macho.txt" | tr -d ' ') Mach-O objects re-pointed at @rpath"
 
-# Post-condition, per file, naming the offender: the failure mode is a pack that
-# only runs on the build machine.
+# Post-conditions, per file and reported in full (a macOS run is ~47 billed
+# minutes, so one run must list every offender, not the first one):
+#  (a) no absolute build path is still linked;
+#  (b) every non-system, non-absolute dependency resolves to a file that is
+#      actually inside the pack.
 leftover=""
+missing=""
 while IFS= read -r macho; do
   while IFS= read -r dep; do
     case "$dep" in
-      /opt/homebrew/*|/usr/local/*) leftover="${leftover}${macho}: ${dep}"$'\n' ;;
+      /opt/homebrew/*|/usr/local/*)
+        leftover="${leftover}${macho}: ${dep}"$'\n' ; continue ;;
+      /usr/lib/*|/System/*)
+        continue ;;
+      @rpath/*)
+        base="$(basename "$dep")"
+        [ -f "$VIPS_OUT/lib/$base" ] || [ -f "$(dirname "$macho")/$base" ] \
+          || missing="${missing}${macho}: ${dep}"$'\n'
+        continue ;;
+      @loader_path/*)
+        rel="${dep#@loader_path/}"
+        [ -e "$(dirname "$macho")/$rel" ] || missing="${missing}${macho}: ${dep}"$'\n'
+        continue ;;
+      *)
+        [ -f "$dep" ] || missing="${missing}${macho}: ${dep}"$'\n' ;;
     esac
   done < <(deps_of "$macho")
 done < "$WORK/vips-macho.txt"
@@ -267,6 +306,12 @@ if [ -n "$leftover" ]; then
   printf '%s\n' "$leftover" >&2
   exit 1
 fi
+if [ -n "$missing" ]; then
+  echo "dependency closure incomplete — these references do not resolve inside the pack:" >&2
+  printf '%s\n' "$missing" >&2
+  exit 1
+fi
+note "dependency gate: every reference in $(wc -l < "$WORK/vips-macho.txt" | tr -d ' ') Mach-O objects resolves inside the pack"
 "$VIPS_OUT/vips" --version >/dev/null || { echo "relocated vips does not run" >&2; exit 1; }
 note "relocated vips runs: $("$VIPS_OUT/vips" --version)"
 
