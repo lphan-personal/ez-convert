@@ -104,6 +104,17 @@ step() { printf '\n=== %s\n' "$*"; }
 note() { printf '    %s\n' "$*"; }
 die()  { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
+# Wall-clock stamp on every smoke step: the first two runs of this job that got
+# past the gate gave no way to tell a slow step from a hung one (step 8 is where
+# a LibreOffice conversion can sit forever holding the job open). TICK0 is set at
+# the start of step 8.
+TICK0=0
+tick() { printf '    [%4ds] %s\n' "$((SECONDS - TICK0))" "$*"; }
+
+# Every engine invocation is bounded. A hung engine must fail the run with the
+# engine's own log, not consume the whole job timeout.
+lim() { local secs="$1"; shift; timeout "$secs" "$@"; }
+
 # POSIX path -> Windows path, for the tools that only speak Windows (msiexec,
 # soffice's --outdir, the file:// URL of a LibreOffice profile).
 win() { cygpath -w "$1"; }
@@ -250,8 +261,8 @@ fi
 # The pack must be the version the inventory names, and it must actually run.
 # `soffice.com` is the console launcher the app spawns; its exit code is not
 # evidence, the printed version is.
-LO_VER_OUT="$("$LO_OUT/program/soffice.com" --headless --norestore --version \
-  -env:UserInstallation="file:///$(cygpath -m "$WORK/lo-probe")" 2>&1 | tr -d '\r')"
+LO_VER_OUT="$(lim 120 "$LO_OUT/program/soffice.com" --headless --norestore --version \
+  -env:UserInstallation="file:///$(cygpath -m "$WORK/lo-probe")" 2>&1 | tr -d '\r')" || true
 note "version: $(printf '%s' "$LO_VER_OUT" | head -1)"
 printf '%s' "$LO_VER_OUT" | grep -q "$LO_VERSION" || die "LibreOffice does not report $LO_VERSION: $LO_VER_OUT"
 
@@ -345,19 +356,30 @@ note "PASS: no imagequant / poppler / magick / x265 / x264 / jbig import in the 
 
 # ------------------------------------------------------------ 7. licence gate
 step "7/9 licence gate over docs/shipped-inventory.tsv (fail-closed)"
-bash "$REPO_ROOT/scripts/dist-license-gate.sh" --check-inventory | tee "$WORK/licence-inventory.txt" | tail -2
+: >"$WORK/licence-inventory.txt"
+: >"$WORK/licence-scan.txt"
+inv_rc=0
+bash "$REPO_ROOT/scripts/dist-license-gate.sh" --check-inventory >"$WORK/licence-inventory.txt" 2>&1 || inv_rc=$?
+sed 's/^/    /' "$WORK/licence-inventory.txt"
+[ "$inv_rc" -eq 0 ] || die "inventory classification failed ($inv_rc) — see the lines above"
 fails=0
 # Each engine tree is scanned from its own root: the inventory names files
 # relative to the artifact root (`program/**`, `share/*`, `libvips-42.dll`), which
 # is exactly the root each engine ships at inside the pack.
+#
+# The full output of every scan goes into the log, not `tail -1`: this gate has
+# already failed this job three times and every one of those runs hid part of its
+# own evidence behind a tail (run 41425759582 printed 1 of 3 failures).
 for tree in "$VIPS_OUT" "$FFMPEG_OUT" "$LO_OUT"; do
   printf '    scan %s\n' "${tree#"$PACK"/}"
-  if ! bash "$REPO_ROOT/scripts/dist-license-gate.sh" --scan "$tree" >>"$WORK/licence-scan.txt" 2>&1; then
+  tree_log="$WORK/scan-$(basename "$tree").txt"
+  if ! bash "$REPO_ROOT/scripts/dist-license-gate.sh" --scan "$tree" >"$tree_log" 2>&1; then
     fails=$((fails + 1))
   fi
-  tail -1 "$WORK/licence-scan.txt" | sed 's/^/    /'
+  sed 's/^/      /' "$tree_log" >>"$WORK/licence-scan.txt"
+  sed 's/^/    /' "$tree_log"
 done
-[ "$fails" -eq 0 ] || { grep -E '^FAIL' "$WORK/licence-scan.txt" | head -40 >&2; die "$fails engine tree(s) failed the licence gate"; }
+[ "$fails" -eq 0 ] || die "$fails engine tree(s) failed the licence gate (every FAIL line is above)"
 note "each engine tree scanned from its own root (the inventory names files relative to it)"
 
 # ---------------------------------------------------------------- 8. smoke
@@ -365,43 +387,48 @@ step "8/9 smoke: a real conversion per family — the output is judged, never th
 FIX="$REPO_ROOT/fixtures"
 SMOKE="$WORK/smoke"
 image_ok=0 audio_ok=0 video_ok=0 doc_ok=0
+TICK0=$SECONDS
 
 # image: png -> jpg, then read the dimensions back out of the product and compare
 # them with the source's own — a zero-byte or truncated JPEG would fail here.
-"$VIPS_OUT/vips.exe" copy "$(win "$FIX/sample.png")" "$(win "$SMOKE/image.jpg")[Q=85]" \
+tick "image: vips png -> jpg"
+lim 120 "$VIPS_OUT/vips.exe" copy "$(win "$FIX/sample.png")" "$(win "$SMOKE/image.jpg")[Q=85]" \
   >"$SMOKE/image.log" 2>&1 || { cat "$SMOKE/image.log" >&2; die "vips png->jpg failed"; }
 [ -s "$SMOKE/image.jpg" ] || { cat "$SMOKE/image.log" >&2; die "vips produced no image output"; }
-sw="$("$VIPS_OUT/vipsheader.exe" -f width "$(win "$FIX/sample.png")" 2>&1 | tr -d '\r\n')"
-sh="$("$VIPS_OUT/vipsheader.exe" -f height "$(win "$FIX/sample.png")" 2>&1 | tr -d '\r\n')"
-ow="$("$VIPS_OUT/vipsheader.exe" -f width "$(win "$SMOKE/image.jpg")" 2>&1 | tr -d '\r\n')"
-oh="$("$VIPS_OUT/vipsheader.exe" -f height "$(win "$SMOKE/image.jpg")" 2>&1 | tr -d '\r\n')"
+sw="$(lim 60 "$VIPS_OUT/vipsheader.exe" -f width "$(win "$FIX/sample.png")" 2>&1 | tr -d '\r\n')"
+sh="$(lim 60 "$VIPS_OUT/vipsheader.exe" -f height "$(win "$FIX/sample.png")" 2>&1 | tr -d '\r\n')"
+ow="$(lim 60 "$VIPS_OUT/vipsheader.exe" -f width "$(win "$SMOKE/image.jpg")" 2>&1 | tr -d '\r\n')"
+oh="$(lim 60 "$VIPS_OUT/vipsheader.exe" -f height "$(win "$SMOKE/image.jpg")" 2>&1 | tr -d '\r\n')"
 [ "$sw" = "$ow" ] && [ "$sh" = "$oh" ] || die "image is ${ow}x${oh}, source is ${sw}x${sh}"
 image_ok=1
 note "image   png -> jpg $(wc -c <"$SMOKE/image.jpg") B, ${ow}x${oh} (source ${sw}x${sh})"
 
 # image (second path): the HEIC decode that the stock builds cannot do.
-"$VIPS_OUT/vips.exe" copy "$(win "$FIX/sample.heic")" "$(win "$SMOKE/heic.jpg")" \
+tick "image: vips heic -> jpg (libheif)"
+lim 120 "$VIPS_OUT/vips.exe" copy "$(win "$FIX/sample.heic")" "$(win "$SMOKE/heic.jpg")" \
   >"$SMOKE/heic.log" 2>&1 || { cat "$SMOKE/heic.log" >&2; die "vips heic->jpg failed (libheif decode)"; }
 [ -s "$SMOKE/heic.jpg" ] || die "vips produced no output for the HEIC fixture"
 note "image   heic -> jpg $(wc -c <"$SMOKE/heic.jpg") B (libheif decode)"
 
 # audio: wav -> mp3 through libmp3lame, then ffprobe the product's codec.
-"$FFMPEG_OUT/ffmpeg.exe" -nostdin -v error -y "$(win "$FIX/sample.wav")" \
+tick "audio: ffmpeg wav -> mp3 (libmp3lame)"
+lim 300 "$FFMPEG_OUT/ffmpeg.exe" -nostdin -v error -y "$(win "$FIX/sample.wav")" \
   -codec:a libmp3lame -q:a 2 "$(win "$SMOKE/audio.mp3")" >"$SMOKE/audio.log" 2>&1 \
   || { cat "$SMOKE/audio.log" >&2; die "ffmpeg wav->mp3 failed"; }
 [ -s "$SMOKE/audio.mp3" ] || die "ffmpeg produced no audio output"
-codec="$("$FFMPEG_OUT/ffprobe.exe" -v error -select_streams a:0 -show_entries stream=codec_name -of default=nw=1:nk=1 "$(win "$SMOKE/audio.mp3")" 2>&1 | head -1)"
+codec="$(lim 60 "$FFMPEG_OUT/ffprobe.exe" -v error -select_streams a:0 -show_entries stream=codec_name -of default=nw=1:nk=1 "$(win "$SMOKE/audio.mp3")" 2>&1 | head -1)"
 [ "$codec" = "mp3" ] || die "audio product codec is '$codec', expected mp3"
 audio_ok=1
 note "audio   wav -> mp3 $(wc -c <"$SMOKE/audio.mp3") B, codec=$codec (libmp3lame)"
 
 # video: mp4 -> webm exactly as the app's own route builds it
 # (`VideoEncode::for_target(Webm)`: libvpx-vp9 + libopus, src-tauri/src/engine/ffmpeg.rs).
-"$FFMPEG_OUT/ffmpeg.exe" -nostdin -v error -y -i "$(win "$FIX/sample.mp4")" \
+tick "video: ffmpeg mp4 -> webm (libvpx-vp9 + libopus)"
+lim 300 "$FFMPEG_OUT/ffmpeg.exe" -nostdin -v error -y -i "$(win "$FIX/sample.mp4")" \
   -c:v libvpx-vp9 -b:v 200k -c:a libopus -f webm "$(win "$SMOKE/video.webm")" \
   >"$SMOKE/video.log" 2>&1 || { cat "$SMOKE/video.log" >&2; die "ffmpeg mp4->webm failed"; }
 [ -s "$SMOKE/video.webm" ] || die "ffmpeg produced no video output"
-vcodec="$("$FFMPEG_OUT/ffprobe.exe" -v error -select_streams v:0 -show_entries stream=codec_name -of default=nw=1:nk=1 "$(win "$SMOKE/video.webm")" 2>&1 | head -1)"
+vcodec="$(lim 60 "$FFMPEG_OUT/ffprobe.exe" -v error -select_streams v:0 -show_entries stream=codec_name -of default=nw=1:nk=1 "$(win "$SMOKE/video.webm")" 2>&1 | head -1)"
 [ "$vcodec" = "vp9" ] || die "video product codec is '$vcodec', expected vp9"
 video_ok=1
 note "video   mp4 -> webm $(wc -c <"$SMOKE/video.webm") B, codec=$vcodec (libvpx-vp9 + libopus)"
@@ -409,8 +436,12 @@ note "video   mp4 -> webm $(wc -c <"$SMOKE/video.webm") B, codec=$vcodec (libvpx
 # document: docx -> pdf through the console launcher, in a throw-away profile.
 # LibreOffice is the engine that lies about success, so the product is what is
 # judged: a PDF that opens, has a page object and carries the document's text.
+# `--nofirststartwizard` and a bounded timeout matter here: an unbounded headless
+# soffice on a fresh profile is how this step hangs a whole job.
+LO_ARGS=(--headless --norestore --nologo --nodefault --nolockcheck --nofirststartwizard)
 LO_PROFILE="file:///$(cygpath -m "$SMOKE/lo-profile")"
-"$LO_OUT/program/soffice.com" --headless --norestore --nologo --nodefault \
+tick "document: soffice docx -> pdf"
+lim 300 "$LO_OUT/program/soffice.com" "${LO_ARGS[@]}" \
   -env:UserInstallation="$LO_PROFILE" \
   --convert-to pdf --outdir "$(win "$SMOKE")" "$(win "$FIX/sample.docx")" \
   >"$SMOKE/doc.log" 2>&1 || true   # its exit code is not evidence; the product is
@@ -428,7 +459,8 @@ pages="$(grep -ao '/Type[[:space:]]*/Page[^s]' "$SMOKE/sample.pdf" | wc -l | tr 
 
 # The text itself, through the engine's plain-text writer: MARKER-ALPHA is in
 # fixtures/sample.docx and only a real conversion carries it across.
-"$LO_OUT/program/soffice.com" --headless --norestore --nologo --nodefault \
+tick "document: soffice docx -> txt"
+lim 180 "$LO_OUT/program/soffice.com" "${LO_ARGS[@]}" \
   -env:UserInstallation="$LO_PROFILE" \
   --convert-to 'txt:Text (encoded):UTF8' --outdir "$(win "$SMOKE")" "$(win "$FIX/sample.docx")" \
   >"$SMOKE/doc-txt.log" 2>&1 || true
@@ -444,7 +476,7 @@ doc_ok=1
 note "document docx -> pdf $(wc -c <"$SMOKE/sample.pdf") B, $pages page object(s); docx -> txt $(wc -c <"$SMOKE/sample.txt") B with MARKER-ALPHA + café (LibreOffice $LO_VERSION)"
 
 [ "$image_ok$audio_ok$video_ok$doc_ok" = "1111" ] || die "a family did not convert"
-note "FAMILY image PASS / audio PASS / video PASS / document PASS"
+note "FAMILY image PASS / audio PASS / video PASS / document PASS (smoke took $((SECONDS - TICK0))s)"
 
 # The layout contract: the names `EnginePaths::from_root` (src-tauri/src/engine/
 # proc.rs) resolves on Windows. If any of these moves, the app finds no engine
@@ -463,7 +495,7 @@ LIC="$PACK/licenses"
 mkdir -p "$LIC"
 cp "$REPO_ROOT/docs/licenses/THIRD-PARTY-NOTICES.md" "$LIC/"
 cp "$WORK/ffmpeg-buildconf.txt" "$LIC/ffmpeg-buildconf.txt"
-cp "$WORK/msiexec.log" "$LIC/libreoffice-msi-admin-install.log"
+cp "$WORK/msiexec.log" "$LIC/libreoffice-msi-install.log"
 printf '%s  %s\n' "$LO_MSI_SHA256" "LibreOffice_${LO_VERSION}_Win_x86-64.msi" > "$LIC/libreoffice-msi.sha256"
 cp "$WORK/strip-manifest.tsv" "$LIC/strip-manifest.tsv" 2>/dev/null || true
 cp "$WORK/licence-inventory.txt" "$LIC/licence-inventory.txt" 2>/dev/null || true
@@ -487,18 +519,28 @@ tail -1 "$WORK/licence-scan.txt" | sed 's/^/    /'
   || die "licenses/THIRD-PARTY-NOTICES.md is not the committed notice"
 note "notices: licenses/THIRD-PARTY-NOTICES.md is byte-identical to docs/licenses/"
 
+TICK0=$SECONDS
+tick "manifest over the shipped tree"
 ( cd "$PACK" && find . -type f ! -name MANIFEST.sha256 -print0 \
   | xargs -0 sha256sum > MANIFEST.sha256 )
 note "manifest: $(wc -l < "$PACK/MANIFEST.sha256" | tr -d ' ') files"
 
 ZIP="$OUT/windows-engine-pack-$ARCH.zip"
 rm -f "$ZIP"
-( cd "$PACK" && zip -r -9 -q "$(win "$ZIP")" . -x '*/.*' )
+# -1, not -9: the artifact only has to be a zip under 1 GiB, and level 9 spends
+# ~15 minutes of a 4-core runner squeezing a 1 GB tree of already-compressed
+# binaries for a few percent. The manifest, not the compression level, is what
+# proves the artifact.
+tick "zip (level 1)"
+( cd "$PACK" && zip -r -1 -q "$(win "$ZIP")" . -x '*/.*' )
 [ -s "$ZIP" ] || die "the zip was not produced"
+note "zip: $(wc -c < "$ZIP" | tr -d ' ') B"
 # Verify the artifact as a user receives it: unzip elsewhere and check every hash.
+tick "unzip elsewhere"
 VERIFY="$WORK/verify"
 mkdir -p "$VERIFY"
 unzip -q -o "$ZIP" -d "$VERIFY"
+tick "re-verify every MANIFEST digest from the unpacked copy"
 ( cd "$VERIFY" && sha256sum -c --quiet MANIFEST.sha256 ) || die "MANIFEST.sha256 does not verify after unzip"
 [ -f "$VERIFY/engines/soffice/program/soffice.com" ] || die "the zip loses the LibreOffice launcher"
 [ -f "$VERIFY/engines/vips/vips.exe" ] || die "the zip loses vips.exe"
