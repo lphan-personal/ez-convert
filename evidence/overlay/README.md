@@ -47,6 +47,47 @@ rect and checked the crop (`scripts/png-nonblank.py`).
 - non-activating: `WS_EX_NOACTIVATE` read back from the window's ex-style.
 - main window focus: unchanged.
 
+## Main-branch run — 41494299571 @ b441ee3
+
+The same workflow, dispatched on `main` after the branch landed. Both jobs `success`, both
+`OVERLAY_PROBE ok=true`, 15/15 asserted checks:
+
+| Platform | `ok` | summon → visible | cold (first, pre-warm) | screenshot | asserted checks |
+|---|---|---|---|---|---|
+| macOS 15 arm64 (1024×768, scale 1) | **true** | **39 ms** | **2427 ms** | captured, ring visible | 15/15 |
+| Windows Server 2025 x64 (1024×768) | **true** | **28 ms** | 38 ms | captured, ring visible | 15/15 |
+
+Placement and window facts are identical to the branch run (macOS `x0 y31` 520×520 monitor 0,
+`focused=false`, main window keeps focus; Windows `x252 y124` 520×520, `GetWindowRgn` =
+ellipse, corner belongs to another window, `WS_EX_NOACTIVATE`).
+
+**The macOS cold number is not the branch's.** The branch run measured `cold_render_ms=50`;
+here it is **2427 ms**, and the installed build below repeats it (2321 ms). The warm path is
+faster (39 ms vs 44 ms) and the asserted `rendered-within-150ms` check still passes, so the
+assertion is about the summon path, not about the first webview construction after a fresh
+launch — but a user pressing the hotkey for the first time in a session can wait ~2.4 s. The
+release notes state this instead of quoting the flattering branch figure.
+
+## The installed build — macos-validate 41499554761 @ b441ee3
+
+This is the claim a release may make. `macos-dmg` run
+[41494303742](https://github.com/lphan-personal/ez-convert/actions/runs/41494303742) built the
+DMG from the same commit (`EZ-Convert-0.0.1-macos-universal.dmg`, 6,369,880 B, sha256
+`7972d9bf9bfbc8b87f80e12caa59bc26a603a71c62530486d1556433febdada0`), `macos-validate` run
+[41499554761](https://github.com/lphan-personal/ez-convert/actions/runs/41499554761)
+installed it, and the probe ran **against the installed binary**
+`/Applications/EZ Convert.app/Contents/MacOS/ez-convert`:
+
+| Platform | `ok` | summon → visible | cold | screenshot | asserted checks |
+|---|---|---|---|---|---|
+| macOS 15 arm64, app installed from the DMG | **true** | **55 ms** | 2321 ms | captured, ring visible | 15/15 |
+
+`verdict.log` from that job: `VALIDATION arm64 ... conversion=pass (4/4)`,
+`VALIDATION rosetta-x86_64 ... conversion=pass`, and
+`VALIDATION overlay installed-binary=true (scripts/overlay-probe.sh, /Applications/EZ Convert.app)`.
+The facts, screenshot, crop and verdict are published under
+`macos-status/run-41499554761/validate-arm64/overlay-*`.
+
 ## What is recorded but not asserted
 
 - `overlay-not-key` on Windows reads `focused=true`. A runner with no console has no

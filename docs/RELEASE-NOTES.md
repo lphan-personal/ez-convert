@@ -11,8 +11,9 @@ while the tag says `v1.0.0`, which is why the file names carry `0.0.1`.
 ## Unreleased — the next build carries the wheel overlay
 
 v1.0.0 shipped **without** a working overlay window: `summon()` looked up a window labelled
-`wheel` that nothing ever created, so the hotkey produced nothing, and the v1.0.0 notes said
-so. Both the window and the measurement now exist on `main` (`docs/OVERLAY.md`):
+`wheel` that nothing ever created, so the hotkey produced nothing. That gap was listed as a
+known issue in the v1.0.0 notes and is deleted now that the window and its measurement exist
+(`docs/OVERLAY.md`):
 
 - The wheel is a real, transparent, non-activating, always-on-top window built at runtime;
   the square corners outside the disc are click-through (an elliptic window region on
@@ -20,22 +21,33 @@ so. Both the window and the measurement now exist on `main` (`docs/OVERLAY.md`):
   window from the app the user is working in.
 - Measured on a real desktop by the app itself — the same summon path the hotkey, the tray
   item and the `wheel_summon` command call — with the screen photographed and the ring's
-  rectangle checked against a blank-capture control
-  (`evidence/overlay/README.md`, `overlay-measure` run
-  [41491695772](https://github.com/lphan-personal/ez-convert/actions/runs/41491695772)):
+  rectangle checked against a blank-capture control (`evidence/overlay/README.md`).
+  `overlay-measure` on `main` ([41494299571](https://github.com/lphan-personal/ez-convert/actions/runs/41494299571)),
+  both jobs green, 15/15 asserted checks each:
 
-| platform | summon → visible | cold (first, pre-warm) | screenshot | asserted checks |
-|---|---|---|---|---|
-| macOS 15 arm64, 1024×768, scale 1 | 44 ms | 50 ms | ring visible in the crop | 15/15 |
-| Windows Server 2025 x64, 1024×768 | 45 ms | 62 ms | ring visible in the crop | 15/15 |
+| platform | summon → visible | first summon after a fresh launch | screenshot |
+|---|---|---|---|
+| macOS 15 arm64, 1024×768, scale 1 | 39 ms | 2427 ms | ring visible in the crop |
+| Windows Server 2025 x64, 1024×768 | 28 ms | 38 ms | ring visible in the crop |
 
-- The claim that matters for a download is the **installed** one, so `macos-validate` now runs
-  `--overlay-probe` against `/Applications/EZ Convert.app/Contents/MacOS/ez-convert` and fails
-  the job unless every asserted check passes. A green `macos-validate` means the DMG's own
-  binary was re-measured after installation, not that a build tree was.
-- **Not yet in a published artifact.** Until the DMG and the NSIS installer built from this
-  state are published and that installed-build probe has run, the overlay is measured on
-  `main` — not shipped. This section will carry the installed-build numbers when it is.
+- **The first summon on macOS can take ~2.4 s** — measured twice (2427 ms from the build tree,
+  2321 ms from the installed app). The asserted budget covers the summon path (39–55 ms); the
+  cold figure is the first webview construction after launch. It is reported here rather than
+  omitted: the cold path is the one a user actually meets first.
+- **Measured from the installed app, not from a build tree.** `macos-validate`
+  ([41499554761](https://github.com/lphan-personal/ez-convert/actions/runs/41499554761))
+  installs the DMG built from this state (`EZ-Convert-0.0.1-macos-universal.dmg`, 6,369,880 B,
+  sha256 `7972d9bf9bfbc8b87f80e12caa59bc26a603a71c62530486d1556433febdada0`) and runs
+  `--overlay-probe` against `/Applications/EZ Convert.app/Contents/MacOS/ez-convert`; the job
+  fails unless the probe reports `ok=true`. Installed result: **55 ms warm, 2321 ms cold, 15/15
+  checks**, `VALIDATION overlay installed-binary=true`, alongside arm64 4/4 and Rosetta 4/4
+  conversions and a native Intel 4/4 leg.
+- **What is not yet true:** neither the DMG above nor the NSIS installer
+  (`EZ Convert_0.0.1_x64-setup.exe`, 219,982,819 B, sha256
+  `455069d8760bc2a220c8926d9db13810a4c3a8b1e1f033c964ad38302cf20e0e`) is attached to a
+  published release yet, and the Windows overlay is measured on the build tree rather than
+  from an installed NSIS build. Publishing the release is the next step; a Windows
+  installed-build probe is tracked as a follow-up card.
 
 ---
 
