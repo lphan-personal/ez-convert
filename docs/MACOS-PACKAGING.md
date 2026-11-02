@@ -279,11 +279,15 @@ The `app` job's own log says what it built; this section is the same claim
 re-measured on the downloaded artifact instead of the log, because a green step
 is not the same as the bytes it uploaded being the bytes we think they are.
 
-Source: artifact `macos-app-dmg` from run `41379802059` (head `3a60afa`),
-6,261,221 B zip. The DMG inside is 6,298,734 B and its sha256 is
-`0f9dacc8784edd24a5627d508caf402a005320c49d3794af15d40fb56023f740`, identical to
-the `dist/app-dmg.sha256` the job recorded — the artifact is the file the job
-hashed, not a rebuild.
+Source: artifact `macos-app-dmg` from run `41381599797` (tag `v0.0.1-p3.4-app`,
+head `ac2fb8f`), the first run that executed the two gates further down — the
+`app` job and the workflow verdict are green, with `pack`/`install-test` skipped
+on purpose by the tag suffix. The DMG is 6,299,142 B and its sha256 is
+`e8ac81f21eff646dc53e3256843dcd526f86415ac867f30814953208562c6361`, identical to
+the `dist/app-dmg.sha256` the job recorded and to the job log — the artifact is
+the file the job hashed, not a rebuild. (The first measurement, on the artifact
+from run `41379802059` at `3a60afa`, gave the same architecture result:
+`0f9dacc8784edd24a5627d508caf402a005320c49d3794af15d40fb56023f740`.)
 
 | Claim | Measurement |
 |---|---|
