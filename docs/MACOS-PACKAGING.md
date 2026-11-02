@@ -9,10 +9,10 @@ is documented in §4 and is a configuration change, not a redesign.
 | Artifact | Contents | Size (runner-measured) |
 |---|---|---|
 | `EZ-Convert-0.0.1-macos-universal.dmg` | `EZ Convert.app`, universal (arm64 + x86_64) | ~12 MB |
-| `EZ-Convert-Engine-Pack-arm64.dmg` | `engines/vips`, `engines/ffmpeg`, `engines/soffice` + licences + `MANIFEST.sha256` + `MANIFEST.json`, built for Apple Silicon | ~700 MB |
+| `EZ-Convert-Engine-Pack-arm64.dmg` | `engines/vips`, `engines/ffmpeg`, `engines/soffice` + licences + `MANIFEST.sha256` + `MANIFEST.json`, built for Apple Silicon | 362 MB |
 | `EZ-Convert-Engine-Pack-arm64.dmg.sha256` | digest of the published DMG | 1 line |
 | `EZ-Convert-Engine-Pack-arm64.dmg.manifest.json` | pack id/version/arch, artifact digest, `MANIFEST.json` digest | 1 file |
-| `EZ-Convert-Engine-Pack-x86_64.dmg` | the same payload built for Intel Macs: LibreOffice `x86-64`, the `/usr/local` Homebrew bottle of libvips, ffmpeg configured for x86_64 | ~700 MB |
+| `EZ-Convert-Engine-Pack-x86_64.dmg` | the same payload built for Intel Macs: LibreOffice `x86-64`, the `/usr/local` Homebrew bottle of libvips, ffmpeg configured for x86_64 | 380 MB |
 | `EZ-Convert-Engine-Pack-x86_64.dmg.sha256` | digest of the published DMG | 1 line |
 | `EZ-Convert-Engine-Pack-x86_64.dmg.manifest.json` | pack id/version/arch, artifact digest, `MANIFEST.json` digest | 1 file |
 
@@ -300,25 +300,41 @@ config that happens to be correct today — the Windows bundle config *does* cop
 ## 7. Cross-architecture validation (2026-11-02)
 
 `.github/workflows/macos-validate.yml` is the acceptance run for the *shipped*
-artifacts. It rebuilds nothing: it downloads `macos-app-dmg` and
-`macos-engine-pack` from a named run, pins each image against its published
-digest sidecar (`packaging/macos/verify-pins.sh`, fail-closed), installs both
-with the same script a user's install follows
-(`packaging/macos/install-from-dmgs.sh`), and then exercises the installed app on
-two runners:
+artifacts. It rebuilds nothing: it downloads `macos-app-dmg` and both
+`macos-engine-pack-{arm64,x86_64}` artifacts from a named run, pins each image
+against its published digest sidecar (`packaging/macos/verify-pins.sh`,
+fail-closed), installs the pack for the host architecture
+(`packaging/macos/install-from-dmgs.sh`, which selects
+`EZ-Convert-Engine-Pack-$(uname -m).dmg`), and then exercises the installed app
+on two runners:
 
 | | arm64 native | arm64, x86_64 slice via Rosetta | Intel native |
 |---|---|---|---|
-| runner | `macos-latest` (macOS 26.6.2) | same | `macos-15-intel` (macOS 15.7.9) |
-| install + signature + symlinks | PASS | — | PASS |
+| runner | `macos-latest` (macOS 26.6.2) | same | `macos-15-intel` (macOS 15.7.9, build 24G830) |
+| install + `codesign --verify --strict` + symlinks | PASS | — | PASS, 24 symlinks / 0 dangling |
 | 5/5 engines resolved | PASS | PASS | PASS |
-| conversions | **4/4** | **4/4** | 0/4, `Bad CPU type in executable` |
+| pack verification | PASS, 339 Mach-O | — | PASS, 339 Mach-O (`--expect-arch x86_64`) |
+| conversions | **4/4** | **4/4** | **4/4** |
 | windowed app + screenshot | PASS | — | PASS |
 
-Runs `41392415715` and `41392784882` (the latter with the digest pin) are green
-on all jobs; logs and the two screenshots are on the `macos-status` branch under
-`macos-status/run-41392784882/validate-{arm64,intel}/`. Full matrix, commands and
-log excerpts: `evidence/p3-macos-validation.md`.
+The x86_64 pack that makes the Intel column possible was built in run
+`41394172979` (the `pack` job is now a two-architecture matrix:
+`macos-latest`/arm64 and `macos-15-intel`/x86_64):
+
+| pack | bytes | files / symlinks | sha256 |
+|---|---|---|---|
+| `EZ-Convert-Engine-Pack-arm64.dmg` | 362,254,999 | 9,305 / 24 | see `.dmg.sha256` of that artifact |
+| `EZ-Convert-Engine-Pack-x86_64.dmg` | 380,510,014 | 9,305 / 24 | `4941922215d89362dfae12d43ed74fb14440b67ae9973d8f43491866cb9b5d7a` |
+
+The digest above was recomputed from the downloaded workflow artifact, and it
+matches both `EZ-Convert-Engine-Pack-x86_64.dmg.sha256` and
+`…dmg.manifest.json` (`pack.id = ezconvert-engine-pack-macos-x86_64`,
+`arch = x86_64`). Acceptance run `41397186245` (source run `41394172979`,
+`intel_label=macos-15-intel`) is green on both validation jobs and prints
+`VALIDATION intel install=pass launch=pass engine-discovery=pass conversion=pass`
+with `INTEL_CONVERSION=pass (4/4)`; logs are on the `macos-status` branch under
+`macos-status/run-41397186245/validate-{arm64,intel}/`. Full matrix, commands and
+log excerpts: `evidence/p3-x86-pack.md`.
 
 Two things this section is careful about:
 
@@ -326,10 +342,16 @@ Two things this section is careful about:
   because the translated process spawns the arm64 engines natively. It proves
   the Intel *slice* is sound; it says nothing about Intel *hardware*, which is
   why the second job runs on one.
-- **The arm64-only pack is a conversion limit, not an install limit.** On Intel
-  the digest, install, signature, manifest of 9,304 files, 339 Mach-O checks and
-  engine discovery all pass; only execution fails. The app reports one FAIL per
-  family rather than exiting 0 over an empty output.
+- **`0/4` on Intel is a failure now.** While there was a single (arm64) pack,
+  the Intel job classified `0/4` as the documented architecture limitation. It no
+  longer does: the job requires 4/4, so a pack that is not built, not picked, not
+  executable or not installed fails the run instead of hiding behind the old
+  note. The same run asserts what used to be arm64-only — 5/5 discovery,
+  `codesign --verify --strict`, the pack's own symlink inventory, and
+  `Contents/Resources` = `icon.icns` only.
+- **Rosetta is not part of the Intel job.** That job runs the app binary
+  directly on Intel hardware; translation only appears in the arm64 job, where
+  the same universal binary has to work under it.
 
 `macos-13` no longer exists (retired December 2025); the current Intel labels are
 `macos-15-intel` (through August 2027) and `macos-26-intel`.
