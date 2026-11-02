@@ -127,9 +127,12 @@ jobs:
   pack:
     name: pack (engine pack DMG)
     runs-on: macos-latest
-    # Spend guard (2026-11-02): a macOS minute bills at 10x. This job has
-    # never needed more than a few minutes; cap it so a hang cannot eat the quota.
-    timeout-minutes: 20
+    # Spend guard (2026-11-02): a macOS minute bills at 10x. The job now also
+    # hashes the ~700 MB pack, codesign-verifies every Mach-O object in it and
+    # mounts the DMG to re-verify the artifact (step 8b), so the cap moved from
+    # 20 to 35 minutes: a timeout here destroys the only evidence that the pack
+    # builds at all, which is more expensive than the minutes it saves.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
