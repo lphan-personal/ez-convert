@@ -1,0 +1,34 @@
+{
+  "png": "overlay-evidence/overlay-screen.png",
+  "width": 520,
+  "height": 520,
+  "crop": [
+    0,
+    31,
+    520,
+    520
+  ],
+  "samples": 67600,
+  "unique_colours": 146,
+  "luminance_mean": 44.385,
+  "luminance_stddev": 51.507,
+  "corner_rgba": [
+    255,
+    255,
+    255,
+    255
+  ],
+  "centre_rgba": [
+    21,
+    22,
+    26,
+    255
+  ],
+  "centre_corner_delta": 401.853,
+  "fraction_differs_from_corner": 0.9599,
+  "checks": {
+    "not-blank": true,
+    "ring-not-background": true
+  },
+  "ok": true
+}
