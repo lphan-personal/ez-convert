@@ -95,6 +95,15 @@ friction, not a footnote).
 
 ## 4. When the $99/yr Developer ID is funded
 
+> **NOT IN SCOPE FOR v1.** The stakeholder ruling of 2026-11-02
+> (`docs/DISTRIBUTION.md`) makes EZ Convert internal-only: ad-hoc signing, no
+> Developer ID, no notarization, no store. Everything below is the *reference
+> sequence* the card asked to be written down — the exact order that must be
+> followed **if** publishing is ever decided. It is not a plan of work, and CI
+> does not run any of it. The v1 consequence stays as §3 states: Gatekeeper
+> needs one right-click → Open (or `xattr -d com.apple.quarantine`), and the
+> engine-pack installer carries the same note.
+
 The `$99` Apple Developer Program gives a **Developer ID Application**
 certificate (not "Mac App Distribution", not "Apple Development" — either of
 those is rejected at notarization with *"The binary is not signed with a valid
@@ -133,8 +142,8 @@ codesign --force --sign "$ID" $OPTS --entitlements entitlements.plist "EZ Conver
 codesign --verify --deep --strict --verbose=2 "EZ Convert.app"     # 1b. must pass
 
 # 2. engine pack: same inside-out pass over engines/**, then the DMG
-bash packaging/macos/sign-app.sh                       # honours EZC_SIGN_IDENTITY / EZC_SIGN_OPTIONS
 EZC_SIGN_IDENTITY="$ID" EZC_SIGN_OPTIONS="$OPTS" scripts/mac-engine-pack.sh --out dist
+# (sign-app.sh takes the bundle as an argument: sign-app.sh "EZ Convert.app")
 
 # 3. the app: zip it (notarytool takes zip/pkg/dmg, not a bare .app), submit, staple
 ditto -c -k --keepParent "EZ Convert.app" "EZ Convert.zip"

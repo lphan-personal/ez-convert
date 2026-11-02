@@ -96,12 +96,26 @@ LO_APP="$MNT/LibreOffice.app"
 # engines/soffice/program (launchers + binaries) and engines/soffice/{share,...}
 # from Contents/Resources. scripts/strip-engine-pack.py and the licence gate
 # both expect that shape, and it is the same shape as the Windows/Linux packs.
+#
+# Measured layout of LibreOffice 26.8.2 MacOS aarch64 (CI run 41375947322, the
+# `Contents` listing in pack.log): Contents/MacOS holds the executables
+# (`soffice`, `unopkg`, `gengal`, `xpdfimport`, ...) plus symlinks into
+# `../Resources` and `../Frameworks`; there is **no** `soffice.bin` and no
+# `Contents/Resources/program`. So the flat layout is built by putting MacOS in
+# `program/`, Resources' *contents* at the pack root, and Frameworks beside
+# them — with `Resources` linked back to the root, because LibreOffice finds its
+# data by a path relative to the executable: `../Resources/fundamentalrc`
+# (cppuhelper/source/bootstrap.cxx), `../Resources/java/libreoffice.jar` and
+# `../Frameworks` (desktop/scripts/unoinfo-mac.sh). Renaming MacOS to program/
+# keeps `../Frameworks` correct; the `Resources` link keeps the other one.
 CONTENTS="$LO_APP/Contents"
 mkdir -p "$PACK/engines/soffice"
-if [ -x "$CONTENTS/MacOS/soffice.bin" ] || [ -f "$CONTENTS/MacOS/soffice.bin" ]; then
-  note "layout: program = Contents/MacOS, data = Contents/Resources"
+if [ -f "$CONTENTS/MacOS/soffice" ] || [ -L "$CONTENTS/MacOS/soffice" ]; then
+  note "layout: program = Contents/MacOS, data = Contents/Resources (flat at the pack root)"
   ditto "$CONTENTS/MacOS" "$PACK/engines/soffice/program"
   ditto "$CONTENTS/Resources" "$PACK/engines/soffice"
+  ln -sfn . "$PACK/engines/soffice/Resources"
+  note "Resources -> . (so program/../Resources/<x> resolves)"
 elif [ -d "$CONTENTS/Resources/program" ]; then
   note "layout: program = Contents/Resources/program"
   ditto "$CONTENTS/Resources" "$PACK/engines/soffice"
@@ -111,11 +125,10 @@ else
   ls -la "$CONTENTS" "$CONTENTS/MacOS" 2>&1 | head -40 >&2
   exit 1
 fi
-# The app is not just MacOS + Resources: soffice.bin loads its dylibs from
-# Contents/Frameworks (libmergedlo.dylib and the UNO libraries). program/ takes
-# MacOS's place one level below the pack root, so `../Frameworks` still resolves
-# after normalisation — but only if the directory comes along.
-for extra in Frameworks PlugIns Helpers; do
+# The app is not just MacOS + Resources: the dylibs live in Contents/Frameworks
+# (libmergedlo.dylib and the UNO libraries) and `../Frameworks` must resolve
+# from program/, which it does once the directory is copied beside it.
+for extra in Frameworks PlugIns Helpers Library; do
   if [ -d "$CONTENTS/$extra" ]; then
     ditto "$CONTENTS/$extra" "$PACK/engines/soffice/$extra"
     note "carried Contents/$extra ($(find "$CONTENTS/$extra" -type f | wc -l | tr -d ' ') files)"
@@ -265,17 +278,29 @@ fi
 note "ffmpeg $("$PACK/engines/ffmpeg/ffmpeg" -version | head -1)"
 
 # ------------------------------------------------------------- 5. sign inside-out
-step "5/8 ad-hoc sign inside-out (nested first, outer last)"
+step "5/8 sign inside-out (nested first, outer last)"
+# Identity is ad-hoc for v1 and a Developer ID when one is funded: the order is
+# what matters, so the same loop serves both (docs/MACOS-PACKAGING.md §4). The
+# doc promises EZC_SIGN_IDENTITY/EZC_SIGN_OPTIONS here — honour it.
+SIGN_IDENTITY="${EZC_SIGN_IDENTITY:--}"
+SIGN_OPTIONS="${EZC_SIGN_OPTIONS:-}"
+if [ "$SIGN_IDENTITY" = "-" ]; then SIGN_OPTIONS="--timestamp=none"; fi
+note "identity: $SIGN_IDENTITY ${SIGN_OPTIONS}"
 sign() { local out
-  if ! out="$(codesign --force --sign - --timestamp=none "$1" 2>&1)"; then
+  # shellcheck disable=SC2086
+  if ! out="$(codesign --force --sign "$SIGN_IDENTITY" $SIGN_OPTIONS "$1" 2>&1)"; then
     echo "codesign failed: $1" >&2
     printf '%s\n' "$out" | sed 's/^/    /' >&2
     return 1
   fi; }
-# 5a nested Mach-O files, deepest path first.
+# 5a nested Mach-O files, deepest path first. BSD `file` emits one line per
+# architecture of a universal binary ("<path> (for architecture arm64): ..."):
+# those are not paths and codesign fails on them, so the suffix is stripped and
+# the list de-duplicated before anything is signed.
 find "$PACK/engines" -type f -print0 \
-  | xargs -0 file 2>/dev/null | grep -E 'Mach-O' | cut -d: -f1 \
-  | awk -F/ '{print NF" "$0}' | sort -rn | cut -d' ' -f2- > "$WORK/macho.txt" || true
+  | xargs -0 file 2>/dev/null | grep -E 'Mach-O' \
+  | sed -E 's/ \(for architecture [^)]*\)$//' | cut -d: -f1 | sort -u \
+  | awk -F/ '{print NF" "$0}' | sort -rn -k1,1 | cut -d' ' -f2- > "$WORK/macho.txt" || true
 [ -s "$WORK/macho.txt" ] || { echo "no Mach-O files found under $PACK/engines" >&2; exit 1; }
 while IFS= read -r f; do sign "$f"; done < "$WORK/macho.txt"
 note "$(wc -l < "$WORK/macho.txt" | tr -d ' ') Mach-O files signed"
@@ -320,7 +345,7 @@ cp "$WORK/downloads/licence-scan.txt" "$PACK/licenses/licence-scan.txt" || true
 if command -v brew >/dev/null; then
   brew info --json=v2 vips > "$PACK/licenses/vips-bottle.json" 2>/dev/null || true
 fi
-cp "$REPO_ROOT/packaging/macos/install-engine-pack.command" "$STAGE/" && chmod +x "$STAGE/install-engine-pack.command"
+cp "$REPO_ROOT/packaging/macos/install-engine-pack.command" "$STAGE/Install Engine Pack.command" && chmod +x "$STAGE/Install Engine Pack.command"
 cp "$REPO_ROOT/packaging/macos/README-pack.txt" "$STAGE/README.txt"
 
 ( cd "$PACK" && find . -type f ! -name MANIFEST.sha256 -print0 > "$WORK/filelist.txt" \
@@ -332,11 +357,25 @@ mkdir -p "$STAGE/payload"
 mv "$STAGE/engines-root" "$STAGE/payload/engines"
 cp "$PACK/MANIFEST.sha256" "$STAGE/payload/MANIFEST.sha256"
 
+# The gate then runs over the DMG root as well, not only the pack tree: the
+# three files the image adds over $PACK (readme, installer, manifest copy) must
+# attribute too — otherwise a fail-closed gate says nothing about what a user
+# actually mounts. Output lands in pack.log on the macos-status branch.
+ROOTCHECK="$WORK/rootcheck"
+mkdir -p "$ROOTCHECK"
+cp "$STAGE/README.txt" "$STAGE/Install Engine Pack.command" "$STAGE/payload/MANIFEST.sha256" "$ROOTCHECK/"
+note "licence gate over the DMG root files"
+bash "$REPO_ROOT/scripts/dist-license-gate.sh" --scan "$ROOTCHECK" | tail -3
+
 mkdir -p "$OUT"
 DMG="$OUT/EZ-Convert-Engine-Pack-${ARCH}.dmg"
 rm -f "$DMG"
 hdiutil create -volname "EZ Convert Engine Pack" -srcfolder "$STAGE" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null
-codesign --force --sign - "$DMG" >/dev/null 2>&1 || true
+# The DMG is signed last, after every object inside it (docs/MACOS-PACKAGING §3
+# steps 5-6). Not `|| true`: an unsigned DMG is a silent regression the user
+# only meets at Gatekeeper.
+# shellcheck disable=SC2086
+codesign --force --sign "$SIGN_IDENTITY" $SIGN_OPTIONS "$DMG" || { echo "DMG signing failed: $DMG" >&2; exit 1; }
 shasum -a 256 "$DMG" | tee "$OUT/EZ-Convert-Engine-Pack-${ARCH}.dmg.sha256"
 note "$(du -h "$DMG" | cut -f1) → $DMG"
 printf 'engine pack: OK arch=%s dmg=%s bytes=%s\n' "$ARCH" "$DMG" "$(stat -f%z "$DMG")"

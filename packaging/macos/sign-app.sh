@@ -49,13 +49,20 @@ sign_bundle() {
   [ -d "$app" ] || { echo "not a bundle: $app" >&2; return 1; }
 
   local work; work="$(mktemp)"
-  # Every Mach-O regular file in the bundle, deepest first. `|| true` because an
-  # empty match is grep's exit 1, which pipefail would turn into a silent abort.
+  # Every Mach-O regular file in the bundle, deepest first. Two traps here:
+  #  * BSD `file` prints one extra line per architecture of a universal binary
+  #    ("/path (for architecture x86_64): Mach-O ..."), which is not a path —
+  #    codesign then fails with "No such file or directory" (run 41375947322).
+  #    Strip the suffix and de-duplicate.
+  #  * an empty grep match is exit 1, which pipefail would turn into a silent
+  #    abort, hence `|| true` plus the explicit empty-list check below.
   find "$app" -type f -print0 \
     | xargs -0 file 2>/dev/null \
     | grep -E 'Mach-O' \
+    | sed -E 's/ \(for architecture [^)]*\)$//' \
     | cut -d: -f1 \
-    | awk -F/ '{print NF" "$0}' | sort -rn | cut -d' ' -f2- > "$work" || true
+    | sort -u \
+    | awk -F/ '{print NF" "$0}' | sort -rn -k1,1 | cut -d' ' -f2- > "$work" || true
   if [ ! -s "$work" ]; then
     echo "no Mach-O files found under $app — nothing to sign, refusing" >&2
     return 1
