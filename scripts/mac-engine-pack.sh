@@ -470,15 +470,12 @@ fi
 cp "$REPO_ROOT/packaging/macos/install-engine-pack.command" "$STAGE/Install Engine Pack.command" && chmod +x "$STAGE/Install Engine Pack.command"
 cp "$REPO_ROOT/packaging/macos/README-pack.txt" "$STAGE/README.txt"
 
-( cd "$PACK" && find . -type f ! -name MANIFEST.sha256 ! -name MANIFEST.json -print0 > "$WORK/filelist.txt" \
-  && xargs -0 shasum -a 256 < "$WORK/filelist.txt" > MANIFEST.sha256 )
-note "manifest: $(wc -l < "$PACK/MANIFEST.sha256" | tr -d ' ') files"
-
 # The version + checksum manifest (scripts/pack-manifest.py). MANIFEST.sha256
 # answers "are these the bytes that were built?"; MANIFEST.json answers "which
 # pack is this, which engines at which versions, which arch, and where does it
 # install?" — the two cross-reference each other (see that script's header).
-# The engine versions are the ones this run actually used, not constants.
+# `seal` writes both (it hashes the tree once; hashing it here first would hash
+# ~700 MB twice for nothing). The engine versions are the ones this run used.
 LO_SHA="$(awk '{print $1}' "$WORK/downloads/libreoffice.sha256")"
 python3 "$REPO_ROOT/scripts/pack-manifest.py" seal --pack "$PACK" --arch "$ARCH" \
   --pack-version "${PACK_VERSION:-1.0.0}" \
