@@ -337,18 +337,22 @@ else
   # licence gate asserts on the shipped binary; --disable-nonfree keeps the
   # build redistributable.
   note "configure"
-  # ffmpeg's configure needs pkg-config metadata for libmp3lame (`lame >= 3.98`).
-  # Homebrew's lame keg does not always install `lame.pc`, which is what run
-  # 41379287298 died on: "ERROR: libmp3lame >= 3.98.3 not found". Describe the
-  # installed keg when the file is absent — the version comes from the keg's own
-  # header, not from a guess, and the diagnostics are printed either way.
+  # ffmpeg's configure asks pkg-config for the package `libmp3lame >= 3.98.3`.
+  # What matters is that exact expression, not "is there some lame metadata":
+  # Homebrew's lame 4.0 ships a `lame.pc` whose package name is `lame`, so
+  # `pkg-config --exists lame` succeeds while configure's own probe still fails,
+  # and the fallback is a bare `-lmp3lame` compile with no include path (clang
+  # does not search /opt/homebrew/include) — run 41381174131 died on
+  # `fatal error: 'lame/lame.h' file not found` exactly there. 3.100 shipped no
+  # .pc at all (run 41379287298). Both are the same hole: describe the keg under
+  # the name ffmpeg asks for. The version comes from the keg's own header.
   LAME_PREFIX="$(brew --prefix lame)"
   note "lame pkgconfig: $(ls "$LAME_PREFIX/lib/pkgconfig" 2>/dev/null | tr '\n' ' ' || echo '<none>')"
-  if ! pkg-config --exists lame 2>/dev/null; then
+  if ! pkg-config --exists "libmp3lame >= 3.98.3" 2>/dev/null; then
     LAME_MAJOR="$(sed -nE 's/^#define LAME_MAJOR_VERSION[[:space:]]+([0-9]+).*/\1/p' "$LAME_PREFIX/include/lame/lame.h" | head -1)"
     LAME_MINOR="$(sed -nE 's/^#define LAME_MINOR_VERSION[[:space:]]+([0-9]+).*/\1/p' "$LAME_PREFIX/include/lame/lame.h" | head -1)"
     if [ -z "$LAME_MAJOR" ] || [ -z "$LAME_MINOR" ]; then
-      echo "cannot describe the installed lame keg: no lame.pc and no version macros in $LAME_PREFIX/include/lame/lame.h" >&2
+      echo "cannot describe the installed lame keg: no libmp3lame.pc and no version macros in $LAME_PREFIX/include/lame/lame.h" >&2
       exit 1
     fi
     mkdir -p "$WORK/pc"
@@ -357,16 +361,16 @@ else
       echo "exec_prefix=\${prefix}"
       echo "libdir=\${exec_prefix}/lib"
       echo "includedir=\${prefix}/include"
-      echo "Name: lame"
+      echo "Name: libmp3lame"
       echo "Description: MP3 encoding library (keg description written by mac-engine-pack.sh)"
       echo "Version: ${LAME_MAJOR}.${LAME_MINOR}"
       echo "Libs: -L\${libdir} -lmp3lame"
       echo "Cflags: -I\${includedir}"
-    } > "$WORK/pc/lame.pc"
+    } > "$WORK/pc/libmp3lame.pc"
     export PKG_CONFIG_PATH="$WORK/pc${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-    note "lame.pc synthesised for $(pkg-config --modversion lame) at $LAME_PREFIX"
+    note "libmp3lame.pc synthesised for $(pkg-config --modversion libmp3lame) at $LAME_PREFIX"
   else
-    note "lame $(pkg-config --modversion lame) found by pkg-config"
+    note "libmp3lame $(pkg-config --modversion libmp3lame) found by pkg-config"
   fi
   ( cd "$WORK/downloads/ffmpeg-src" && ./configure \
       --prefix="$WORK/downloads/ffmpeg" \
