@@ -57,8 +57,15 @@ done
 [ "$(uname -s)" = "Darwin" ] || { echo "this script only runs on macOS (needs hdiutil/codesign/otool)" >&2; exit 2; }
 
 case "$ARCH" in
+  # TDF's download directory and its file name disagree, measured from the
+  # 26.8.2 listing (https://download.documentfoundation.org/libreoffice/stable/26.8.2/mac/):
+  #   mac/aarch64/LibreOffice_26.8.2_MacOS_aarch64.dmg   (dir and name agree)
+  #   mac/x86_64/LibreOffice_26.8.2_MacOS_x86-64.dmg     (dir x86_64, name x86-64)
+  # The never-run x86_64 path had `x86-64` for both, which 404s on the
+  # directory — it would have failed after the ~5-minute download wait, not
+  # before it. LO_ARCH_DIR is the URL directory; LO_FILE_ARCH is the file name.
   arm64)  LO_ARCH_DIR="aarch64"; LO_FILE_ARCH="aarch64"; BREW_PREFIX="${BREW_PREFIX:-/opt/homebrew}" ;;
-  x86_64) LO_ARCH_DIR="x86-64";  LO_FILE_ARCH="x86-64";  BREW_PREFIX="${BREW_PREFIX:-/usr/local}" ;;
+  x86_64) LO_ARCH_DIR="x86_64";  LO_FILE_ARCH="x86-64";  BREW_PREFIX="${BREW_PREFIX:-/usr/local}" ;;
   *) echo "unsupported --arch $ARCH" >&2; exit 2 ;;
 esac
 

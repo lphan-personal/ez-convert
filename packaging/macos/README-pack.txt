@@ -9,7 +9,9 @@ Install
 -------
 1. Open "Install Engine Pack.command" (double-click it).
    If macOS refuses, right-click it and choose Open.
-2. It verifies every file against MANIFEST.sha256, then copies the engines to
+2. It checks that this pack matches this Mac's architecture (arm64 or x86_64) —
+   a mismatched pack is refused, nothing is copied — then verifies every file
+   against MANIFEST.sha256 and copies the engines to
    ~/Library/Application Support/app.ezconvert.desktop/engines
 3. Open EZ Convert.
 

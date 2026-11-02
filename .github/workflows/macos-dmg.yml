@@ -201,9 +201,24 @@ jobs:
         run: bash packaging/macos/publish-evidence.sh app "${{ job.status }}" tauri-build.log sign.log bundle-files.txt licence-gate.log
 
   # --------------------------------------------------------- engine pack
+  # Two packs, one per architecture, each built on a runner of that architecture:
+  # `macos-latest` is arm64, `macos-15-intel` is Intel x86_64 (macos-13 was
+  # retired in December 2025; the Intel labels are macos-15-intel and
+  # macos-26-intel). A cross-build on an arm64 runner would also produce x86_64
+  # bytes, but the artifact has to be *executed* on Intel to be accepted: step 8b
+  # runs all three engines from inside the mounted image, and an engine that
+  # cannot exec is a FAIL since 0d119ef.
   pack:
-    name: pack (engine pack DMG)
-    runs-on: macos-latest
+    name: pack (${{ matrix.arch }} engine pack DMG)
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest
+          - arch: x86_64
+            runner: macos-15-intel
     # The other half of the cheap-iteration guard above: `*-pack` tags run only
     # this job (engine-pack iteration, t_90b19752).
     if: github.event_name != 'push' || !endsWith(github.ref_name, '-app')
@@ -227,9 +242,18 @@ jobs:
         # the runner's bash against fake engine trees (no Darwin APIs needed).
         run: bash scripts/test-verify-engine-pack.sh
 
+      - name: Unit-test the installer's architecture guard
+        # New in this workflow: the pack installer refuses a pack whose
+        # MANIFEST.json arch is not `uname -m`, before it copies anything. The
+        # test ships with the script it tests (fake pack volume, Linux or macOS).
+        run: bash scripts/test-install-engine-pack-arch.sh
+
       # Build dependencies for the LGPL ffmpeg (no GPL library is installed):
       # libvpx BSD, aom BSD, opus BSD, libvorbis BSD, lame LGPL-2.1. pkgconf is
-      # how configure finds them; the build is arm64 so nasm is not needed.
+      # how configure finds them. `nasm` matters on the x86_64 leg: ffmpeg's
+      # x86 assembly is assembled by nasm, and without it configure stops with
+      # "nasm/yasm not found or too old" unless --disable-x86asm is passed (we
+      # do not pass it: a crippled encoder is not the pack we want to ship).
       # The formula is `aom`, not `libaom` — the configure flag is the only place
       # that name appears. The whole output goes to brew.log: a `| tail -5`
       # here is what hid the missing-formula error on run #3.
@@ -237,14 +261,17 @@ jobs:
         run: |
           set -o pipefail
           export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1
-          brew install libvpx aom opus libvorbis lame pkgconf vips 2>&1 | tee brew.log
-          brew list --versions libvpx aom opus libvorbis lame pkgconf vips | tee -a brew.log
+          brew install libvpx aom opus libvorbis lame pkgconf nasm vips 2>&1 | tee brew.log
+          brew list --versions libvpx aom opus libvorbis lame pkgconf nasm vips | tee -a brew.log
           pkg-config --modversion vpx aom opus vorbis 2>&1 | tee -a brew.log
 
-      - name: Build, strip, sign and package the engine pack
+      - name: Build, strip, sign and package the engine pack (${{ matrix.arch }})
+        # --arch selects the LibreOffice build (aarch64 / x86-64), the Homebrew
+        # prefix (/opt/homebrew / /usr/local) and the pack's MANIFEST.json arch.
         run: |
           set -o pipefail
-          EZC_WORK="$RUNNER_TEMP/ezc-pack" bash scripts/mac-engine-pack.sh --out dist 2>&1 | tee pack.log
+          EZC_WORK="$RUNNER_TEMP/ezc-pack" bash scripts/mac-engine-pack.sh \
+            --arch "${{ matrix.arch }}" --out dist 2>&1 | tee pack.log
 
       - name: Assert the published pins are next to the DMG
         # The DMG carries MANIFEST.json + MANIFEST.sha256 inside; the sidecar and
@@ -262,10 +289,14 @@ jobs:
           grep -q '"sha256":' "$dmg.manifest.json" || { echo "::error::sidecar has no digest"; exit 1; }
           echo "pins: $(basename "$dmg"), $(basename "$dmg").sha256, $(basename "$dmg").manifest.json"
 
-      - name: Upload the engine pack
+      - name: Upload the engine pack (${{ matrix.arch }})
+        # One artifact per architecture: upload-artifact v4 refuses two uploads
+        # with the same name inside one run, and a validation run has to be able
+        # to tell the two packs apart. Consumers (macos-validate.yml,
+        # install-test below) find them by file name, not by artifact name.
         uses: actions/upload-artifact@v4
         with:
-          name: macos-engine-pack
+          name: macos-engine-pack-${{ matrix.arch }}
           path: dist/**
           if-no-files-found: error
           retention-days: 30
@@ -313,8 +344,10 @@ jobs:
       - name: Install the engine pack from its DMG
         run: |
           set -euo pipefail
-          packdmg=$(find in -name 'EZ-Convert-Engine-Pack-*.dmg' | head -1)
-          [ -n "$packdmg" ] || { echo "::error::no engine-pack DMG artifact"; exit 1; }
+          # Both packs are in this run's artifacts now; install the one for this
+          # host (this job is arm64) rather than whichever `find` returns first.
+          packdmg=$(find in -name "EZ-Convert-Engine-Pack-$(uname -m).dmg" | head -1)
+          [ -n "$packdmg" ] || { echo "::error::no engine-pack DMG artifact for $(uname -m)"; exit 1; }
           mnt="$RUNNER_TEMP/pack-mnt"; mkdir -p "$mnt"
           hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$packdmg" >/dev/null
           bash "$mnt/Install Engine Pack.command" 2>&1 | tee install-pack.log
@@ -330,7 +363,7 @@ jobs:
           set -o pipefail
           bash scripts/verify-engine-pack.sh \
             --pack "$HOME/Library/Application Support/app.ezconvert.desktop" \
-            --app "/Applications/EZ Convert.app" --expect-arch arm64 2>&1 | tee verify-pack.log
+            --app "/Applications/EZ Convert.app" --expect-arch "$(uname -m)" 2>&1 | tee verify-pack.log
 
       - name: The installed app must find the engines and convert
         run: |
