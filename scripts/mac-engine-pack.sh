@@ -202,7 +202,11 @@ VIPS_PREFIX="$(brew --prefix vips)"
 VIPS_SRC="$VIPS_PREFIX"
 [ -d "$VIPS_SRC/lib" ] || VIPS_SRC="$(brew --prefix)"
 note "vips $("$VIPS_PREFIX/bin/vips" --version) from $VIPS_PREFIX"
-VIPS_VERSION="$("$VIPS_PREFIX/bin/vips" --version | awk '{print $2}')"
+# `vips --version` prints `vips-8.18.0` (one token), so the version is the number
+# in that token — `awk '{print $2}'` is empty and the manifest then refuses the
+# engine (run 41386249708 failed at step 8 on `--engine vips=`).
+VIPS_VERSION="$("$VIPS_PREFIX/bin/vips" --version 2>/dev/null | sed -E 's/^[^0-9]*([0-9][0-9.]*).*/\1/' | head -1)"
+[ -n "$VIPS_VERSION" ] || { echo "cannot read the vips version from $("$VIPS_PREFIX/bin/vips" --version 2>&1)" >&2; exit 1; }
 
 VIPS_OUT="$PACK/engines/vips"
 mkdir -p "$VIPS_OUT/lib"
