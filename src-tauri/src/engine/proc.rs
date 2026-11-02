@@ -129,8 +129,10 @@ impl EnginePaths {
             ffmpeg: exe(&ffmpeg_dir, "ffmpeg"),
             ffprobe: exe(&ffmpeg_dir, "ffprobe"),
             ffmpeg_dir,
-            // §6.2.1: the *console* launcher, not `soffice.bin`.
-            soffice: exe(&soffice_dir, if cfg!(windows) { "soffice.com" } else { "soffice" }),
+            // §6.2.1: the *console* launcher, not `soffice.bin`. On Windows the
+            // launcher is `soffice.com` — the extension is already part of the
+            // name, so it must not go through `exe()` (which appends `.exe`).
+            soffice: soffice_dir.join(if cfg!(windows) { "soffice.com" } else { "soffice" }),
             soffice_dir,
             lib_dir: absolute_env_dir("EZC_ENGINE_LIB_DIR"),
             plugin_dir: absolute_env_dir("EZC_VIPS_PLUGIN_DIR"),
