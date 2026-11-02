@@ -1,0 +1,82 @@
+# Re-bundle through the payload overlay + re-install, measured on win11-dev
+# Card t_afcba8e2, 2026-11-02 04:1x-04:3xZ
+#
+# Why: `externalBin` + `resources` moved out of src-tauri/tauri.windows.conf.json
+# (the overlay every Windows build reads, including the CI matrix's `cargo build`)
+# into src-tauri/tauri.bundle.windows.conf.json, which only the packaging command
+# passes. This run proves the packaging path still produces a working installer.
+#
+# Tree used: C:\p2_offdev (the parent card renamed C:\p2 -> C:\p2_offdev for the
+# clean-machine acceptance; the Rust + node toolchains live inside it).
+#
+# Command (run from C:\p2_offdev\src-tauri, env in the same shell):
+#   set CARGO_HOME=C:\p2_offdev\cargo
+#   set RUSTUP_HOME=C:\p2_offdev\rust
+#   set VCTOOLS_REDIST_DIR=C:\p2_offdev\vcredist
+#   set PATH=C:\p2_offdev\node\node-v22.14.0-win-x64;C:\p2_offdev\cli\node_modules\.bin;C:\p2_offdev\cargo\bin;%PATH%
+#   tauri bundle --bundles nsis --config tauri.bundle.windows.conf.json
+#
+# config on disk: tauri.windows.conf.json has no externalBin/resources (findstr
+# reports nothing); tauri.bundle.windows.conf.json does.
+
+=== bundle (tauri-cli 2.12.4, makensis from %LOCALAPPDATA%\tauri\NSIS) ===
+        Info Patching C:\p2_offdev\src-tauri\target\release\ez-convert.exe with bundle type information: nsis
+        Warn Failed to add bundler type to the binary: __TAURI_BUNDLE_TYPE variable not found in binary. Make sure tauri crate and tauri-cli are up to date. Updater plugin may not be able to update this package. This shouldn't normally happen, please report it to https://github.com/tauri-apps/tauri/issues
+        Info Target: x64
+     Running makensis to produce C:\p2_offdev\src-tauri\target\release\bundle\nsis\EZ Convert_0.0.1_x64-setup.exe
+    Finished 1 bundle at:
+        C:\p2_offdev\src-tauri\target\release\bundle\nsis\EZ Convert_0.0.1_x64-setup.exe (488.59 MiB)
+
+=== installer identity ===
+# built through the overlay (this run)
+size_bytes 512319647   (488.59 MiB)
+sha256     d49a012ae521f73a24485e69a6cacdf88f2c7cb96464687c9bf9ce7c97c3ed5d
+# accepted installer from t_466cc032 (payload declared in the platform overlay), kept
+# at C:\p2_offdev\setup-accepted.exe
+size_bytes 512304426   (488.57 MiB)
+sha256     5432c8aeff26b7af81b3cf3389abed010e8438edb2b1cb32d05affd9635c7bff
+# Not byte-identical (+15,221 B). NSIS output is not reproducible; the payload is the
+# same staged tree, and the functional check below is the acceptance criterion.
+
+=== silent install of the re-bundled installer ===
+INSTALL_EXIT=0
+installed tree: concrt140.dll engines ez-convert.exe ffmpeg.exe ffprobe.exe licenses
+msvcp140*.dll (4) uninstall.exe vcruntime140*.dll (2)
+
+=== diagnostics from the install dir (warm cache) ===
+bundle_root C:\Users\ryo\AppData\Local\EZ Convert
+engine vips found C:\Users\ryo\AppData\Local\EZ Convert\engines\vips\vips.exe
+engine vipsheader found C:\Users\ryo\AppData\Local\EZ Convert\engines\vips\vipsheader.exe
+engine ffmpeg found C:\Users\ryo\AppData\Local\EZ Convert\ffmpeg.exe
+engine ffprobe found C:\Users\ryo\AppData\Local\EZ Convert\ffprobe.exe
+engine soffice found C:\Users\ryo\AppData\Local\EZ Convert\engines\soffice\program\soffice.com
+fixtures C:\anchor\fixtures
+FAMILY image PASS 2781 96977 C:\anchor\work3\diag-image.jpg
+FAMILY audio PASS 8579 21233 C:\anchor\work3\diag-audio.mp3
+FAMILY video PASS 2206 220 C:\anchor\work3\diag-video.webm
+FAMILY document PASS 46489 5182 C:\anchor\work3\diag-document.pdf
+SUMMARY families=4 pass=4 fail=0
+DIAG_EXIT=0
+
+# Reading:
+#  * 488.59 MiB is the same payload the accepted installer carried (488.57 MiB):
+#    the --config overlay is honoured, so externalBin/resources still reach the bundle.
+#  * ffmpeg.exe / ffprobe.exe sit as externalBin siblings of ez-convert.exe in the
+#    install root and resolve from there (EnginePaths::from_root fallback, 31e3a1f).
+#  * soffice resolves to ...\engines\soffice\program\soffice.com (not .com.exe).
+#
+# Timings are warm: the cache built by the parent card's acceptance run is in place,
+# so the 4 families took seconds, not the 198 s cold run in
+# evidence/p2-acceptance-clean-win11.txt.
+
+=== control: the same command WITHOUT the overlay ===
+# Same tree, same env, one difference: no --config.
+#   tauri bundle --bundles nsis
+# → Finished 1 bundle at …\nsis\EZ Convert_0.0.1_x64-setup.exe (209.65 MiB)
+size_bytes 219837112   (209.65 MiB)
+# 209.65 MiB is the app + the WebView2 offline installer and nothing else: no
+# engines/, no ffmpeg.exe/ffprobe.exe. So the payload really does come from the
+# overlay, and the platform overlay the CI matrix reads is genuinely payload-free.
+# The overlay-built installer was then copied back over the bundle output
+# (512,319,647 B), which is the state left on the VM.
+

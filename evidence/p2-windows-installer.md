@@ -226,7 +226,56 @@ overlay. Staging stubs would have made CI green while removing the only thing th
 check about the payload. The produced installer is unaffected: it was bundled from the merged
 config before the split, and the split only moves *where* the same keys are declared.
 
+**Verified on GitHub Actions (measured, not assumed):**
+
+| run | head | `build (windows-latest)` |
+|---|---|---|
+| `41382664139` | `0e61f86` (before the split) | **failure**, job `125076728156` |
+| `41384140391` | `16403f4` | cancelled (superseded by a newer push) |
+| `41386224303` | `b3f850b` (contains `8274d43`) | **success**, job `125087982552`, 04:03:57→04:11:24Z |
+
+In that green job every step after the old failure point ran: `The matrix config must not
+declare a bundle payload` (the new guard), `cargo build`, `cargo test`, the two licence
+assertions, `Build the Tauri app (release, unsigned, no installer yet)`, the artifact stage,
+`Upload the unsigned artifact` and the `ci-artifacts-windows-latest` publish — so the Windows
+artifact record for that head is no longer empty. Between 03:25 and 04:03Z every matrix run
+was cancelled by a newer push before the Windows runner was allocated; the verdict above is
+the first run allowed to finish.
+
 ## 9. Staged inputs are not committed
 
 `/src-tauri/binaries/` (260 MB) and `/src-tauri/resources/` (734 MB) are in `.gitignore`
 (commit `df7cdd1`), so the ~1 GB the staging script assembles never reaches a commit.
+
+## 10. The payload overlay, measured end to end
+
+The split was not just declared — the packaging path was re-run with it on `win11-dev`
+(full transcript: `evidence/p2-rebundle-overlay.txt`):
+
+```
+tauri bundle --bundles nsis --config tauri.bundle.windows.conf.json
+→ Finished 1 bundle at …\nsis\EZ Convert_0.0.1_x64-setup.exe (488.59 MiB)
+```
+
+512,319,647 B, sha256 `d49a012a…3ed5d`. That installer was then installed silently
+(`/S`, exit 0) over the previous one and run from the install directory: five
+`engine … found` lines (`vips`, `vipsheader`, `ffmpeg`, `ffprobe`, `soffice.com`), four
+`FAMILY` PASS lines and `SUMMARY families=4 pass=4 fail=0`. So the overlay carries the
+payload — control: the identical command **without** `--config` produced 219,837,112 B
+(209.65 MiB), i.e. the app plus the WebView2 offline installer and no `engines/`,
+`ffmpeg.exe` or `ffprobe.exe` at all (both runs are in `evidence/p2-rebundle-overlay.txt`).
+
+It is **not** byte-identical to the accepted installer (512,304,426 B, `5432c8ae…`; kept
+at `C:\p2_offdev\setup-accepted.exe`): +15,221 B, NSIS output is not reproducible and none
+of the payload inputs changed. The functional run above is the acceptance criterion, not the
+digest.
+
+Where things live now on `win11-dev`, for the next worker: the staged tree is
+`C:\p2_offdev` (the parent card renamed `C:\p2` for the clean-machine acceptance — the Rust
+and node toolchains are inside it). The bundle needs `CARGO_HOME=C:\p2_offdev\cargo`,
+`RUSTUP_HOME=C:\p2_offdev\rust`, `VCTOOLS_REDIST_DIR=C:\p2_offdev\vcredist` (or the
+`bundleVCRuntime` step fails with *failed to locate Visual Studio … VC.Redist.14.Latest*),
+node on `PATH` from `C:\p2_offdev\node\node-v22.14.0-win-x64`, and the CLI at
+`C:\p2_offdev\cli\node_modules\@tauri-apps\cli\tauri.js` (tauri-cli 2.12.4). `cargo
+metadata` is invoked by the CLI, so a `cargo` shim on `PATH` is required even for a bundle
+that compiles nothing.

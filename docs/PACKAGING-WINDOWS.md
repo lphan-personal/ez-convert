@@ -109,11 +109,13 @@ the pinned `tauri-bundler` and by a build whose sign command logs every path it 
 
 ## Acceptance (what "done" means)
 
-1. Stage the engines (`scripts/stage-engines.sh`, above), then build with the payload
-   overlay: `tauri build --target x86_64-pc-windows-msvc --config
-   src-tauri/tauri.bundle.windows.conf.json` (or natively on Windows). Leaving the
-   `--config` off produces a bundle with no engines — the installer would then report every
-   family `MissingEngine`, which is why the acceptance run below is the gate, not the build.
+1. Stage the engines (`scripts/stage-engines.sh`, above), then build from the repo root with
+   the payload overlay: `tauri build --target x86_64-pc-windows-msvc --config
+   src-tauri/tauri.bundle.windows.conf.json` (or natively on Windows; the `--config` path is
+   resolved against the working directory, so from `src-tauri/` it is
+   `tauri.bundle.windows.conf.json`). Leaving the `--config` off produces a bundle with no
+   engines — the installer would then report every family `MissingEngine`, which is why the
+   acceptance run below is the gate, not the build.
 2. Install on a Windows 11 machine with **no developer tools** and no internet.
 3. Run `ez-convert.exe --diagnostics --fixtures <dir>` from the installed location. It
    resolves the engines the way the app does and converts one file per family (image,
