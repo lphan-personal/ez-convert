@@ -1,0 +1,34 @@
+
+=== 1/8 LibreOffice 26.8.2 (arm64)
+    download https://download.documentfoundation.org/libreoffice/stable/26.8.2/mac/aarch64/LibreOffice_26.8.2_MacOS_aarch64.dmg
+9f24fe83ab1ed5c95eb3df580119f32932f713e577feeac02bf619fb00749b55  /Users/runner/work/_temp/ezc-pack/downloads/LibreOffice_26.8.2_MacOS_aarch64.dmg
+    301M on disk
+unrecognised LibreOffice.app layout; Contents listing:
+/Users/runner/work/_temp/ezc-pack/lo-mnt/LibreOffice.app/Contents:
+total 160
+drwxr-xr-x    3 runner  staff    102 Oct 22 12:55 _CodeSignature
+drwxr-xr-x   10 runner  staff    340 Oct 22 12:55 .
+drwxr-xr-x    3 runner  staff    102 Oct 22 12:47 ..
+drwxr-xr-x  142 runner  staff   4828 Oct 22 12:55 Frameworks
+-rw-r--r--    1 runner  staff  76494 Oct 22 12:54 Info.plist
+drwxr-xr-x    3 runner  staff    102 Oct 22 12:47 Library
+drwxr-xr-x   13 runner  staff    442 Oct 22 12:55 MacOS
+-rw-r--r--    1 runner  staff      9 Oct 22 12:54 PkgInfo
+drwxr-xr-x    4 runner  staff    136 Oct 22 12:47 PlugIns
+drwxr-xr-x  126 runner  staff   4284 Oct 22 12:54 Resources
+
+/Users/runner/work/_temp/ezc-pack/lo-mnt/LibreOffice.app/Contents/MacOS:
+total 8312
+drwxr-xr-x  13 runner  staff      442 Oct 22 12:55 .
+drwxr-xr-x  10 runner  staff      340 Oct 22 12:55 ..
+-rwxr-xr-x   1 runner  staff   104304 Oct 22 12:55 gengal
+-rwxr-xr-x   1 runner  staff    55920 Oct 22 12:55 opencltest
+-rwxr-xr-x   1 runner  staff    55488 Oct 22 12:55 regview
+lrwxr-xr-x   1 runner  staff       20 Oct 22 12:55 senddoc -> ../Resources/senddoc
+-rwxr-xr-x   1 runner  staff    53136 Oct 22 12:55 soffice
+-rwxr-xr-x   1 runner  staff   135264 Oct 22 12:55 uno
+lrwxr-xr-x   1 runner  staff       20 Oct 22 12:55 unoinfo -> ../Resources/unoinfo
+-rwxr-xr-x   1 runner  staff    53168 Oct 22 12:55 unopkg
+lrwxr-xr-x   1 runner  staff       13 Oct 22 12:55 urelibs -> ../Frameworks
+-rwxr-xr-x   1 runner  staff    53312 Oct 22 12:55 uri-encode
+-rwxr-xr-x   1 runner  staff  3715488 Oct 22 12:55 xpdfimport

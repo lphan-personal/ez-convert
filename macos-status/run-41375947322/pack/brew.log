@@ -1,0 +1,334 @@
+[33mWarning:[0m pkgconf 3.0.10 is already installed and up-to-date.
+To reinstall 3.0.10, run:
+  brew reinstall pkgconf
+[32m==>[0m [1mDownloading bottle manifests[0m
+✔︎ Bottle Manifest libvpx (1.17.0)
+✔︎ Bottle Manifest aom (3.15.2)
+✔︎ Bottle Manifest opus (1.6.1)
+✔︎ Bottle Manifest libvorbis (1.3.7)
+✔︎ Bottle Manifest lame (4.0)
+✔︎ Bottle Manifest vips (8.18.7)
+[34m==>[0m [1mWould install 6 formulae:[0m
+libvpx     1.17.0
+aom        3.15.2
+opus       1.6.1
+libvorbis  1.3.7
+lame       4.0
+vips       8.18.7
+[34m==>[0m [1mWould install 1 dependency for aom:[0m
+libvmaf 3.2.1
+[34m==>[0m [1mWould install 1 dependency for libvorbis:[0m
+libogg 1.3.6
+[34m==>[0m [1mWould install 1 dependency for lame:[0m
+mpg123 1.33.7
+[34m==>[0m [1mWould install 45 dependencies for vips:[0m
+cfitsio        4.7.0
+cgif           0.5.4
+libomp         23.1.4
+fftw           3.3.11
+highway        1.4.0
+libvmaf        3.2.1
+aom            3.15.2
+libde265       1.1.3
+x265           4.3
+libheif        1.23.6
+m4             1.4.21
+libtool        2.6.2
+imagemagick    7.1.2-34
+imath          3.2.3
+libdeflate     1.26
+openjph        0.32.0
+openexr        3.5.2
+jpeg-xl        0.12.0_1
+libb2          0.98.1
+libarchive     3.8.10
+libexif        0.6.26
+libimagequant  4.4.1
+gcc            16.2.0
+libaec         1.1.7
+hdf5           2.2.0
+libmatio       1.6.0
+libraw         0.22.2
+gdk-pixbuf     2.44.8
+fribidi        1.0.17
+libdatrie      0.2.14
+libthai        0.1.30
+pango          1.58.2
+librsvg        2.63.4
+libultrahdr    2.0.2
+mozjpeg        4.1.5
+openjpeg       2.5.4_1
+uthash         2.4.0
+libdicom       1.3.0
+libxml2        2.15.4
+openslide      4.0.1
+gpgme          2.2.0
+gpgmepp        2.2.0
+nspr           4.40
+nss            3.132
+poppler        26.10.0
+[32m==>[0m [1mFetching downloads for: [32mlibvpx[39m, [32maom[39m, [32mopus[39m, [32mlibvorbis[39m, [32mlame[39m and [32mvips[39m[0m
+✔︎ Bottle Manifest libvmaf (3.2.1)
+✔︎ Bottle Manifest libogg (1.3.6)
+✔︎ Bottle lame (4.0)
+✔︎ Bottle aom (3.15.2)
+✔︎ Bottle libvpx (1.17.0)
+✔︎ Bottle libvorbis (1.3.7)
+✔︎ Bottle opus (1.6.1)
+✔︎ Bottle vips (8.18.7)
+✔︎ Bottle Manifest mpg123 (1.33.7)
+✔︎ Bottle Manifest cfitsio (4.7.0)
+✔︎ Bottle Manifest cgif (0.5.4)
+✔︎ Bottle libvmaf (3.2.1)
+✔︎ Bottle libogg (1.3.6)
+✔︎ Bottle Manifest fftw (3.3.11)
+✔︎ Bottle Manifest libomp (23.1.4)
+✔︎ Bottle Manifest highway (1.4.0)
+✔︎ Bottle Manifest libde265 (1.1.3)
+✔︎ Bottle Manifest x265 (4.3)
+✔︎ Bottle Manifest libheif (1.23.6)
+✔︎ Bottle Manifest m4 (1.4.21)
+✔︎ Bottle cgif (0.5.4)
+✔︎ Bottle mpg123 (1.33.7)
+✔︎ Bottle libomp (23.1.4)
+✔︎ Bottle fftw (3.3.11)
+✔︎ Bottle highway (1.4.0)
+✔︎ Bottle Manifest libtool (2.6.2)
+✔︎ Bottle Manifest imath (3.2.3)
+✔︎ Bottle Manifest imagemagick (7.1.2-34)
+✔︎ Bottle Manifest libdeflate (1.26)
+✔︎ Bottle cfitsio (4.7.0)
+✔︎ Bottle Manifest openjph (0.32.0)
+✔︎ Bottle libde265 (1.1.3)
+✔︎ Bottle libheif (1.23.6)
+✔︎ Bottle x265 (4.3)
+✔︎ Bottle Manifest openexr (3.5.2)
+✔︎ Bottle Manifest jpeg-xl (0.12.0_1)
+✔︎ Bottle m4 (1.4.21)
+✔︎ Bottle Manifest libb2 (0.98.1)
+✔︎ Bottle libtool (2.6.2)
+✔︎ Bottle imath (3.2.3)
+✔︎ Bottle Manifest libarchive (3.8.10)
+✔︎ Bottle Manifest libexif (0.6.26)
+✔︎ Bottle Manifest libimagequant (4.4.1)
+✔︎ Bottle Manifest gcc (16.2.0)
+✔︎ Bottle Manifest libaec (1.1.7)
+✔︎ Bottle imagemagick (7.1.2-34)
+✔︎ Bottle openjph (0.32.0)
+✔︎ Bottle libdeflate (1.26)
+✔︎ Bottle Manifest hdf5 (2.2.0)
+✔︎ Bottle Manifest libmatio (1.6.0)
+✔︎ Bottle openexr (3.5.2)
+✔︎ Bottle Manifest libraw (0.22.2)
+✔︎ Bottle jpeg-xl (0.12.0_1)
+✔︎ Bottle libb2 (0.98.1)
+✔︎ Bottle libexif (0.6.26)
+✔︎ Bottle Manifest gdk-pixbuf (2.44.8)
+✔︎ Bottle Manifest fribidi (1.0.17)
+✔︎ Bottle Manifest libdatrie (0.2.14)
+✔︎ Bottle libarchive (3.8.10)
+✔︎ Bottle Manifest libthai (0.1.30)
+✔︎ Bottle libimagequant (4.4.1)
+✔︎ Bottle libaec (1.1.7)
+✔︎ Bottle Manifest pango (1.58.2)
+✔︎ Bottle libmatio (1.6.0)
+✔︎ Bottle Manifest librsvg (2.63.4)
+✔︎ Bottle Manifest libultrahdr (2.0.2)
+✔︎ Bottle hdf5 (2.2.0)
+✔︎ Bottle Manifest mozjpeg (4.1.5)
+✔︎ Bottle gdk-pixbuf (2.44.8)
+✔︎ Bottle libraw (0.22.2)
+✔︎ Bottle Manifest openjpeg (2.5.4_1)
+✔︎ Bottle Manifest uthash (2.4.0)
+✔︎ Bottle fribidi (1.0.17)
+✔︎ Bottle Manifest libdicom (1.3.0)
+✔︎ Bottle libthai (0.1.30)
+✔︎ Bottle pango (1.58.2)
+✔︎ Bottle Manifest libxml2 (2.15.4)
+✔︎ Bottle libdatrie (0.2.14)
+✔︎ Bottle Manifest openslide (4.0.1)
+✔︎ Bottle librsvg (2.63.4)
+✔︎ Bottle Manifest gpgme (2.2.0)
+✔︎ Bottle Manifest gpgmepp (2.2.0)
+✔︎ Bottle libultrahdr (2.0.2)
+✔︎ Bottle Manifest nspr (4.40)
+✔︎ Bottle mozjpeg (4.1.5)
+✔︎ Bottle openjpeg (2.5.4_1)
+✔︎ Bottle Manifest nss (3.132)
+✔︎ Bottle gcc (16.2.0)
+✔︎ Bottle Manifest poppler (26.10.0)
+✔︎ Bottle uthash (2.4.0)
+✔︎ Bottle libdicom (1.3.0)
+✔︎ Bottle openslide (4.0.1)
+✔︎ Bottle gpgme (2.2.0)
+✔︎ Bottle libxml2 (2.15.4)
+✔︎ Bottle gpgmepp (2.2.0)
+✔︎ Bottle nspr (4.40)
+✔︎ Bottle nss (3.132)
+✔︎ Bottle poppler (26.10.0)
+[34m==>[0m [1mPouring libvpx--1.17.0.arm64_tahoe.bottle.1.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libvpx/1.17.0: 22 files, 4.4MB
+[32m==>[0m [1mInstalling aom dependency: [32mlibvmaf[39m (3.2.1)[0m
+[34m==>[0m [1mPouring libvmaf--3.2.1.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libvmaf/3.2.1: 243 files, 8.2MB
+[32m==>[0m [1mInstalling [32maom[39m[0m
+[34m==>[0m [1mPouring aom--3.15.2.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/aom/3.15.2: 30 files, 11.3MB
+[34m==>[0m [1mPouring opus--1.6.1.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/opus/1.6.1: 16 files, 1.1MB
+[32m==>[0m [1mInstalling libvorbis dependency: [32mlibogg[39m (1.3.6)[0m
+[34m==>[0m [1mPouring libogg--1.3.6.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libogg/1.3.6: 103 files, 532KB
+[32m==>[0m [1mInstalling [32mlibvorbis[39m[0m
+[34m==>[0m [1mPouring libvorbis--1.3.7.arm64_tahoe.bottle.1.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libvorbis/1.3.7: 158 files, 2.4MB
+[32m==>[0m [1mInstalling lame dependency: [32mmpg123[39m (1.33.7)[0m
+[34m==>[0m [1mPouring mpg123--1.33.7.arm64_tahoe.bottle.1.tar.gz[0m
+🍺  /opt/homebrew/Cellar/mpg123/1.33.7: 34 files, 1.9MB
+[32m==>[0m [1mInstalling [32mlame[39m[0m
+[34m==>[0m [1mPouring lame--4.0.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/lame/4.0: 29 files, 1.9MB
+[32m==>[0m [1mInstalling dependencies for vips:[0m [32mcfitsio[39m, [32mcgif[39m, [32mlibomp[39m, [32mfftw[39m, [32mhighway[39m, [32mlibde265[39m, [32mx265[39m, [32mlibheif[39m, [32mm4[39m, [32mlibtool[39m, [32mimagemagick[39m, [32mimath[39m, [32mlibdeflate[39m, [32mopenjph[39m, [32mopenexr[39m, [32mjpeg-xl[39m, [32mlibb2[39m, [32mlibarchive[39m, [32mlibexif[39m, [32mlibimagequant[39m, [32mgcc[39m, [32mlibaec[39m, [32mhdf5[39m, [32mlibmatio[39m, [32mlibraw[39m, [32mgdk-pixbuf[39m, [32mfribidi[39m, [32mlibdatrie[39m, [32mlibthai[39m, [32mpango[39m, [32mlibrsvg[39m, [32mlibultrahdr[39m, [32mmozjpeg[39m, [32mopenjpeg[39m, [32muthash[39m, [32mlibdicom[39m, [32mlibxml2[39m, [32mopenslide[39m, [32mgpgme[39m, [32mgpgmepp[39m, [32mnspr[39m, [32mnss[39m and [32mpoppler[39m[0m
+[32m==>[0m [1mInstalling vips dependency: [32mcfitsio[39m (4.7.0)[0m
+[34m==>[0m [1mPouring cfitsio--4.7.0.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/cfitsio/4.7.0: 28 files, 2.3MB
+[32m==>[0m [1mInstalling vips dependency: [32mcgif[39m (0.5.4)[0m
+[34m==>[0m [1mPouring cgif--0.5.4.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/cgif/0.5.4: 10 files, 52.5KB
+[32m==>[0m [1mInstalling vips dependency: [32mlibomp[39m (23.1.4)[0m
+[34m==>[0m [1mPouring libomp--23.1.4.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libomp/23.1.4: 11 files, 1.8MB
+[32m==>[0m [1mInstalling vips dependency: [32mfftw[39m (3.3.11)[0m
+[34m==>[0m [1mPouring fftw--3.3.11.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/fftw/3.3.11: 74 files, 8.8MB
+[32m==>[0m [1mInstalling vips dependency: [32mhighway[39m (1.4.0)[0m
+[34m==>[0m [1mPouring highway--1.4.0.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/highway/1.4.0: 87 files, 5.7MB
+[32m==>[0m [1mInstalling vips dependency: [32mlibde265[39m (1.1.3)[0m
+[34m==>[0m [1mPouring libde265--1.1.3.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libde265/1.1.3: 18 files, 435.2KB
+[32m==>[0m [1mInstalling vips dependency: [32mx265[39m (4.3)[0m
+[34m==>[0m [1mPouring x265--4.3.arm64_tahoe.bottle.1.tar.gz[0m
+🍺  /opt/homebrew/Cellar/x265/4.3: 12 files, 17.3MB
+[32m==>[0m [1mInstalling vips dependency: [32mlibheif[39m (1.23.6)[0m
+[34m==>[0m [1mPouring libheif--1.23.6.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libheif/1.23.6: 53 files, 8.8MB
+[32m==>[0m [1mInstalling vips dependency: [32mm4[39m (1.4.21)[0m
+[34m==>[0m [1mPouring m4--1.4.21.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/m4/1.4.21: 14 files, 815.7KB
+[32m==>[0m [1mInstalling vips dependency: [32mlibtool[39m (2.6.2)[0m
+[34m==>[0m [1mPouring libtool--2.6.2.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libtool/2.6.2: 78 files, 4.2MB
+[32m==>[0m [1mInstalling vips dependency: [32mimagemagick[39m (7.1.2-34)[0m
+[34m==>[0m [1mPouring imagemagick--7.1.2-34.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/imagemagick/7.1.2-34: 680 files, 28.2MB
+[32m==>[0m [1mInstalling vips dependency: [32mimath[39m (3.2.3)[0m
+[34m==>[0m [1mPouring imath--3.2.3.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/imath/3.2.3: 50 files, 977.2KB
+[32m==>[0m [1mInstalling vips dependency: [32mlibdeflate[39m (1.26)[0m
+[34m==>[0m [1mPouring libdeflate--1.26.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libdeflate/1.26: 17 files, 303.2KB
+[32m==>[0m [1mInstalling vips dependency: [32mopenjph[39m (0.32.0)[0m
+[34m==>[0m [1mPouring openjph--0.32.0.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/openjph/0.32.0: 25 files, 629.8KB
+[32m==>[0m [1mInstalling vips dependency: [32mopenexr[39m (3.5.2)[0m
+[34m==>[0m [1mPouring openexr--3.5.2.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/openexr/3.5.2: 214 files, 4.6MB
+[32m==>[0m [1mInstalling vips dependency: [32mjpeg-xl[39m (0.12.0_1)[0m
+[34m==>[0m [1mPouring jpeg-xl--0.12.0_1.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/jpeg-xl/0.12.0_1: 65 files, 36.4MB
+[32m==>[0m [1mInstalling vips dependency: [32mlibb2[39m (0.98.1)[0m
+[34m==>[0m [1mPouring libb2--0.98.1.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libb2/0.98.1: 9 files, 112.8KB
+[32m==>[0m [1mInstalling vips dependency: [32mlibarchive[39m (3.8.10)[0m
+[34m==>[0m [1mPouring libarchive--3.8.10.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libarchive/3.8.10: 65 files, 4.1MB
+[32m==>[0m [1mInstalling vips dependency: [32mlibexif[39m (0.6.26)[0m
+[34m==>[0m [1mPouring libexif--0.6.26.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libexif/0.6.26: 63 files, 3.8MB
+[32m==>[0m [1mInstalling vips dependency: [32mlibimagequant[39m (4.4.1)[0m
+[34m==>[0m [1mPouring libimagequant--4.4.1.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libimagequant/4.4.1: 12 files, 9.9MB
+[32m==>[0m [1mInstalling vips dependency: [32mgcc[39m (16.2.0)[0m
+[34m==>[0m [1mPouring gcc--16.2.0.arm64_tahoe.bottle.1.tar.gz[0m
+🍺  /opt/homebrew/Cellar/gcc/16.2.0: 1,705 files, 500.6MB
+[32m==>[0m [1mInstalling vips dependency: [32mlibaec[39m (1.1.7)[0m
+[34m==>[0m [1mPouring libaec--1.1.7.arm64_tahoe.bottle.1.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libaec/1.1.7: 23 files, 222.4KB
+[32m==>[0m [1mInstalling vips dependency: [32mhdf5[39m (2.2.0)[0m
+[34m==>[0m [1mPouring hdf5--2.2.0.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/hdf5/2.2.0: 272 files, 23.2MB
+[32m==>[0m [1mInstalling vips dependency: [32mlibmatio[39m (1.6.0)[0m
+[34m==>[0m [1mPouring libmatio--1.6.0.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libmatio/1.6.0: 72 files, 941.8KB
+[32m==>[0m [1mInstalling vips dependency: [32mlibraw[39m (0.22.2)[0m
+[34m==>[0m [1mPouring libraw--0.22.2.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libraw/0.22.2: 74 files, 6.2MB
+[32m==>[0m [1mInstalling vips dependency: [32mgdk-pixbuf[39m (2.44.8)[0m
+[34m==>[0m [1mPouring gdk-pixbuf--2.44.8.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/gdk-pixbuf/2.44.8: 152 files, 4MB
+[32m==>[0m [1mInstalling vips dependency: [32mfribidi[39m (1.0.17)[0m
+[34m==>[0m [1mPouring fribidi--1.0.17.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/fribidi/1.0.17: 69 files, 753.5KB
+[32m==>[0m [1mInstalling vips dependency: [32mlibdatrie[39m (0.2.14)[0m
+[34m==>[0m [1mPouring libdatrie--0.2.14.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libdatrie/0.2.14: 20 files, 276.1KB
+[32m==>[0m [1mInstalling vips dependency: [32mlibthai[39m (0.1.30)[0m
+[34m==>[0m [1mPouring libthai--0.1.30.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libthai/0.1.30: 30 files, 955KB
+[32m==>[0m [1mInstalling vips dependency: [32mpango[39m (1.58.2)[0m
+[34m==>[0m [1mPouring pango--1.58.2.arm64_tahoe.bottle.1.tar.gz[0m
+🍺  /opt/homebrew/Cellar/pango/1.58.2: 69 files, 3.7MB
+[32m==>[0m [1mInstalling vips dependency: [32mlibrsvg[39m (2.63.4)[0m
+[34m==>[0m [1mPouring librsvg--2.63.4.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/librsvg/2.63.4: 21 files, 13.3MB
+[32m==>[0m [1mInstalling vips dependency: [32mlibultrahdr[39m (2.0.2)[0m
+[34m==>[0m [1mPouring libultrahdr--2.0.2.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libultrahdr/2.0.2: 14 files, 2.3MB
+[32m==>[0m [1mInstalling vips dependency: [32mmozjpeg[39m (4.1.5)[0m
+[34m==>[0m [1mPouring mozjpeg--4.1.5.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/mozjpeg/4.1.5: 45 files, 2.9MB
+[32m==>[0m [1mInstalling vips dependency: [32mopenjpeg[39m (2.5.4_1)[0m
+[34m==>[0m [1mPouring openjpeg--2.5.4_1.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/openjpeg/2.5.4_1: 518 files, 14.9MB
+[32m==>[0m [1mInstalling vips dependency: [32muthash[39m (2.4.0)[0m
+[34m==>[0m [1mPouring uthash--2.4.0.all.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/uthash/2.4.0: 11 files, 206.9KB
+[32m==>[0m [1mInstalling vips dependency: [32mlibdicom[39m (1.3.0)[0m
+[34m==>[0m [1mPouring libdicom--1.3.0.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libdicom/1.3.0: 15 files, 660.7KB
+[32m==>[0m [1mInstalling vips dependency: [32mlibxml2[39m (2.15.4)[0m
+[34m==>[0m [1mPouring libxml2--2.15.4.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libxml2/2.15.4: 59 files, 1.8MB
+[32m==>[0m [1mInstalling vips dependency: [32mopenslide[39m (4.0.1)[0m
+[34m==>[0m [1mPouring openslide--4.0.1.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/openslide/4.0.1: 19 files, 418.7KB
+[32m==>[0m [1mInstalling vips dependency: [32mgpgme[39m (2.2.0)[0m
+[34m==>[0m [1mPouring gpgme--2.2.0.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/gpgme/2.2.0: 29 files, 2.7MB
+[32m==>[0m [1mInstalling vips dependency: [32mgpgmepp[39m (2.2.0)[0m
+[34m==>[0m [1mPouring gpgmepp--2.2.0.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/gpgmepp/2.2.0: 73 files, 850.8KB
+[32m==>[0m [1mInstalling vips dependency: [32mnspr[39m (4.40)[0m
+[34m==>[0m [1mPouring nspr--4.40.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/nspr/4.40: 79 files, 1.2MB
+[32m==>[0m [1mInstalling vips dependency: [32mnss[39m (3.132)[0m
+[34m==>[0m [1mPouring nss--3.132.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/nss/3.132: 210 files, 19.1MB
+[32m==>[0m [1mInstalling vips dependency: [32mpoppler[39m (26.10.0)[0m
+[34m==>[0m [1mPouring poppler--26.10.0.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/poppler/26.10.0: 447 files, 34.5MB
+[32m==>[0m [1mInstalling [32mvips[39m[0m
+[34m==>[0m [1mPouring vips--8.18.7.arm64_tahoe.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/vips/8.18.7: 83 files, 6.4MB
+aom 3.15.2
+lame 4.0
+libvorbis 1.3.7
+libvpx 1.17.0
+opus 1.6.1
+pkgconf 3.0.10
+vips 8.18.7
+1.17.0
+3.15.2
+1.6.1
+1.3.7
