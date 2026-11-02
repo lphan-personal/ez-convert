@@ -4,10 +4,12 @@ Card: `t_466cc032`. Date: 2026-11-02. Build host: Debian 13 container (cross-com
 `cargo-xwin` + LLVM 18) → the installer is bundled on the `win11-dev` VM.
 Test host: `win11-dev`, Windows 11 Pro 10.0.26200, **no developer tools installed**.
 
-Verdict: **config, staging, engine paths and the sidecar-signing question are DONE and
-measured. The installer itself was NOT produced in this run** — the bundler's NSIS
-toolchain could not be provisioned on the VM (see §4). The acceptance run in §5 therefore
-did not happen, and the card is handed back blocked on that single step.
+Verdict: **DONE and measured.** The installer was produced, installed silently on a clean
+Windows 11 VM and converted one file per family offline — see §5. The NSIS provisioning
+blocker recorded in §4 is resolved and kept below as history.
+
+**Result:** `EZ Convert_0.0.1_x64-setup.exe`, 512,304,426 B (488.57 MiB),
+sha256 `5432C8AEFF26B7AF81B3CF3389ABED010E8438EDB2B1CB32D05AFFD9635C7BFF`.
 
 ## 1. Bundle configuration (done)
 
@@ -104,11 +106,49 @@ check: the bundle also wants `Plugins/x86-unicode/additional/nsis_tauri_utils.dl
 (downloaded separately from `tauri-apps/nsis-tauri-utils` releases), which could not be
 fetched from the VM in the remaining time.
 
-## 5. Acceptance run — not executed
+## 5. Acceptance run — executed (clean Windows 11 VM, offline)
 
-`ez-convert.exe --diagnostics --fixtures C:\p2 --work C:\p2\work` was prepared (the four
-fixtures `sample.png/.wav/.mp4/.docx` are on the VM) but needs an installed build. Nothing
-is claimed here that was not run.
+Full log: `evidence/p2-acceptance-clean-win11.txt`.
+
+The VM's portable dev toolchain was moved out of the way (`C:\p2` → `p2_offdev`,
+`C:\ezc` → `ezc_offdev`) and `where.exe` then returned *absent* for cargo, rustc, node,
+npm, cl, link, makensis, windres, lld-link, python, gcc and git; no Visual Studio
+directory exists. IPv4 gateway `10.0.0.1` was unreachable, so both the install and the
+conversions ran with no network. (`C:\msys64` and `C:\build` could not be renamed — they
+are locked and on no PATH; stated for precision.)
+
+Installer `/S`: exit 0 in 112 s, no UAC prompt, payload in
+`C:\Users\ryo\AppData\Local\EZ Convert` — `ez-convert.exe` 4,702,720 B, `ffmpeg.exe`
+136,180,736 B and `ffprobe.exe` 135,966,208 B as externalBin siblings, `engines/vips`
+(43 files) and `engines/soffice` (stripped pack), `licenses/`, seven VC-runtime DLLs and
+`uninstall.exe`.
+
+`ez-convert.exe --diagnostics --fixtures C:\anchor\fixtures --work C:\anchor\work2`:
+
+```
+engine vips found …\engines\vips\vips.exe
+engine vipsheader found …\engines\vips\vipsheader.exe
+engine ffmpeg found …\ffmpeg.exe
+engine ffprobe found …\ffprobe.exe
+engine soffice found …\engines\soffice\program\soffice.com
+FAMILY image PASS 2781 113086 …\work2\diag-image.jpg
+FAMILY audio PASS 8579 51729 …\work2\diag-audio.mp3
+FAMILY video PASS 2206 282 …\work2\diag-video.webm
+FAMILY document PASS 46489 8296 …\work2\diag-document.pdf
+SUMMARY families=4 pass=4 fail=0            (198 s, cold cache)
+```
+
+A second run on the warm cache is 4/4 in 3 s.
+
+**Defect the run caught (fixed, `31e3a1f`):** `EnginePaths::from_root` routed every
+program through `exe()`, which appends `.exe` on Windows, so the LibreOffice console
+launcher resolved as `soffice.com.exe`. Installer v1 therefore reported the document
+family `MissingEngine`; v2, rebuilt with `soffice_dir.join("soffice.com")`, passes.
+
+**Flagged, not fixed:** the *cold* image conversion took 113 s against the 120 s engine
+timeout (manual `vips copy` cold = 72 s, warm = 0 s — Defender scanning the freshly
+unpacked vips tree). It passes, but the margin is ~6 % and a slower disk would fail the
+first image conversion after install.
 
 ## 6. Engine path resolution at runtime (code, unit-level)
 
@@ -120,8 +160,14 @@ families as `MissingEngine`.
 
 ## 7. Gaps
 
-- The NSIS installer was not built; §4 is the exact failure and the fix is network access
-  to GitHub release assets from the build host (or pre-placing `nsis_tauri_utils.dll`).
+- The installer ships **unsigned**: the externalBin signing *path* is proven (§3), but no
+  code-signing certificate was used, so a release build must attach a real identity.
+- The installer now carries seven Microsoft VC-runtime DLLs (v14.44.35211). They have no
+  `docs/shipped-inventory.tsv` row and no `THIRD-PARTY-NOTICES.md` entry yet — required
+  before release (policy R6), recorded here rather than assumed.
+- `scripts/dist-license-gate.sh --scan` over the soffice pack still reports one failure:
+  `program/python-core-*/lib/libffi-8.dll` resolves the bare `libffi-8.dll` row from the
+  vips dist first; `match_row` must prefer the more specific pattern.
 - `pdfium` is not staged: the first-party `ezc-pdf` sidecar (`ARCHITECTURE.md` §17.2) does
   not exist yet, so there is no binary to package and the PDF routes stay unshipped. The
   staging script accepts `--pdfium` and the gate will reject it until its inventory row
