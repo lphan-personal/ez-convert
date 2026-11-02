@@ -371,7 +371,16 @@ else
       --enable-libvpx --enable-libaom --enable-libopus --enable-libvorbis --enable-libmp3lame \
       --enable-videotoolbox --enable-audiotoolbox \
       >"$WORK/downloads/ffmpeg-configure.log" 2>&1 ) || {
-      tail -40 "$WORK/downloads/ffmpeg-configure.log" >&2; exit 1; }
+      tail -40 "$WORK/downloads/ffmpeg-configure.log" >&2
+      # configure's last 40 lines name the failed check but not why it failed;
+      # config.log has the compiler/pkg-config probe. Print it in the same run —
+      # a macOS run is ~47 billed minutes, so "run it again to learn more" is not
+      # an acceptable diagnostic loop (run 41379802059 needed exactly this).
+      if [ -f "$WORK/downloads/ffmpeg-src/ffbuild/config.log" ]; then
+        echo "--- ffbuild/config.log around the failing probe ---" >&2
+        grep -n -i -B3 -A25 -E 'libmp3lame|lame >=|ERROR' "$WORK/downloads/ffmpeg-src/ffbuild/config.log" | tail -80 >&2 || true
+      fi
+      exit 1; }
   note "build (this is the long step)"
   ( cd "$WORK/downloads/ffmpeg-src" && make -j"$(sysctl -n hw.ncpu)" ffmpeg ffprobe \
       >"$WORK/downloads/ffmpeg-build.log" 2>&1 && make install >>"$WORK/downloads/ffmpeg-build.log" 2>&1 ) || {
