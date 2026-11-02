@@ -107,21 +107,19 @@ Two defects were found by those runs and fixed before this release:
 ## Known issues in this build
 
 1. Unsigned builds — Gatekeeper / SmartScreen friction as described above.
-2. **The macOS wheel overlay is unmeasured** — hotkey, focus-free placement, click-through
-   and dismiss rules are measured on Windows 11 only.
-3. **Smart grab does nothing**: the toggle and its consent behaviour exist; the selection
+2. **Smart grab does nothing**: the toggle and its consent behaviour exist; the selection
    reader is not implemented.
-4. **No resize, trim, bitrate, quality or codec controls** — encoder settings are fixed.
-5. **Multi-sheet workbooks → csv/txt** are not fully wired: the engine writes one file per
+3. **No resize, trim, bitrate, quality or codec controls** — encoder settings are fixed.
+4. **Multi-sheet workbooks → csv/txt** are not fully wired: the engine writes one file per
    sheet (`<stem>-<sheet>.csv`), the app's publish step records one output per input
    (`evidence/c4-output-rules.md` §5).
-6. **Recognised but not convertible:** bmp, svg, pdf as input, txt. **Not offered as
+5. **Recognised but not convertible:** bmp, svg, pdf as input, txt. **Not offered as
    outputs:** HEIC, SVG, PDF, legacy Office formats.
-7. **GIF input is first-frame only**; GIF-to-GIF animation re-encoding is not offered.
-8. **Cold-start image conversion is 113 s against a 120 s engine timeout** on a fresh
+6. **GIF input is first-frame only**; GIF-to-GIF animation re-encoding is not offered.
+7. **Cold-start image conversion is 113 s against a 120 s engine timeout** on a fresh
    Defender-scanned install. Warm conversions are fast; a slower disk could time out the
    first one.
-9. **No auto-update** — upgrade by reinstalling.
+8. **No auto-update** — upgrade by reinstalling.
 
 Engineering follow-ups open at release: the Microsoft VC++ runtime inventory and notice rows
 for the DLLs the Windows installer now carries, the `ezc-pdf` sidecar (PDF as an image input
